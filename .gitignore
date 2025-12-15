@@ -1,0 +1,5 @@
+maya1-fastapi/
+venv/
+.DS_Store
+.env
+*.wav
