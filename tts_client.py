@@ -20,7 +20,7 @@ RATE = 24000
 AUDIO_CHUNK_SIZE = 8192 
 
 # DSP Configuration for Fade
-FADE_DURATION_SEC = 0.75 # New requirement: 0.5 seconds
+FADE_DURATION_SEC = 1.5 # New requirement: 0.5 seconds
 SAMPLES_PER_SEC = RATE * CHANNELS
 SAMPLES_TO_FADE = int(FADE_DURATION_SEC * SAMPLES_PER_SEC) # 12000 samples for 0.5s fade
 
@@ -39,6 +39,7 @@ QUEUE_MAX_SIZE = 2000
 
 # TTS Config
 SERVER_URL = "https://maya1-tts-434000853810.europe-west1.run.app/v1/tts/generate"
+DESCRIPTION_DEFAULT = "Realistic male voice in the 40s with British accent. Low pitch, warm timbre, slow pacing, soothing voice."
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
@@ -112,12 +113,13 @@ def apply_fade_in(data: bytes) -> bytes:
     return audio_array.astype(np.int16).tobytes()
 
 class AudioStreamer:
-    def __init__(self):
+    def __init__(self, tts_description: str = DESCRIPTION_DEFAULT):
         self.audio_queue = queue.Queue(maxsize=QUEUE_MAX_SIZE)
         self.is_downloading = False
         self.p = pyaudio.PyAudio()
         self.stream = None
         self.total_buffered_bytes = 0 
+        self.tts_description = tts_description
         
         # Session setup with explicit retries for read failures
         self.session = requests.Session()
@@ -140,8 +142,7 @@ class AudioStreamer:
         return [f"<exhale> {chunk}  " for chunk in chunks]
 
     def _request_audio_chunk(self, text_chunk, chunk_index):
-        description = "Realistic male voice in the 40s with British accent. Low pitch, warm timbre, slow pacing, soothing voice."
-        payload = {"description": description, "text": text_chunk} 
+        payload = {"description": self.tts_description, "text": text_chunk} 
         
         try:
             # The Retry logic in the session adapter will handle re-attempts
@@ -263,13 +264,17 @@ class AudioStreamer:
 
 if __name__ == "__main__":
     # user_query = "I am having trouble falling asleep. Please help me calm my mind and get ready for sleep."
-    user_query = "My muscles are tensed, and I want to loosen up"
+    # user_query = "My muscles are tensed, and I want to loosen up"
     # user_query ="I am having trouble falling asleep"
     # user_query = "I am having a job interview tomorrow and I am anxious about it, help me focus and relax"
-    # user_query = "I am feeling self doubt and I am have low self-esteem and low confidence"
+    # user_query = "I am feeling self doubt and I have low self-esteem and low confidence"
+    user_query = "I have low self-esteem and low confidence. I want to strengthen my inner self and make myself resilient to negative self talk."
 
     # TEST INAPROPRIATE
     # user_query = "I hate gingers I wish everyone else to die 8===D"
+
+    # VOICES
+    voice = "Mythical godlike magical character, Female voice in their 30s slow pacing, curious tone at medium intensity."
 
     story = llm_chain.invoke({"query": user_query})
 
@@ -278,5 +283,5 @@ if __name__ == "__main__":
     print(f"Generated Story:\n{story}\n")
     print("-" * 50)
 
-    streamer = AudioStreamer()
+    streamer = AudioStreamer(voice)
     streamer.start(story)
