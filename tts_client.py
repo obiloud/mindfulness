@@ -7,10 +7,13 @@ import logging
 import concurrent.futures
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
+import re
 
 # WORKING WITH GENERATED TEXT
 from story_generator_pipeline import llm_chain
 from langchain_text_splitters import RecursiveCharacterTextSplitter
+
+import json
 
 # PyAudio Config
 FORMAT = pyaudio.paInt16
@@ -58,9 +61,46 @@ class AudioStreamer:
         adapter = HTTPAdapter(max_retries=retries, pool_connections=CONCURRENT_REQUESTS, pool_maxsize=CONCURRENT_REQUESTS)
         self.session.mount('https://', adapter)
 
+    def smart_chunk_text(self, text):
+        raw_sentences = re.split(r"(?<!\.)\.(?!\.)\s*", text)
+        current_chunk = []
+        current_length = 0
+        for sentence in raw_sentences:
+            cleaned = sentence.strip()
+            if not cleaned: continue
+
+            start_tag = re.search(r'^<[^<>]+>', cleaned)
+            end_tag = re.search(r'<[^<>]+>$', cleaned)
+            
+            if current_length + len(cleaned) > MAX_TEXT_CHUNK_LENGTH and current_chunk:
+                if start_tag and end_tag:
+                    yield " ".join(current_chunk)
+                elif start_tag:
+                    yield f"{" ".join(current_chunk)} <sigh>"
+                elif end_tag:
+                    yield f"<sigh> {" ".join(current_chunk)}"
+                else:
+                    yield f"<sigh> {" ".join(current_chunk)} <sigh>"
+                current_chunk = []
+                current_length = 0
+            current_chunk.append(cleaned)
+            current_length += len(cleaned)
+            if current_length >= MIN_TEXT_CHUNK_LENGTH:
+                if start_tag and end_tag:
+                    yield " ".join(current_chunk)
+                elif start_tag:
+                    yield f"{" ".join(current_chunk)} <sigh>"
+                elif end_tag:
+                    yield f"<sigh> {" ".join(current_chunk)}"
+                else:
+                    yield f"<sigh> {" ".join(current_chunk)} <sigh>"
+                current_chunk = []
+                current_length = 0
+        if current_chunk:
+            yield f"<sigh> {" ".join(current_chunk)} <sigh>"
 
     def _request_audio_chunk(self, text_chunk, chunk_index):
-        description = "Realistic male voice in the 40s with british accent. Low pitch, warm timbre, slow pacing, soothing voice. Makes often short pauses or starts with the pause."
+        description = "Realistic male voice in the 40s with British accent. Low pitch, warm timbre, slow pacing, soothing voice."
         payload = {"description": description, "text": text_chunk} 
         
         try:
@@ -96,6 +136,7 @@ class AudioStreamer:
                 
                 if audio_bytes:
                     for j in range(0, len(audio_bytes), AUDIO_CHUNK_SIZE):
+                        # print(f"length of chunks and audio_bytes: {AUDIO_CHUNK_SIZE} - {len(audio_bytes)}")
                         chunk = audio_bytes[j:j + AUDIO_CHUNK_SIZE]
                         self.audio_queue.put(chunk)
                         self.total_buffered_bytes += len(chunk)
@@ -160,13 +201,9 @@ class AudioStreamer:
         self.p.terminate()
 
     def start(self, text):
-        text_splitter = RecursiveCharacterTextSplitter(
-            chunk_size=MAX_TEXT_CHUNK_LENGTH + 4,
-            chunk_overlap=0
-        )
-        text_chunks = text_splitter.split_text(text)
+        text_chunks = list(self.smart_chunk_text(text))
 
-        print(text_chunks[0])
+        print(f"CHUNKS:\n{json.dumps(text_chunks, indent=2)}\n")
 
         logger.info(f"[System] Parallel Pipeline: {len(text_chunks)} chunks, {CONCURRENT_REQUESTS} threads.")
         
@@ -180,13 +217,13 @@ if __name__ == "__main__":
     # user_query = "I am having trouble falling asleep. Please help me calm my mind and get ready for sleep."
     # user_query = "My muscles are tensed, and I want to loosen up"
     # user_query ="I am having trouble falling asleep"
-    # user_query = "I am having a job interview tomorrow and I am anxious about it, help me focus and relax"
+    user_query = "I am having a job interview tomorrow and I am anxious about it, help me focus and relax"
 
     # TEST INAPROPRIATE
-    user_query = "I hate gingers I wish everyone else to die 8===D"
+    # user_query = "I hate gingers I wish everyone else to die 8===D"
 
     story = llm_chain.invoke({"query": user_query})
-    
+
     print(f"Generated Story:\n{story}\n")
     print("-" * 50)
 
