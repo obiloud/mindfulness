@@ -40,9 +40,10 @@ voice_character_template = """**You are an experienced radio director**
 	* Tone: Should the tone be soothing, uplifting, or challenging?
 	* Intensity: Should the intensity of the voice match the user's emotional state (e.g., anxious, relaxed)?
     * Pitch: High, Medium, Low
-    * Pace: A voice must be spoken at an appropriate pace to guide a listener to a meditative state.
+    * Pace: A voice must be spoken at an appropriate pace to guide a listener to a meditative state. 
 3. **Choose a voice that complements the query:** Select a voice character that would resonate with the user and help them achieve their desired outcome.
 4. **Avoid jarring or conflicting voices:** Refrain from selecting a voice that might be distracting or counterproductive to the user's needs.
+5. **Remember the role of a character:** The voice is ultimately a meditation guide, generally needs to calm, comfort, and soothe a listener.
 
 Examples:
  - Realistic male voice in the 40s with British accent. Low pitch, warm whispery timbre, slow pacing, soothing voice.
@@ -54,9 +55,7 @@ Do not limit your choice to these examples, try to be creative.
 RESPONSE FORMAT: Return ONLY a single line voice character description, no examples, no extra justifications.
 
 Select a suitable voice character for a meditation guide narrator based on the following query:
-
 {query}
-
 **Output:**
 """
 
@@ -85,5 +84,5 @@ if __name__ == "__main__":
 
     character = voice_character_chain.invoke({"query": user_query})
 
-    print(f"Generated character:\n{character}\n\n")
+    print(f"Generated character:\n{character}")
 
