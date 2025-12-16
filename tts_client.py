@@ -93,36 +93,19 @@ class AudioStreamer:
         for sentence in raw_sentences:
             cleaned = sentence.strip()
             if not cleaned: continue
-
-            start_tag = re.search(r'^<[^<>]+>', cleaned)
-            end_tag = re.search(r'<[^<>]+>$', cleaned)
             
             if current_length + len(cleaned) > MAX_TEXT_CHUNK_LENGTH and current_chunk:
-                if start_tag and end_tag:
-                    yield " ".join(current_chunk)
-                elif start_tag:
-                    yield f"{" ".join(current_chunk)} <sigh>"
-                elif end_tag:
-                    yield f"<sigh> {" ".join(current_chunk)}"
-                else:
-                    yield f"<sigh> {" ".join(current_chunk)} <sigh>"
+                yield f"<exhale> {" ".join(current_chunk)} - "
                 current_chunk = []
                 current_length = 0
             current_chunk.append(cleaned)
             current_length += len(cleaned)
             if current_length >= MIN_TEXT_CHUNK_LENGTH:
-                if start_tag and end_tag:
-                    yield " ".join(current_chunk)
-                elif start_tag:
-                    yield f"{" ".join(current_chunk)} <sigh>"
-                elif end_tag:
-                    yield f"<sigh> {" ".join(current_chunk)}"
-                else:
-                    yield f"<sigh> {" ".join(current_chunk)} <sigh>"
+                yield f"<exhale> {" ".join(current_chunk)} - "
                 current_chunk = []
                 current_length = 0
         if current_chunk:
-            yield f"<sigh> {" ".join(current_chunk)} <sigh>"
+            yield f"<exhale> {" ".join(current_chunk)}  - "
 
     def _request_audio_chunk(self, text_chunk, chunk_index):
         description = "Realistic male voice in the 40s with British accent. Low pitch, warm timbre, slow pacing, soothing voice."
