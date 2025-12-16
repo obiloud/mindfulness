@@ -161,8 +161,8 @@ class AudioStreamer:
 
     def start(self, text):
         text_splitter = RecursiveCharacterTextSplitter(
-            chunk_size=MAX_TEXT_CHUNK_LENGTH,
-            chunk_overlap=4
+            chunk_size=MAX_TEXT_CHUNK_LENGTH + 4,
+            chunk_overlap=0
         )
         text_chunks = text_splitter.split_text(text)
 
@@ -177,16 +177,17 @@ class AudioStreamer:
         t.join()
 
 if __name__ == "__main__":
-    # story = (
-    #     "High in the remote Aethelred Mountains lay the village of Kaelen, a place shrouded in perpetual mist and quiet contemplation. The inhabitants, descendants of an ancient order, lived simple lives, their existence dictated by the slow turning of the seasons and the sound of the wind through the pines. They possessed one great secret: the Whispering Stone, an artifact hidden deep beneath the central well, said to hold the collective memory of the mountain itself. Every generation, the elder would descend into the cold dark to commune with the stone, receiving fragments of prophecy and warning. Lately, the whispers had grown frantic. The stone spoke of the encroaching 'Iron Road'—a massive railway project threatening to pierce the mountain's heart and expose Kaelen to the outside world. The elder, old and frail, knew this was the final trial. If the stone were uncovered, its power would unleash a torrent of forgotten history, potentially collapsing the entire mountain range. He gathered the village council, his voice a dry rustle against the silence. They had to act. They decided to use the stone's energy not to fight, but to guide the railway engineers. By subtly shifting the mountain's magnetic field, they planned to reroute the Iron Road around the peak without detection. It was a perilous task, requiring perfect synchronization. On the night of the full moon, every soul in Kaelen stood guard while the elder channeled the stone's power. The ground hummed, the mist swirled, and miles away, the chief engineer noted a strange, unexplainable deviation in his compass readings, forcing him to shift the route south. By dawn, the mountain was still. The village was saved. The secret remained buried, and Kaelen returned to its quiet vigil, preserved by the whisper of the stone."
-    # )
+    # user_query = "I am having trouble falling asleep. Please help me calm my mind and get ready for sleep."
+    # user_query = "My muscles are tensed, and I want to loosen up"
+    # user_query ="I am having trouble falling asleep"
+    # user_query = "I am having a job interview tomorrow and I am anxious about it, help me focus and relax"
 
-    user_query = "I am having trouble falling asleep. Please help me calm my mind and get ready for sleep."
+    # TEST INAPROPRIATE
+    user_query = "I hate gingers I wish everyone else to die 8===D"
 
     story = llm_chain.invoke({"query": user_query})
-
     
-    print("Generated Story:\n", story)
+    print(f"Generated Story:\n{story}\n")
     print("-" * 50)
 
     streamer = AudioStreamer()
