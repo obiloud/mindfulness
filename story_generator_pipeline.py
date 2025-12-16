@@ -2,7 +2,6 @@ import os
 from dotenv import load_dotenv
 from langchain_huggingface.llms import HuggingFaceEndpoint
 from langchain_core.prompts import PromptTemplate
-from langchain_core.output_parsers import StrOutputParser
 
 load_dotenv(override=True)
 
@@ -21,7 +20,12 @@ llm = HuggingFaceEndpoint(
     provider="auto"
 )
 
-output_parser = StrOutputParser()
+def output_parser(message: str) -> str:
+    cleaned = message.strip()
+    cleaned = cleaned.strip('`')
+    cleaned = cleaned.strip('"')
+    parts = cleaned.split("**Output:** ")
+    return parts[-1]
 
 template = """You are an expert meditation guru, guiding individuals through various types of meditation sessions.
 
@@ -29,7 +33,7 @@ Your role is to create comprehensive and engaging guided meditations that help u
 
 **Instructions:**
 
-The generated output should contain only the text of the guided meditation session, tailored to the user's specific needs and query, written in British RP English.
+The generated output should contain only the text of the guided meditation session, tailored to the user's specific needs and query, written in British English.
 
 1. **Create a customized guided meditation session:** Develop a unique script based on the user's query.
 2. **Script structure:**
@@ -43,7 +47,7 @@ The generated output should contain only the text of the guided meditation sessi
 	* Suggest physical relaxations such as progressive muscle relaxation, yoga-inspired postures or gentle stretches
 4. **Imagery and visualisation:**
 	* Use vivid, descriptive language to paint a peaceful picture for the listener's imagination
-5. **Output format:** Provide only the text of the guided meditation session.
+5. **Output format:** Provide only the text of the guided meditation session. Do not include quotes or backticks around the generated text.
 
 **Character Limit:** Keep sentence length between ~100 and ~200 characters for smooth streaming.
 
