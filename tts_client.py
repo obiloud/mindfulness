@@ -10,6 +10,8 @@ from urllib3.util.retry import Retry
 import re
 import numpy as np
 from story_generator_pipeline import llm_chain
+from voice_generator import voice_character_chain
+from langchain_core.runnables import RunnableParallel
 
 import json
 
@@ -20,7 +22,7 @@ RATE = 24000
 AUDIO_CHUNK_SIZE = 8192 
 
 # DSP Configuration for Fade
-FADE_DURATION_SEC = 1.5 # New requirement: 0.5 seconds
+FADE_DURATION_SEC = 1.5
 SAMPLES_PER_SEC = RATE * CHANNELS
 SAMPLES_TO_FADE = int(FADE_DURATION_SEC * SAMPLES_PER_SEC) # 12000 samples for 0.5s fade
 
@@ -139,7 +141,7 @@ class AudioStreamer:
             chunk_size=MAX_TEXT_CHUNK_LENGTH, 
             chunk_overlap=0 
         )
-        return [f"<exhale> {chunk}  " for chunk in chunks]
+        return [f"<exhale> {chunk} " for chunk in chunks]
 
     def _request_audio_chunk(self, text_chunk, chunk_index):
         payload = {"description": self.tts_description, "text": text_chunk} 
@@ -274,14 +276,24 @@ if __name__ == "__main__":
     # user_query = "I hate gingers I wish everyone else to die 8===D"
 
     # VOICES
-    voice = "Mythical godlike magical character, Female voice in their 30s slow pacing, curious tone at medium intensity."
+    # voice = "Mythical godlike magical character, Female voice in their 30s slow pacing, curious tone at medium intensity."
 
-    story = llm_chain.invoke({"query": user_query})
+
+    pipeline = RunnableParallel(
+        description=voice_character_chain,
+        text=llm_chain
+    )
+
+    result = pipeline.invoke({"query": user_query})
+
+    
+
+    # story = llm_chain.invoke({"query": user_query})
 
     # story = "High in the remote Aethelred Mountains lay the village of Kaelen, a place shrouded in perpetual mist and quiet contemplation. The inhabitants, descendants of an ancient order, lived simple lives, their existence dictated by the slow turning of the seasons and the sound of the wind through the pines."
 
-    print(f"Generated Story:\n{story}\n")
-    print("-" * 50)
+    # print(f"Generated Story:\n{story}\n")
+    # print("-" * 50)
 
-    streamer = AudioStreamer(voice)
-    streamer.start(story)
+    streamer = AudioStreamer(result['description'])
+    streamer.start(result['text'])
