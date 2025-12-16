@@ -2,6 +2,7 @@ import os
 from dotenv import load_dotenv
 from langchain_huggingface.llms import HuggingFaceEndpoint
 from langchain_core.prompts import PromptTemplate
+from langchain_core.output_parsers import StrOutputParser
 
 load_dotenv(override=True)
 
@@ -12,13 +13,15 @@ repo_id = "meta-llama/Meta-Llama-3-8B"
 llm = HuggingFaceEndpoint(
     repo_id=repo_id,
     max_new_tokens=2000,
-    temperature=0.6,
+    temperature=0.7,
     top_k=50,
     top_p=0.8,
-    repetition_penalty=1.0,
+    repetition_penalty=1.1,
     huggingfacehub_api_token=HUGGINGFACEHUB_API_TOKEN,
     provider="auto"
 )
+
+output_parser = StrOutputParser()
 
 template = """You are an expert meditation guru, helping individuals cultivate mindfulness and relaxation.
 
@@ -32,7 +35,8 @@ Instructions:
 		+ "Hi, I will be your guide..."
 		+ "Welcome, let me be your guide..."
 		+ "Hello. We are about to begin on a journey..."
-	* Use clear, gentle language to guide the listener through various breathing techniques, visualizations, or physical relaxations
+	* Use clear, gentle language to guide the listener through various breathing techniques, visualizations, or physical relaxations.
+    * Include pauses and short silence between thoughts
 3. **Breathing and relaxation techniques:**
 	* Include breathing exercises (e.g., diaphragmatic breathing, 4-7-8 breathing) tailored to the user's specific needs
 	* Suggest physical relaxations such as progressive muscle relaxation, yoga-inspired postures, or gentle stretches
@@ -41,7 +45,7 @@ Instructions:
 	* Use vivid, descriptive language to paint a peaceful picture for the listener's imagination
 5. **Final wrap-up and conclusion:**
 	* Gently bring the listener back to a state of full awareness, with suggestions for maintaining relaxation and mindfulness in daily life
-6. **Output format:** Provide only the text of the guided meditation session, without any formatting or additional information.
+6. **Output format:** Provide only the text of the guided meditation session, without any additional information.
 
 **Example Output**:
 Welcome. Take a moment to thank yourself for arriving here today. In a world that often demands your attention, you have chosen to give this time to yourself. That is an act of kindness.
@@ -75,26 +79,28 @@ Namaste.
 **Output:**"""
 
 prompt = PromptTemplate.from_template(template)
-    
-llm_chain = prompt | llm
 
-# * Mind relaxation (e.g., reducing stress, improving concentration)
-# * Body relaxation (e.g., releasing physical tension, promoting flexibility)
-# * Calming relaxation (e.g., soothing anxiety, promoting calmness)
-# * Anxiety relief meditation (e.g., managing worry, building resilience)
-# * Sleep induction meditation (e.g., preparing for sleep, promoting deep relaxation)
-# * Energy and motivation meditation (e.g., boosting creativity, increasing productivity)
+llm_chain = prompt | llm | output_parser
 
 
-# user_query = "My muscles are tensed, and I want to loosen up"
-# user_query ="I am having trouble falling asleep"
-# user_query = "I am having a job interview tomorrow and I am anxious about it, help me focus and relax"
+if __name__ == "__main__":
 
-# TEST INAPROPRIATE
-# user_query = "I hate gingers I wish everyone else to die 8===D"
+    # * Mind relaxation (e.g., reducing stress, improving concentration)
+    # * Body relaxation (e.g., releasing physical tension, promoting flexibility)
+    # * Calming relaxation (e.g., soothing anxiety, promoting calmness)
+    # * Anxiety relief meditation (e.g., managing worry, building resilience)
+    # * Sleep induction meditation (e.g., preparing for sleep, promoting deep relaxation)
+    # * Energy and motivation meditation (e.g., boosting creativity, increasing productivity)
 
-# print(prompt.invoke({"query": user_query}))
 
-# story = llm_chain.invoke({"query": user_query})
+    # user_query = "My muscles are tensed, and I want to loosen up"
+    # user_query ="I am having trouble falling asleep"
+    # user_query = "I am having a job interview tomorrow and I am anxious about it, help me focus and relax"
 
-# print("Generated Story:\n", story)
+    # TEST INAPROPRIATE
+    user_query = "I hate gingers I wish everyone else to die 8===D"
+
+
+    story = llm_chain.invoke({"query": user_query})
+
+    print("Generated Story:\n", story)
