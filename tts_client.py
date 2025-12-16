@@ -8,10 +8,8 @@ import concurrent.futures
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 import re
-
-# WORKING WITH GENERATED TEXT
+import numpy as np
 from story_generator_pipeline import llm_chain
-from langchain_text_splitters import RecursiveCharacterTextSplitter
 
 import json
 
@@ -21,8 +19,13 @@ CHANNELS = 1
 RATE = 24000
 AUDIO_CHUNK_SIZE = 8192 
 
+# DSP Configuration for Fade
+FADE_DURATION_SEC = 0.5 # New requirement: 0.5 seconds
+SAMPLES_PER_SEC = RATE * CHANNELS
+SAMPLES_TO_FADE = int(FADE_DURATION_SEC * SAMPLES_PER_SEC) # 12000 samples for 0.5s fade
+
 # Buffering & Concurrency Config (REDUCED LOAD)
-BUFFER_DURATION_SEC = 8.0       
+BUFFER_DURATION_SEC = 3.0
 BYTES_PER_SEC = RATE * 2 * CHANNELS
 MIN_START_BYTES = BYTES_PER_SEC * BUFFER_DURATION_SEC 
 REBUFFER_TARGET_SEC = 2.0
@@ -40,6 +43,28 @@ SERVER_URL = "https://maya1-tts-434000853810.europe-west1.run.app/v1/tts/generat
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
+def apply_fade_in(data: bytes) -> bytes:
+    """Applies a linear fade-in to the first 0.5 seconds of the audio data."""
+    if not data:
+        return data
+
+    # Convert bytes to numpy array (Int16 format)
+    audio_array_buff = np.frombuffer(data, dtype=np.int16)
+    
+    audio_array = audio_array_buff.copy()
+    
+    # Calculate the number of Int16 values (samples) to fade
+    fade_samples = min(len(audio_array), SAMPLES_TO_FADE)
+    
+    # Create a linear multiplier (0.0 to 1.0)
+    # The multiplier length is equal to the number of samples being faded
+    fade_multiplier = np.linspace(0.0, 1.0, fade_samples, dtype=np.float32)
+    
+    # Apply multiplier to the start of the audio array
+    audio_array[:fade_samples] = audio_array[:fade_samples] * fade_multiplier
+    
+    # Convert back to bytes
+    return audio_array.astype(np.int16).tobytes()
 
 class AudioStreamer:
     def __init__(self):
@@ -116,7 +141,6 @@ class AudioStreamer:
             return None
 
     def fetch_audio_manager(self, text_chunks):
-        # ... (rest of the fetch_audio_manager logic is unchanged)
         self.is_downloading = True
         
         with concurrent.futures.ThreadPoolExecutor(max_workers=CONCURRENT_REQUESTS) as executor:
@@ -136,7 +160,6 @@ class AudioStreamer:
                 
                 if audio_bytes:
                     for j in range(0, len(audio_bytes), AUDIO_CHUNK_SIZE):
-                        # print(f"length of chunks and audio_bytes: {AUDIO_CHUNK_SIZE} - {len(audio_bytes)}")
                         chunk = audio_bytes[j:j + AUDIO_CHUNK_SIZE]
                         self.audio_queue.put(chunk)
                         self.total_buffered_bytes += len(chunk)
@@ -155,7 +178,6 @@ class AudioStreamer:
 
 
     def play_stream(self):
-        # ... (rest of the play_stream logic is unchanged)
         logger.info(f"[Audio] Opening Stream. Pre-buffer target: {BUFFER_DURATION_SEC}s")
         
         self.stream = self.p.open(
@@ -164,6 +186,7 @@ class AudioStreamer:
         
         self.stream.write(b'\x00' * AUDIO_CHUNK_SIZE)
         state = "INITIAL_BUFFERING"
+        self.needs_fade_in = True # Set fade flag for the very first chunk
         
         while True:
             if state == "INITIAL_BUFFERING" or state == "REBUFFERING":
@@ -171,6 +194,7 @@ class AudioStreamer:
                 
                 if self.total_buffered_bytes >= target_bytes or not self.is_downloading:
                     state = "PLAYING"
+                    self.needs_fade_in = True # Set fade flag upon resuming playback
                     logger.info(f"[Audio] Starting playback. (Buffer: {round(self.total_buffered_bytes / BYTES_PER_SEC, 2)}s)")
                 else:
                     time.sleep(0.1)
@@ -181,6 +205,11 @@ class AudioStreamer:
                 data = self.audio_queue.get(timeout=0.1) 
                 
                 if data is None: break
+                
+                # --- APPLY FADE-IN LOGIC HERE ---
+                if self.needs_fade_in:
+                    data = apply_fade_in(data)
+                    self.needs_fade_in = False
                 
                 self.stream.write(data)
                 self.total_buffered_bytes -= len(data)
@@ -217,12 +246,15 @@ if __name__ == "__main__":
     # user_query = "I am having trouble falling asleep. Please help me calm my mind and get ready for sleep."
     # user_query = "My muscles are tensed, and I want to loosen up"
     # user_query ="I am having trouble falling asleep"
-    user_query = "I am having a job interview tomorrow and I am anxious about it, help me focus and relax"
+    # user_query = "I am having a job interview tomorrow and I am anxious about it, help me focus and relax"
+    # user_query = "I am feeling self doubt and I am have low self-esteem and low confidence"
 
     # TEST INAPROPRIATE
     # user_query = "I hate gingers I wish everyone else to die 8===D"
 
-    story = llm_chain.invoke({"query": user_query})
+    # story = llm_chain.invoke({"query": user_query})
+
+    story = "High in the remote Aethelred Mountains lay the village of Kaelen, a place shrouded in perpetual mist and quiet contemplation. The inhabitants, descendants of an ancient order, lived simple lives, their existence dictated by the slow turning of the seasons and the sound of the wind through the pines."
 
     print(f"Generated Story:\n{story}\n")
     print("-" * 50)
