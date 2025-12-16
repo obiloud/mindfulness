@@ -43,6 +43,51 @@ SERVER_URL = "https://maya1-tts-434000853810.europe-west1.run.app/v1/tts/generat
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
+DELIMITERS = ["\n\n", "\n", "(?<=[.!?])\\s+", " "] 
+
+def recursive_chunk_text(text: str, chunk_size: int, chunk_overlap: int = 0) -> list[str]:
+    chunks = []
+    
+    def split_and_chunk(text_to_split: str, current_delimiters: list):
+        if not text_to_split: return
+        if not current_delimiters or len(text_to_split) <= chunk_size:
+            if text_to_split: chunks.append(text_to_split.strip()); return
+        
+        current_delimiter = current_delimiters[0]
+        parts = re.split(current_delimiter, text_to_split)
+        current_chunk_text = ""
+        for part in parts:
+            part = part.strip()
+            if not part: continue
+
+            if len(current_chunk_text) + len(part) + 1 > chunk_size:
+                if current_chunk_text:
+                    chunks.append(current_chunk_text)
+                    current_chunk_text = current_chunk_text[-chunk_overlap:] if chunk_overlap > 0 else ""
+                
+                if len(part) > chunk_size:
+                    split_and_chunk(part, current_delimiters[1:])
+                    continue
+
+            current_chunk_text += ((" " if current_chunk_text else "") + part)
+            
+        if current_chunk_text:
+            chunks.append(current_chunk_text)
+
+    split_and_chunk(text, DELIMITERS)
+    
+    final_chunks = []
+    temp_chunk = ""
+    for chunk in chunks:
+        if len(temp_chunk) + len(chunk) <= chunk_size:
+            temp_chunk += ((" " if temp_chunk else "") + chunk)
+        else:
+            if temp_chunk: final_chunks.append(temp_chunk)
+            temp_chunk = chunk
+    if temp_chunk: final_chunks.append(temp_chunk)
+
+    return final_chunks
+
 def apply_fade_in(data: bytes) -> bytes:
     """Applies a linear fade-in to the first 0.5 seconds of the audio data."""
     if not data:
@@ -87,25 +132,12 @@ class AudioStreamer:
         self.session.mount('https://', adapter)
 
     def smart_chunk_text(self, text):
-        raw_sentences = re.split(r"(?<!\.)\.(?!\.)\s*", text)
-        current_chunk = []
-        current_length = 0
-        for sentence in raw_sentences:
-            cleaned = sentence.strip()
-            if not cleaned: continue
-            
-            if current_length + len(cleaned) > MAX_TEXT_CHUNK_LENGTH and current_chunk:
-                yield f"<exhale> {" ".join(current_chunk)} - "
-                current_chunk = []
-                current_length = 0
-            current_chunk.append(cleaned)
-            current_length += len(cleaned)
-            if current_length >= MIN_TEXT_CHUNK_LENGTH:
-                yield f"<exhale> {" ".join(current_chunk)} - "
-                current_chunk = []
-                current_length = 0
-        if current_chunk:
-            yield f"<exhale> {" ".join(current_chunk)}  - "
+        chunks = recursive_chunk_text(
+            text=text, 
+            chunk_size=MAX_TEXT_CHUNK_LENGTH, 
+            chunk_overlap=0 
+        )
+        return [f"<exhale> {chunk}  " for chunk in chunks]
 
     def _request_audio_chunk(self, text_chunk, chunk_index):
         description = "Realistic male voice in the 40s with British accent. Low pitch, warm timbre, slow pacing, soothing voice."
@@ -231,10 +263,10 @@ class AudioStreamer:
 
 if __name__ == "__main__":
     # user_query = "I am having trouble falling asleep. Please help me calm my mind and get ready for sleep."
-    # user_query = "My muscles are tensed, and I want to loosen up"
+    user_query = "My muscles are tensed, and I want to loosen up"
     # user_query ="I am having trouble falling asleep"
     # user_query = "I am having a job interview tomorrow and I am anxious about it, help me focus and relax"
-    user_query = "I am feeling self doubt and I am have low self-esteem and low confidence"
+    # user_query = "I am feeling self doubt and I am have low self-esteem and low confidence"
 
     # TEST INAPROPRIATE
     # user_query = "I hate gingers I wish everyone else to die 8===D"
