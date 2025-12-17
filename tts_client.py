@@ -9,8 +9,7 @@ from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 import re
 import numpy as np
-import json
-from story_generator_pipeline import llm_chain
+from story_generator_pipeline import story_generator_chain
 from voice_generator import voice_character_chain
 from langchain_core.runnables import RunnableParallel
 
@@ -313,8 +312,9 @@ class AudioStreamer:
 
 if __name__ == "__main__":
     # Test with a long, slow-paced text
-    user_query = "I am having a job interview tomorrow and I am anxious about it, help me focus and relax"
-    pipeline = RunnableParallel(description=voice_character_chain, text=llm_chain)
+    # user_query = "I want to strengthen my inner self, defeat negative self-talk and doubts, and fix low self-esteem and self-doubt."
+    user_query = "My muscles are tensed, and I want to loosen up"
+    pipeline = RunnableParallel(description=voice_character_chain, text=story_generator_chain)
     result = pipeline.invoke({"query": user_query})
     
     streamer = AudioStreamer(result['description'])

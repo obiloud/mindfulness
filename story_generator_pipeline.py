@@ -42,6 +42,7 @@ The generated output should contain only the text of the guided meditation sessi
 		- Hello
 		- Welcome
 	* Use clear, gentle language to guide the listener through various breathing techniques, visualisations or physical relaxations
+    * Use often breaks in the speech to give a listener time to follow the instructions, let the message sink in, or guide a listener through the breathing exercises.
 3. **Breathing and relaxation techniques:**
 	* Include breathing exercises (e.g., diaphragmatic breathing, 4-7-8 breathing) tailored to the user's specific needs
 	* Suggest physical relaxations such as progressive muscle relaxation, yoga-inspired postures or gentle stretches
@@ -84,27 +85,22 @@ The generated output should contain only the text of the guided meditation sessi
 
 **IMPORTANT:** Keep sentence length shorter than 35 words for smooth streaming.
 
-**Example format:**
+**Example:**
 
-Lorem ipsum dolor sit amet, consectetur adipiscing elit. 
-Donec sodales, risus at commodo consectetur, erat purus dictum nisl, eget vestibulum est dolor non justo. 
-Pellentesque vel est at lectus nulla. 
+**Q:** I want to strengthen my inner self, defeat negative self-talk and doubts, and fix low self-esteem and self-doubt. 
 
-Nunc pretium velit elementum lectus aliquam, id feugiat sapien egestas. 
-Fusce in quam sit amet velit sodales pharetra. 
-Donec orci risus, porta sed risus rhoncus, mattis vestibulum.
-
-Vestibulum maximus est eget lobortis pharetra. 
-Phasellus nec purus sed arcu egestas euismod. 
-In pulvinar libero eu quam semper, suscipit malesuada metus sodales. In venenatis amet.
-
-Class aptent taciti sociosqu ad litora torquent per conubia nostra, per inceptos himenaeos. 
-Nam risus massa, venenatis et diam vel, venenatis vestibulum mauris. Lorem ipsum libero.
-
-Ut sit amet justo mollis leo aliquam tincidunt. 
-Donec mauris nulla, tincidunt sit amet tellus sodales, luctus pulvinar est. 
-Sed maximus lacinia lacinia. Maecenas facilisis aliquam.
-
+**A:** Hello. Welcome to this space of quiet and inner growth. 
+We will now work to dissolve your doubts and rebuild your self-esteem.
+--- Sit or lie in a position that feels natural and relaxed. Close your eyes and bring your attention to your breathing. 
+Take a slow breath in through your nose for four seconds. --- Hold the air in your lungs for seven seconds. 
+--- Release the breath with a soft sigh for eight seconds. --- <exhale> Notice any areas of your body that feel tight or heavy. 
+--- Imagine a warm wave of water washing over your feet and legs. Let that warmth travel up through your stomach and your chest. 
+--- Visualise a mirror in your mind that reflects only your strength. See yourself standing tall and filled with a bright inner light. 
+The negative words you hear are just echoes from the past. --- You can choose to let these echoes fade into the silence. 
+Every breath you take strengthens your belief in your own value. --- <chuckle> Whisper to yourself that you are more than your mistakes. 
+<whisper> You are a person of great worth and unique talents. Let this feeling of self-assurance fill the room around you. 
+--- Gently start to bring movement back to your body. Feel the ground beneath you supporting your weight. 
+--- Take one more deep breath and feel your own power. <exhale> Open your eyes and smile at the strength you have found.
 
 **User Input (Query):**
 
@@ -114,7 +110,7 @@ Sed maximus lacinia lacinia. Maecenas facilisis aliquam.
 
 prompt = PromptTemplate.from_template(template)
 
-llm_chain = prompt | llm | output_parser
+story_generator_chain = prompt | llm | output_parser
 
 
 if __name__ == "__main__":
@@ -128,13 +124,13 @@ if __name__ == "__main__":
 
 
     # user_query = "My muscles are tensed, and I want to loosen up"
-    # user_query ="I am having trouble falling asleep"
-    user_query = "I am having a job interview tomorrow and I am anxious about it, help me focus and relax"
+    user_query ="I am having trouble falling asleep"
+    # user_query = "I am having a job interview tomorrow and I am anxious about it, help me focus and relax"
 
     # TEST INAPROPRIATE
     # user_query = "I hate gingers I wish everyone else to die 8===D"
 
 
-    story = llm_chain.invoke({"query": user_query})
+    story = story_generator_chain.invoke({"query": user_query})
 
     print("Generated Story:\n", story)
