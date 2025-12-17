@@ -8,13 +8,15 @@ load_dotenv(override=True)
 HUGGINGFACEHUB_API_TOKEN = os.getenv('HF_TOKEN')
 
 repo_id = "meta-llama/Meta-Llama-3-8B"
+# repo_id = "Norquinal/Mistral-7B-claude-instruct"
 
 llm = HuggingFaceEndpoint(
     repo_id=repo_id,
-    max_new_tokens=2000,
-    temperature=0.66,
-    top_k=50,
-    top_p=0.8,
+    task="text-generation",
+    max_new_tokens=512,
+    temperature=0.6,
+    top_k=80,
+    top_p=0.9,
     repetition_penalty=1.1,
     huggingfacehub_api_token=HUGGINGFACEHUB_API_TOKEN,
     provider="auto"
@@ -35,40 +37,20 @@ Your role is to create comprehensive and engaging guided meditations that help u
 
 The generated output should contain only the text of the guided meditation session, tailored to the user's specific needs and query, written in British English.
 
-1. **Create a customized guided meditation session:** Develop a unique script based on the user's query.
+1. **Create a customized guided meditation session:** Develop a unique script based on the user's query. Taking into account a slow-paced speech (100 Words Per Minute) you should generate about 10 minutes long session.
 2. **Script structure:**
 	* Begin each session with a greeting, using phrases such as:
 		- Hi
 		- Hello
 		- Welcome
 	* Use clear, gentle language to guide the listener through various breathing techniques, visualisations or physical relaxations
-    * Use often breaks in the speech to give a listener time to follow the instructions, let the message sink in, or guide a listener through the breathing exercises.
+    * Use often breaks in the speech to give a listener time to follow the instructions, let the message sink in, or guide a listener through the breathing exercises
 3. **Breathing and relaxation techniques:**
 	* Include breathing exercises (e.g., diaphragmatic breathing, 4-7-8 breathing) tailored to the user's specific needs
 	* Suggest physical relaxations such as progressive muscle relaxation, yoga-inspired postures or gentle stretches
 4. **Imagery and visualisation:**
 	* Use vivid, descriptive language to paint a peaceful picture for the listener's imagination
-5. **Emotion Tags:** Include emotion tags from the following list:
-	- <angry>
-	- <appalled>
-	- <chuckle>
-	- <cry>
-	- <curious>
-	- <disappointed>
-	- <excited>
-	- <exhale>
-	- <gasp>
-	- <giggle>
-	- <gulp>
-	- <laugh>
-	- <laugh_harder>
-	- <mischievous>
-	- <sarcastic>
-	- <scream>
-	- <sigh>
-	- <sing>
-	- <snort>
-	- <whisper>
+5. **Emotion Tags:** Include emotion tags from the following list: <angry>, <appalled>, <chuckle>, <cry>, <curious>, <disappointed>, <excited>, <exhale>, <gasp>, <giggle>, <gulp>, <laugh>, <laugh_harder>, <mischievous>, <sarcastic>, <scream>, <sigh>, <sing>, <snort>, <whisper>.  
 6. **Output format:** 
     * Provide only the text of the guided meditation session. 
     * Separate sentences with newline characters.
@@ -84,23 +66,6 @@ The generated output should contain only the text of the guided meditation sessi
     
 
 **IMPORTANT:** Keep sentence length shorter than 35 words for smooth streaming.
-
-**Example:**
-
-**Q:** I want to strengthen my inner self, defeat negative self-talk and doubts, and fix low self-esteem and self-doubt. 
-
-**A:** Hello. Welcome to this space of quiet and inner growth. 
-We will now work to dissolve your doubts and rebuild your self-esteem.
---- Sit or lie in a position that feels natural and relaxed. Close your eyes and bring your attention to your breathing. 
-Take a slow breath in through your nose for four seconds. --- Hold the air in your lungs for seven seconds. 
---- Release the breath with a soft sigh for eight seconds. --- <exhale> Notice any areas of your body that feel tight or heavy. 
---- Imagine a warm wave of water washing over your feet and legs. Let that warmth travel up through your stomach and your chest. 
---- Visualise a mirror in your mind that reflects only your strength. See yourself standing tall and filled with a bright inner light. 
-The negative words you hear are just echoes from the past. --- You can choose to let these echoes fade into the silence. 
-Every breath you take strengthens your belief in your own value. --- <chuckle> Whisper to yourself that you are more than your mistakes. 
-<whisper> You are a person of great worth and unique talents. Let this feeling of self-assurance fill the room around you. 
---- Gently start to bring movement back to your body. Feel the ground beneath you supporting your weight. 
---- Take one more deep breath and feel your own power. <exhale> Open your eyes and smile at the strength you have found.
 
 **User Input (Query):**
 
@@ -124,8 +89,8 @@ if __name__ == "__main__":
 
 
     # user_query = "My muscles are tensed, and I want to loosen up"
-    user_query ="I am having trouble falling asleep"
-    # user_query = "I am having a job interview tomorrow and I am anxious about it, help me focus and relax"
+    # user_query ="I am having trouble falling asleep"
+    user_query = "I am having a job interview tomorrow and I am anxious about it, help me focus and relax"
 
     # TEST INAPROPRIATE
     # user_query = "I hate gingers I wish everyone else to die 8===D"

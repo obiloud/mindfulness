@@ -11,10 +11,10 @@ repo_id = "meta-llama/Meta-Llama-3-8B"
 
 llm = HuggingFaceEndpoint(
     repo_id=repo_id,
-    max_new_tokens=2000,
-    temperature=0.6,
-    top_k=20,
-    top_p=0.8,
+    max_new_tokens=96,
+    temperature=0.7,
+    top_k=60,
+    top_p=0.9,
     repetition_penalty=1.0,
     huggingfacehub_api_token=HUGGINGFACEHUB_API_TOKEN,
     provider="auto"
@@ -43,9 +43,9 @@ voice_character_template = """**You are an experienced radio director**
 5. **Remember the role of a character:** The voice is ultimately a meditation guide, generally needs to calm, comfort, and soothe a listener.
 
 Examples:
- - Realistic male voice in the 40s with British accent. Low pitch, warm whispery timbre, slow pacing, soothing voice.
- - A confident boat skipper character, Male voice in their 40s with a British accent. Low pitch, gravelly and airy timbre, slow pacing, authoritative but emphatetic.
- - Mythical godlike magical character, Female voice in their 30s slow pacing, curious tone at medium intensity.
+1. Realistic male voice in the 40s with British accent. Low pitch, warm whispery timbre, slow pacing, soothing voice.
+2. Male voice in their 40s with a British accent. Low pitch, gravelly and airy timbre, slow pacing, authoritative but emphatetic.
+3. Mythical godlike magical character, Female voice in their 30s slow pacing, curious tone at medium intensity.
 
 Do not limit your choice to these examples, try to be creative.
 
@@ -72,9 +72,9 @@ if __name__ == "__main__":
     # * Energy and motivation meditation (e.g., boosting creativity, increasing productivity)
 
 
-    # user_query = "My muscles are tensed, and I want to loosen up"
+    user_query = "My muscles are tensed, and I want to loosen up"
     # user_query ="I am having trouble falling asleep"
-    user_query = "I will be interviewed for a job in Bristol next week, and I am anxious about it. Help me calm down and focus."
+    # user_query = "I will be interviewed for a job in Bristol next week, and I am anxious about it. Help me calm down and focus."
 
     # TEST INAPROPRIATE
     # user_query = "I hate gingers I wish everyone else to die 8===D"

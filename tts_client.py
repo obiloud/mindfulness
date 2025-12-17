@@ -29,14 +29,14 @@ CROSSFADE_SAMPLES = int(CROSSFADE_DURATION_SEC * SAMPLES_PER_SEC)
 TOKEN_PER_WORD = 53           # Rounded up from 52.5 for safety
 TOKEN_PER_TAG_SHORT = 150     # <chuckle> (approx 2-3 sec worth)
 TOKEN_PER_TAG_LONG = 400      # <laugh> (approx 5-6 sec worth)
-BASE_TOKEN_OVERHEAD = 100     # General safety buffer
+BASE_TOKEN_OVERHEAD = 150     # General safety buffer
 
 # Chunking Config
 MAX_WORDS_PER_CHUNK = 35      # Strict limit as requested
 MIN_WORDS_PER_CHUNK = 10      # Avoid tiny chunks if possible
 
 # Buffering Config
-BUFFER_DURATION_SEC = 6.0
+BUFFER_DURATION_SEC = 4.0
 BYTES_PER_SEC = RATE * 2 * CHANNELS
 MIN_START_BYTES = BYTES_PER_SEC * BUFFER_DURATION_SEC 
 REBUFFER_TARGET_SEC = 2.0
@@ -157,8 +157,8 @@ def estimate_max_tokens(text: str) -> int:
     """
     words = get_word_count(text)
     
-    laughs = len(re.findall(r'<laugh>', text, re.IGNORECASE))
-    chuckles = len(re.findall(r'<chuckle>|<excited>', text, re.IGNORECASE))
+    laughs = len(re.findall(r'<laugh>|<exhale>|<sigh>', text, re.IGNORECASE))
+    chuckles = len(re.findall(r'<chuckle>|<excited>|<gasp>', text, re.IGNORECASE))
     
     token_budget = (words * TOKEN_PER_WORD) + \
                    (laughs * TOKEN_PER_TAG_LONG) + \
@@ -314,6 +314,7 @@ if __name__ == "__main__":
     # Test with a long, slow-paced text
     user_query = "I want to strengthen my inner self, defeat negative self-talk and doubts, and fix low self-esteem and self-doubt."
     # user_query = "My muscles are tensed, and I want to loosen up"
+    # user_query = "I am having a job interview tomorrow and I am anxious about it, help me focus and relax"
     pipeline = RunnableParallel(description=voice_character_chain, text=story_generator_chain)
     result = pipeline.invoke({"query": user_query})
     
