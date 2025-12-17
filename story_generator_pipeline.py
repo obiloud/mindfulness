@@ -82,7 +82,7 @@ The generated output should contain only the text of the guided meditation sessi
     * No notes.
     
 
-**Character Limit:** Keep sentence length between ~100 and ~200 characters for smooth streaming.
+**IMPORTANT:** Keep sentence length shorter than 35 words for smooth streaming.
 
 **Example format:**
 
