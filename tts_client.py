@@ -20,7 +20,7 @@ RATE = 24000
 AUDIO_CHUNK_SIZE = 8192 
 
 # DSP Config
-CROSSFADE_DURATION_SEC = 0.2
+CROSSFADE_DURATION_SEC = 0.1
 SAMPLES_PER_SEC = RATE * CHANNELS
 CROSSFADE_SAMPLES = int(CROSSFADE_DURATION_SEC * SAMPLES_PER_SEC)
 
@@ -312,8 +312,8 @@ class AudioStreamer:
 
 if __name__ == "__main__":
     # Test with a long, slow-paced text
-    # user_query = "I want to strengthen my inner self, defeat negative self-talk and doubts, and fix low self-esteem and self-doubt."
-    user_query = "My muscles are tensed, and I want to loosen up"
+    user_query = "I want to strengthen my inner self, defeat negative self-talk and doubts, and fix low self-esteem and self-doubt."
+    # user_query = "My muscles are tensed, and I want to loosen up"
     pipeline = RunnableParallel(description=voice_character_chain, text=story_generator_chain)
     result = pipeline.invoke({"query": user_query})
     
