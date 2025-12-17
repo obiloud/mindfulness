@@ -12,20 +12,17 @@ repo_id = "meta-llama/Meta-Llama-3-8B"
 llm = HuggingFaceEndpoint(
     repo_id=repo_id,
     max_new_tokens=2000,
-    temperature=0.7,
-    top_k=50,
+    temperature=0.6,
+    top_k=20,
     top_p=0.8,
-    repetition_penalty=1.1,
+    repetition_penalty=1.0,
     huggingfacehub_api_token=HUGGINGFACEHUB_API_TOKEN,
     provider="auto"
 )
 
 def output_parser(message: str) -> str:
-    cleaned = message.strip()
-    cleaned = cleaned.strip('`')
-    cleaned = cleaned.strip('"')
-    parts = cleaned.split("**Output:** ")
-    return parts[-1]
+    parts = message.split("\n")
+    return parts[0]
 
 voice_character_template = """**You are an experienced radio director**
 
@@ -62,7 +59,7 @@ Select a suitable voice character for a meditation guide narrator based on the f
 
 voice_character_prompt = PromptTemplate.from_template(voice_character_template)
 
-voice_character_chain = voice_character_prompt | llm 
+voice_character_chain = voice_character_prompt | llm | output_parser
 
 
 if __name__ == "__main__":

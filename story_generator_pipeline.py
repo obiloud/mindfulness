@@ -12,7 +12,7 @@ repo_id = "meta-llama/Meta-Llama-3-8B"
 llm = HuggingFaceEndpoint(
     repo_id=repo_id,
     max_new_tokens=2000,
-    temperature=0.7,
+    temperature=0.66,
     top_k=50,
     top_p=0.8,
     repetition_penalty=1.1,
@@ -24,7 +24,7 @@ def output_parser(message: str) -> str:
     cleaned = message.strip()
     cleaned = cleaned.strip('`')
     cleaned = cleaned.strip('"')
-    parts = cleaned.split("**Output:** ")
+    parts = cleaned.split("**Output:**")
     return parts[-1]
 
 template = """You are an expert meditation guru, guiding individuals through various types of meditation sessions.
@@ -79,11 +79,36 @@ The generated output should contain only the text of the guided meditation sessi
     * No special characters.
     * No emojis.
     * No examples.
+    * No notes.
     
 
 **Character Limit:** Keep sentence length between ~100 and ~200 characters for smooth streaming.
 
-**User Input (Query):** {query}
+**Example format:**
+
+Lorem ipsum dolor sit amet, consectetur adipiscing elit. 
+Donec sodales, risus at commodo consectetur, erat purus dictum nisl, eget vestibulum est dolor non justo. 
+Pellentesque vel est at lectus nulla. 
+
+Nunc pretium velit elementum lectus aliquam, id feugiat sapien egestas. 
+Fusce in quam sit amet velit sodales pharetra. 
+Donec orci risus, porta sed risus rhoncus, mattis vestibulum.
+
+Vestibulum maximus est eget lobortis pharetra. 
+Phasellus nec purus sed arcu egestas euismod. 
+In pulvinar libero eu quam semper, suscipit malesuada metus sodales. In venenatis amet.
+
+Class aptent taciti sociosqu ad litora torquent per conubia nostra, per inceptos himenaeos. 
+Nam risus massa, venenatis et diam vel, venenatis vestibulum mauris. Lorem ipsum libero.
+
+Ut sit amet justo mollis leo aliquam tincidunt. 
+Donec mauris nulla, tincidunt sit amet tellus sodales, luctus pulvinar est. 
+Sed maximus lacinia lacinia. Maecenas facilisis aliquam.
+
+
+**User Input (Query):**
+
+{query}
 
 **Output:**"""
 

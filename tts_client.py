@@ -22,12 +22,12 @@ RATE = 24000
 AUDIO_CHUNK_SIZE = 8192 
 
 # DSP Configuration for Fade
-FADE_DURATION_SEC = 1.5
+FADE_DURATION_SEC = 1
 SAMPLES_PER_SEC = RATE * CHANNELS
 SAMPLES_TO_FADE = int(FADE_DURATION_SEC * SAMPLES_PER_SEC) # 12000 samples for 0.5s fade
 
 # Buffering & Concurrency Config (REDUCED LOAD)
-BUFFER_DURATION_SEC = 3.0
+BUFFER_DURATION_SEC = 6.0
 BYTES_PER_SEC = RATE * 2 * CHANNELS
 MIN_START_BYTES = BYTES_PER_SEC * BUFFER_DURATION_SEC 
 REBUFFER_TARGET_SEC = 2.0
@@ -106,7 +106,8 @@ def apply_fade_in(data: bytes) -> bytes:
     
     # Create a linear multiplier (0.0 to 1.0)
     # The multiplier length is equal to the number of samples being faded
-    fade_multiplier = np.linspace(0.0, 1.0, fade_samples, dtype=np.float32)
+    # fade_multiplier = np.linspace(0.0, 1.0, fade_samples, dtype=np.float32)
+    fade_multiplier = np.sin(np.linspace(0.0, np.pi/2, fade_samples))
     
     # Apply multiplier to the start of the audio array
     audio_array[:fade_samples] = audio_array[:fade_samples] * fade_multiplier
@@ -141,7 +142,7 @@ class AudioStreamer:
             chunk_size=MAX_TEXT_CHUNK_LENGTH, 
             chunk_overlap=0 
         )
-        return [f"<exhale> {chunk} " for chunk in chunks]
+        return [f" mhmm {chunk} " for chunk in chunks]
 
     def _request_audio_chunk(self, text_chunk, chunk_index):
         payload = {"description": self.tts_description, "text": text_chunk} 
@@ -268,9 +269,9 @@ if __name__ == "__main__":
     # user_query = "I am having trouble falling asleep. Please help me calm my mind and get ready for sleep."
     # user_query = "My muscles are tensed, and I want to loosen up"
     # user_query ="I am having trouble falling asleep"
-    # user_query = "I am having a job interview tomorrow and I am anxious about it, help me focus and relax"
+    user_query = "I am having a job interview tomorrow and I am anxious about it, help me focus and relax"
     # user_query = "I am feeling self doubt and I have low self-esteem and low confidence"
-    user_query = "I have low self-esteem and low confidence. I want to strengthen my inner self and make myself resilient to negative self talk."
+    # user_query = "I have low self-esteem and low confidence. I want to strengthen my inner self and make myself resilient to negative self talk."
 
     # TEST INAPROPRIATE
     # user_query = "I hate gingers I wish everyone else to die 8===D"
@@ -286,7 +287,7 @@ if __name__ == "__main__":
 
     result = pipeline.invoke({"query": user_query})
 
-    
+    print(json.dumps(result, indent=2))
 
     # story = llm_chain.invoke({"query": user_query})
 
