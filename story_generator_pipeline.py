@@ -1,19 +1,18 @@
 import os
 from dotenv import load_dotenv
-from langchain_huggingface.llms import HuggingFaceEndpoint
-from langchain_core.prompts import PromptTemplate
+from langchain_huggingface import ChatHuggingFace, HuggingFaceEndpoint
+from langchain_core.prompts import ChatPromptTemplate, SystemMessagePromptTemplate, HumanMessagePromptTemplate
 
 load_dotenv(override=True)
 
 HUGGINGFACEHUB_API_TOKEN = os.getenv('HF_TOKEN')
 
-repo_id = "meta-llama/Meta-Llama-3-8B"
-# repo_id = "Norquinal/Mistral-7B-claude-instruct"
+repo_id = "meta-llama/Meta-Llama-3-8B-Instruct"
 
 llm = HuggingFaceEndpoint(
     repo_id=repo_id,
     task="text-generation",
-    max_new_tokens=512,
+    max_new_tokens=1024,
     temperature=0.6,
     top_k=80,
     top_p=0.9,
@@ -22,8 +21,12 @@ llm = HuggingFaceEndpoint(
     provider="auto"
 )
 
-def output_parser(message: str) -> str:
-    cleaned = message.strip()
+chat_model = ChatHuggingFace(llm=llm)
+
+system_message = SystemMessagePromptTemplate.from_template("You are a helpfull creative writing assistant.")
+
+def output_parser(message) -> str:
+    cleaned = message.content.strip()
     cleaned = cleaned.strip('`')
     cleaned = cleaned.strip('"')
     parts = cleaned.split("**Output:**")
@@ -44,28 +47,27 @@ The generated output should contain only the text of the guided meditation sessi
 		- Hello
 		- Welcome
 	* Use clear, gentle language to guide the listener through various breathing techniques, visualisations or physical relaxations
-    * Use often breaks in the speech to give a listener time to follow the instructions, let the message sink in, or guide a listener through the breathing exercises
+    * Use often pauses in the speech to give a listener time to follow the instructions, let the message sink in, or guide a listener through the breathing exercises.
 3. **Breathing and relaxation techniques:**
 	* Include breathing exercises (e.g., diaphragmatic breathing, 4-7-8 breathing) tailored to the user's specific needs
 	* Suggest physical relaxations such as progressive muscle relaxation, yoga-inspired postures or gentle stretches
 4. **Imagery and visualisation:**
 	* Use vivid, descriptive language to paint a peaceful picture for the listener's imagination
-5. **Emotion Tags:** Include emotion tags from the following list: <angry>, <appalled>, <chuckle>, <cry>, <curious>, <disappointed>, <excited>, <exhale>, <gasp>, <giggle>, <gulp>, <laugh>, <laugh_harder>, <mischievous>, <sarcastic>, <scream>, <sigh>, <sing>, <snort>, <whisper>.  
-6. **Output format:** 
-    * Provide only the text of the guided meditation session. 
-    * Separate sentences with newline characters.
-    * Do not include quotes or backticks around the generated text. 
-    * No section titles.
-    * No markdown.
-    * No html.
-    * No indentation.
-    * No special characters.
-    * No emojis.
-    * No examples.
-    * No notes.
-    
+5. **Emotions:** for expressive and impactful storytelling include emotion tags from the following list: <angry>, <appalled>, <chuckle>, <cry>, <curious>, <disappointed>, <excited>, <exhale>, <gasp>, <giggle>, <gulp>, <laugh>, <laugh_harder>, <mischievous>, <sarcastic>, <scream>, <sigh>, <sing>, <snort>, <whisper>.      
 
-**IMPORTANT:** Keep sentence length shorter than 35 words for smooth streaming.
+IMPORTANT: Keep sentence length shorter than 30 words for smooth streaming.
+IMPORTANT: Use emotion tags for stressing certain words or to include emotions: <angry>, <appalled>, <chuckle>, <cry>, <curious>, <disappointed>, <excited>, <exhale>, <gasp>, <giggle>, <gulp>, <laugh>, <laugh_harder>, <mischievous>, <sarcastic>, <scream>, <sigh>, <sing>, <snort>, <whisper>
+IMPORTANT: Use [PAUSE:1.0] tags to instruct the narrator to make a pause in speech of arbitrary duration in seconds
+IMPORTANT: Separate sentences with newline characters.
+IMPORTANT: Do not include quotes or backticks around the generated text. 
+IMPORTANT: No section titles.
+IMPORTANT: No markdown.
+IMPORTANT: No html.
+IMPORTANT: No indentation.
+IMPORTANT: No special characters.
+IMPORTANT: No emojis.
+IMPORTANT: No examples.
+IMPORTANT: No additional notes.
 
 **User Input (Query):**
 
@@ -73,9 +75,12 @@ The generated output should contain only the text of the guided meditation sessi
 
 **Output:**"""
 
-prompt = PromptTemplate.from_template(template)
+human_message = HumanMessagePromptTemplate.from_template(template)
 
-story_generator_chain = prompt | llm | output_parser
+prompt = ChatPromptTemplate.from_messages([system_message, human_message])
+
+# story_generator_chain = prompt | llm | output_parser
+story_generator_chain= prompt | chat_model | output_parser
 
 
 if __name__ == "__main__":

@@ -1,28 +1,12 @@
-import os
-from dotenv import load_dotenv
-from langchain_huggingface.llms import HuggingFaceEndpoint
-from langchain_core.prompts import PromptTemplate
 
-load_dotenv(override=True)
+from langchain_core.prompts import ChatPromptTemplate, SystemMessagePromptTemplate, HumanMessagePromptTemplate
+from story_generator_pipeline import chat_model
 
-HUGGINGFACEHUB_API_TOKEN = os.getenv('HF_TOKEN')
-
-repo_id = "meta-llama/Meta-Llama-3-8B"
-
-llm = HuggingFaceEndpoint(
-    repo_id=repo_id,
-    max_new_tokens=96,
-    temperature=0.7,
-    top_k=60,
-    top_p=0.9,
-    repetition_penalty=1.0,
-    huggingfacehub_api_token=HUGGINGFACEHUB_API_TOKEN,
-    provider="auto"
-)
-
-def output_parser(message: str) -> str:
-    parts = message.split("\n")
+def output_parser(message) -> str:
+    parts = message.content.split("\n")
     return parts[0]
+
+system_message = SystemMessagePromptTemplate.from_template("You are a helpful voice designer assistant.")
 
 voice_character_template = """**You are an experienced radio director**
 
@@ -43,9 +27,9 @@ voice_character_template = """**You are an experienced radio director**
 5. **Remember the role of a character:** The voice is ultimately a meditation guide, generally needs to calm, comfort, and soothe a listener.
 
 Examples:
-1. Realistic male voice in the 40s with British accent. Low pitch, warm whispery timbre, slow pacing, soothing voice.
-2. Male voice in their 40s with a British accent. Low pitch, gravelly and airy timbre, slow pacing, authoritative but emphatetic.
-3. Mythical godlike magical character, Female voice in their 30s slow pacing, curious tone at medium intensity.
+1. Realistic male voice in the 40s with British accent. Low pitch, warm whispery timbre, slow pacing, soothing voice, meditation_guide role.
+2. Male voice in their 40s with a British accent. Low pitch, gravelly and airy timbre, slow pacing, authoritative but emphatetic, story_narrator role.
+3. Realistic Female voice in their 30s. Slow pacing, curious tone at medium intensity, counselor role.
 
 Do not limit your choice to these examples, try to be creative.
 
@@ -56,10 +40,11 @@ Select a suitable voice character for a meditation guide narrator based on the f
 **Output:**
 """
 
+human_message = HumanMessagePromptTemplate.from_template(voice_character_template)
 
-voice_character_prompt = PromptTemplate.from_template(voice_character_template)
+voice_character_prompt = ChatPromptTemplate.from_messages([system_message, human_message])
 
-voice_character_chain = voice_character_prompt | llm | output_parser
+voice_character_chain = voice_character_prompt | chat_model | output_parser
 
 
 if __name__ == "__main__":

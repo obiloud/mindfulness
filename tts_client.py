@@ -9,6 +9,7 @@ from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 import re
 import numpy as np
+import json
 from story_generator_pipeline import story_generator_chain
 from voice_generator import voice_character_chain
 from langchain_core.runnables import RunnableParallel
@@ -24,19 +25,16 @@ CROSSFADE_DURATION_SEC = 0.05
 SAMPLES_PER_SEC = RATE * CHANNELS
 CROSSFADE_SAMPLES = int(CROSSFADE_DURATION_SEC * SAMPLES_PER_SEC)
 
-# --- NEW TOKEN BUDGET CALCULATIONS (100 WPM) ---
-# Based on: 87.5 tokens/sec * 0.6 sec/word = 52.5 tokens/word
-TOKEN_PER_WORD = 53           # Rounded up from 52.5 for safety
-TOKEN_PER_TAG_SHORT = 150     # <chuckle> (approx 2-3 sec worth)
-TOKEN_PER_TAG_LONG = 400      # <laugh> (approx 5-6 sec worth)
-BASE_TOKEN_OVERHEAD = 150     # General safety buffer
+# Token Budget (100 WPM)
+TOKEN_PER_WORD = 53
+TOKEN_PER_TAG_SHORT = 150
+TOKEN_PER_TAG_LONG = 400
+BASE_TOKEN_OVERHEAD = 100
 
-# Chunking Config
-MAX_WORDS_PER_CHUNK = 35      # Strict limit as requested
-MIN_WORDS_PER_CHUNK = 10      # Avoid tiny chunks if possible
+MAX_WORDS_PER_CHUNK = 35 
 
 # Buffering Config
-BUFFER_DURATION_SEC = 4.0
+BUFFER_DURATION_SEC = 6.0
 BYTES_PER_SEC = RATE * 2 * CHANNELS
 MIN_START_BYTES = BYTES_PER_SEC * BUFFER_DURATION_SEC 
 REBUFFER_TARGET_SEC = 2.0
@@ -52,109 +50,99 @@ DESCRIPTION_DEFAULT = "Realistic male voice in the 40s with British accent. Low 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
-# --- NEW WORD-BASED SPLITTER ---
+# --- UTILS ---
 
 def get_word_count(text: str) -> int:
-    """Returns the approximate word count."""
     return len(text.split())
 
-def recursive_word_chunker(text: str, max_words: int) -> list[str]:
+def generate_silent_bytes(duration_sec: float) -> bytes:
+    """Generates pure digital silence (zeros) for the specified duration."""
+    num_samples = int(duration_sec * RATE * CHANNELS)
+    # create array of zeros (int16)
+    silent_array = np.zeros(num_samples, dtype=np.int16)
+    return silent_array.tobytes()
+
+def parse_pause_tags(text: str):
     """
-    Splits text into chunks strictly keeping word count below max_words.
-    Prioritizes splitting by Paragraph -> Sentence -> Punctuation -> Space.
+    Splits text by [PAUSE:X] tags.
+    Returns a list of mixed types: [str, float, str, float...]
+    where float represents silence duration in seconds.
     """
-    # Delimiters ordered by priority (preserve context)
-    delimiters = [
-        "\n\n",             # Paragraphs
-        r"(?<=[.!?])\s+",   # Sentences (lookbehind for punctuation)
-        r"(?<=[,;])\s+",    # Clauses (commas/semicolons)
-        " "                 # Words (last resort)
-    ]
+    # Regex to find [PAUSE:2] or [PAUSE:0.5]
+    pattern = r'\[PAUSE:(\d+(?:\.\d+)?)\]'
+    parts = re.split(pattern, text)
     
+    parsed_sequence = []
+    
+    # re.split returns [text, duration, text, duration...]
+    # We need to reconstruct this carefully
+    i = 0
+    while i < len(parts):
+        text_segment = parts[i].strip()
+        if text_segment:
+            parsed_sequence.append(text_segment)
+        
+        # If there is a next part, it is the captured group (duration)
+        if i + 1 < len(parts):
+            try:
+                duration = float(parts[i+1])
+                parsed_sequence.append(duration)
+            except ValueError:
+                pass # Should not happen with strict regex
+        i += 2
+        
+    return parsed_sequence
+
+def recursive_word_chunker(text: str, max_words: int) -> list[str]:
+    # (Existing chunker logic - abbreviated for brevity)
+    # Note: This runs on the text segments *between* pauses
+    delimiters = ["\n\n", r"(?<=[.!?])\s+", r"(?<=[,;])\s+", " "]
     chunks = []
     
     def split_recursive(text_segment, delimiter_idx):
-        # Base case: fits in budget
         if get_word_count(text_segment) <= max_words:
-            if text_segment.strip():
-                chunks.append(text_segment.strip())
+            if text_segment.strip(): chunks.append(text_segment.strip())
             return
-
-        # Failure case: no more delimiters, but text is still too big
-        # (This happens if a single word is somehow massive, or logic fail. We force split.)
-        if delimiter_idx >= len(delimiters):
-            # Fallback: Hard truncate (should rarely happen with space delimiter)
+        if delimiter_idx >= len(delimiters): # Hard split fallback
             words = text_segment.split()
-            current_chunk = []
-            for word in words:
-                if len(current_chunk) + 1 > max_words:
-                    chunks.append(" ".join(current_chunk))
-                    current_chunk = [word]
-                else:
-                    current_chunk.append(word)
-            if current_chunk:
-                chunks.append(" ".join(current_chunk))
+            current = []
+            for w in words:
+                if len(current) + 1 > max_words:
+                    chunks.append(" ".join(current)); current = [w]
+                else: current.append(w)
+            if current: chunks.append(" ".join(current))
             return
-
-        # Recursive Step
+            
         delimiter = delimiters[delimiter_idx]
         parts = re.split(delimiter, text_segment)
-        
-        # Accumulate parts to form maximal chunks
         current_accumulation = ""
-        
         for part in parts:
             part = part.strip()
             if not part: continue
-            
-            # Check size of (accumulation + new part)
-            potential_text = (current_accumulation + " " + part).strip() if current_accumulation else part
-            
-            if get_word_count(potential_text) <= max_words:
-                current_accumulation = potential_text
+            potential = (current_accumulation + " " + part).strip() if current_accumulation else part
+            if get_word_count(potential) <= max_words:
+                current_accumulation = potential
             else:
-                # If adding the part exceeds limit, push current accumulation
-                if current_accumulation:
-                    chunks.append(current_accumulation)
-                    current_accumulation = ""
-                
-                # Now handle the part that was too big
-                # If the part ITSELF is smaller than max, start new accumulation
-                if get_word_count(part) <= max_words:
-                    current_accumulation = part
-                else:
-                    # The part itself is huge, recurse on it with finer delimiter
-                    split_recursive(part, delimiter_idx + 1)
-        
-        # Flush remainder
-        if current_accumulation:
-            chunks.append(current_accumulation)
+                if current_accumulation: chunks.append(current_accumulation); current_accumulation = ""
+                if get_word_count(part) <= max_words: current_accumulation = part
+                else: split_recursive(part, delimiter_idx + 1)
+        if current_accumulation: chunks.append(current_accumulation)
 
-    # Start recursion
     split_recursive(text, 0)
     
-    # Optional: Merge tiny chunks (orphaned words) into previous if space permits
-    # This optimization prevents "hanging" words like "The." at the end of a stream.
-    optimized_chunks = []
+    # Merge optimization
+    final = []
     if chunks:
-        current = chunks[0]
-        for next_chunk in chunks[1:]:
-            if get_word_count(current) + get_word_count(next_chunk) <= max_words:
-                current += " " + next_chunk
-            else:
-                optimized_chunks.append(current)
-                current = next_chunk
-        optimized_chunks.append(current)
-        
-    return optimized_chunks
+        cur = chunks[0]
+        for nxt in chunks[1:]:
+            if get_word_count(cur) + get_word_count(nxt) <= max_words: cur += " " + nxt
+            else: final.append(cur); cur = nxt
+        final.append(cur)
+    return final
 
-# --- HELPER FUNCTIONS ---
+# --- ESTIMATOR ---
 
 def estimate_max_tokens(text: str) -> int:
-    """
-    Calculates max_tokens using the 100 WPM formula.
-    Formula: (Words * 53) + Emotion Overhead + Base Buffer
-    """
     words = get_word_count(text)
     
     laughs = len(re.findall(r'<laugh>|<exhale>|<sigh>', text, re.IGNORECASE))
@@ -164,13 +152,11 @@ def estimate_max_tokens(text: str) -> int:
                    (laughs * TOKEN_PER_TAG_LONG) + \
                    (chuckles * TOKEN_PER_TAG_SHORT) + \
                    BASE_TOKEN_OVERHEAD
-                   
-    # Clamp to model limits
-    if token_budget < 250: return 250   # Minimum floor
-    if token_budget > 2048: return 2048 # Hard Hardware limit
+    if token_budget < 250: return 250
+    if token_budget > 2048: return 2048
     return int(token_budget)
 
-# --- AUDIO STREAMER (Unchanged Logic, New Splitter) ---
+# --- STREAMER ---
 
 class AudioStreamer:
     def __init__(self, tts_description: str = DESCRIPTION_DEFAULT):
@@ -180,47 +166,50 @@ class AudioStreamer:
         self.stream = None
         self.total_buffered_bytes = 0 
         self.tts_description = tts_description
-        self.previous_chunk_tail = bytearray(CROSSFADE_SAMPLES) # Start with a fade-in to prevent click at start
+        self.previous_chunk_tail = bytearray(CROSSFADE_SAMPLES) 
         
         self.session = requests.Session()
         retries = Retry(total=8, backoff_factor=1, status_forcelist=[500, 502, 503, 504], allowed_methods=frozenset(['POST', 'GET']), read=True)
         adapter = HTTPAdapter(max_retries=retries, pool_connections=CONCURRENT_REQUESTS, pool_maxsize=CONCURRENT_REQUESTS)
         self.session.mount('https://', adapter)
 
-    def smart_chunk_text(self, text):
-        # CALL THE NEW WORD SPLITTER
-        return recursive_word_chunker(text, MAX_WORDS_PER_CHUNK)
+    def prepare_pipeline(self, text):
+        """
+        1. Parses PAUSE tags.
+        2. Chunks text segments.
+        3. Returns a flat list of items: [{'type': 'text', 'content': '...'}, {'type': 'pause', 'duration': 2.0}]
+        """
+        raw_sequence = parse_pause_tags(text)
+        pipeline_items = []
+        
+        for item in raw_sequence:
+            if isinstance(item, float):
+                # It's a pause
+                pipeline_items.append({'type': 'pause', 'duration': item})
+            elif isinstance(item, str):
+                # It's text, chunk it further
+                chunks = recursive_word_chunker(item, MAX_WORDS_PER_CHUNK)
+                for c in chunks:
+                    pipeline_items.append({'type': 'text', 'content': c})
+                    
+        return pipeline_items
 
     def _request_audio_chunk(self, text_chunk, chunk_index):
+        # (Same network logic)
         max_tokens = estimate_max_tokens(text_chunk)
-        word_count = get_word_count(text_chunk)
-        
-        # Log specifically to verify strict word limit
-        logger.info(f"[Network] Chunk {chunk_index}: {word_count} words | Budget: {max_tokens} tokens")
-        
-        payload = {
-            "description": self.tts_description, 
-            "text": text_chunk,
-            "max_tokens": max_tokens
-        }
-        
+        payload = {"description": self.tts_description, "text": text_chunk, "max_tokens": max_tokens}
         try:
             response = self.session.post(SERVER_URL, json=payload, timeout=TTS_TIMEOUT)
             response.raise_for_status()
             return response.content
-        except requests.exceptions.ReadTimeout:
-            logger.error(f"[Network] Chunk {chunk_index} FAILED (Read Timeout).")
-            return None
         except Exception as e:
             logger.error(f"[Network] Failed Chunk {chunk_index}: {e}")
             return None
 
     def _crossfade_chunks(self, new_chunk_bytes):
         if not new_chunk_bytes: return b""
-        
         new_audio = np.frombuffer(new_chunk_bytes, dtype=np.int16).astype(np.float32)
         
-        # If chunk is too short (less than 2x crossfade), skip DSP to avoid index errors
         if len(new_audio) < (2 * CROSSFADE_SAMPLES):
             if self.previous_chunk_tail is not None:
                 combined = np.concatenate((self.previous_chunk_tail, new_audio))
@@ -237,40 +226,78 @@ class AudioStreamer:
         
         fade_out = np.linspace(1.0, 0.0, CROSSFADE_SAMPLES, dtype=np.float32)
         fade_in = np.linspace(0.0, 1.0, CROSSFADE_SAMPLES, dtype=np.float32)
-        
         mixed = (prev_tail * fade_out) + (new_head * fade_in)
         
         self.previous_chunk_tail = new_audio[-CROSSFADE_SAMPLES:]
         body = new_audio[CROSSFADE_SAMPLES:-CROSSFADE_SAMPLES]
-        
         return np.concatenate((mixed, body)).astype(np.int16).tobytes()
 
-    def fetch_audio_manager(self, text_chunks):
+    def fetch_audio_manager(self, pipeline_items):
         self.is_downloading = True
+        
+        # We need to manage futures manually because the list contains mixed types (text vs pause)
+        # We only submit futures for 'text' items.
+        
         with concurrent.futures.ThreadPoolExecutor(max_workers=CONCURRENT_REQUESTS) as executor:
             future_to_index = {}
-            for i in range(len(text_chunks)):
+            
+            # Helper to submit a task
+            def submit_task(idx):
+                if idx < len(pipeline_items) and pipeline_items[idx]['type'] == 'text':
+                    return executor.submit(self._request_audio_chunk, pipeline_items[idx]['content'], idx)
+                return None
+
+            # Initial submission
+            for i in range(len(pipeline_items)):
                 if i < CONCURRENT_REQUESTS:
-                    future = executor.submit(self._request_audio_chunk, text_chunks[i], i)
-                    future_to_index[i] = future
+                    future = submit_task(i)
+                    if future: future_to_index[i] = future
 
-            for i in range(len(text_chunks)):
+            # Process loop
+            for i in range(len(pipeline_items)):
+                item = pipeline_items[i]
+                
+                if item['type'] == 'pause':
+                    # 1. Flush any pending crossfade tail so the silence starts cleanly
+                    if self.previous_chunk_tail is not None:
+                        self.audio_queue.put(self.previous_chunk_tail.astype(np.int16).tobytes())
+                        self.previous_chunk_tail = bytearray(CROSSFADE_SAMPLES)  # Reset crossfader
+                    
+                    # 2. Inject Silence
+                    duration = item['duration']
+                    logger.info(f"[System] Injecting {duration}s silence (Client-side).")
+                    silent_bytes = generate_silent_bytes(duration)
+                    
+                    # Chunk the silence into queue to allow smooth playback
+                    for j in range(0, len(silent_bytes), AUDIO_CHUNK_SIZE):
+                        self.audio_queue.put(silent_bytes[j:j+AUDIO_CHUNK_SIZE])
+                        self.total_buffered_bytes += len(silent_bytes[j:j+AUDIO_CHUNK_SIZE])
+                        
+                    continue # Skip to next item (no network request to wait for)
+
+                # If text, wait for result
                 if i not in future_to_index:
-                    future_to_index[i] = executor.submit(self._request_audio_chunk, text_chunks[i], i)
+                    future = submit_task(i)
+                    if future: future_to_index[i] = future
                 
-                audio_bytes = future_to_index[i].result()
-                if audio_bytes:
-                    processed = self._crossfade_chunks(audio_bytes)
-                    for j in range(0, len(processed), AUDIO_CHUNK_SIZE):
-                        self.audio_queue.put(processed[j:j+AUDIO_CHUNK_SIZE])
-                        self.total_buffered_bytes += len(processed[j:j+AUDIO_CHUNK_SIZE])
+                if i in future_to_index:
+                    audio_bytes = future_to_index[i].result()
+                    if audio_bytes:
+                        processed = self._crossfade_chunks(audio_bytes)
+                        for j in range(0, len(processed), AUDIO_CHUNK_SIZE):
+                            self.audio_queue.put(processed[j:j+AUDIO_CHUNK_SIZE])
+                            self.total_buffered_bytes += len(processed[j:j+AUDIO_CHUNK_SIZE])
                 
+                # Lookahead submission
                 next_idx = i + CONCURRENT_REQUESTS
-                if next_idx < len(text_chunks):
-                    future_to_index[next_idx] = executor.submit(self._request_audio_chunk, text_chunks[next_idx], next_idx)
+                if next_idx < len(pipeline_items):
+                    future = submit_task(next_idx)
+                    if future: future_to_index[next_idx] = future
 
+        # Final flush
         if self.previous_chunk_tail is not None:
-            self.audio_queue.put(self.previous_chunk_tail.astype(np.int16).tobytes())
+            if not isinstance(self.previous_chunk_tail, bytearray):
+                self.audio_queue.put(self.previous_chunk_tail.astype(np.int16).tobytes())
 
         self.audio_queue.put(None)
         self.is_downloading = False
@@ -283,8 +310,7 @@ class AudioStreamer:
                 target = MIN_START_BYTES if self.total_buffered_bytes == 0 else REBUFFER_TARGET_BYTES
                 if self.total_buffered_bytes >= target or not self.is_downloading:
                     state = "PLAYING"
-                else:
-                    time.sleep(0.05); continue
+                else: time.sleep(0.05); continue
             try:
                 data = self.audio_queue.get(timeout=0.1)
                 if data is None: break
@@ -300,25 +326,32 @@ class AudioStreamer:
         self.p.terminate()
 
     def start(self, text):
-        text_chunks = list(self.smart_chunk_text(text))
-        print(f"DEBUG: Split into {len(text_chunks)} chunks.")
-        for i, c in enumerate(text_chunks):
-            print(f"  Chunk {i} ({get_word_count(c)} words): {c[:50]}...")
+        # 1. Prepare pipeline (Split text and pauses)
+        pipeline = self.prepare_pipeline(text)
+        
+        print(f"PIPELINE PLAN:")
+        for idx, item in enumerate(pipeline):
+            if item['type'] == 'text':
+                print(f"  {idx}: [TTS] {item['content'][:30]}...")
+            else:
+                print(f"  {idx}: [SILENCE] {item['duration']}s")
             
-        t = threading.Thread(target=self.fetch_audio_manager, args=(text_chunks,))
+        t = threading.Thread(target=self.fetch_audio_manager, args=(pipeline,))
         t.start()
         self.play_stream()
         t.join()
 
 if __name__ == "__main__":
     # Test with a long, slow-paced text
-    # user_query = "I want to strengthen my inner self, defeat negative self-talk and doubts, and fix low self-esteem and self-doubt."
-    user_query = "My muscles are tensed, and I want to loosen up"
+    # user_query = "I want to strengthen my inner self, defeat negative self-talk, and resolve the low self-esteem and self-doubt issues."
+    # user_query = "My muscles are tensed, and I want to loosen up"
     # user_query = "I am having a job interview tomorrow and I am anxious about it, help me focus and relax"
-    # user_query = "I need a meditation session with vivid imagery of tranquil walk through nature to help me to sleep"
-    # user_query = "I need a meditation session with vivid imagery of a boat sailing around the lighthouse and rocky shores to help me sleep"
+    # user_query = "I need a meditation session with vivid imagery of tranquil walk through nature to put me to sleep"
+    user_query = "I wish to hear a vivid advanture story from a sail boat expedition around the lighthouse and rocky shores, told by a skipper, to gide me to sleep"
     pipeline = RunnableParallel(description=voice_character_chain, text=story_generator_chain)
     result = pipeline.invoke({"query": user_query})
     
+    print(json.dumps(result))
+
     streamer = AudioStreamer(result['description'])
     streamer.start(result['text'])
