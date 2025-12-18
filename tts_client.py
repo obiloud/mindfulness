@@ -20,7 +20,7 @@ RATE = 24000
 AUDIO_CHUNK_SIZE = 8192 
 
 # DSP Config
-CROSSFADE_DURATION_SEC = 0.1
+CROSSFADE_DURATION_SEC = 0.05
 SAMPLES_PER_SEC = RATE * CHANNELS
 CROSSFADE_SAMPLES = int(CROSSFADE_DURATION_SEC * SAMPLES_PER_SEC)
 
@@ -180,7 +180,7 @@ class AudioStreamer:
         self.stream = None
         self.total_buffered_bytes = 0 
         self.tts_description = tts_description
-        self.previous_chunk_tail = None 
+        self.previous_chunk_tail = bytearray(CROSSFADE_SAMPLES) # Start with a fade-in to prevent click at start
         
         self.session = requests.Session()
         retries = Retry(total=8, backoff_factor=1, status_forcelist=[500, 502, 503, 504], allowed_methods=frozenset(['POST', 'GET']), read=True)
@@ -312,9 +312,11 @@ class AudioStreamer:
 
 if __name__ == "__main__":
     # Test with a long, slow-paced text
-    user_query = "I want to strengthen my inner self, defeat negative self-talk and doubts, and fix low self-esteem and self-doubt."
-    # user_query = "My muscles are tensed, and I want to loosen up"
+    # user_query = "I want to strengthen my inner self, defeat negative self-talk and doubts, and fix low self-esteem and self-doubt."
+    user_query = "My muscles are tensed, and I want to loosen up"
     # user_query = "I am having a job interview tomorrow and I am anxious about it, help me focus and relax"
+    # user_query = "I need a meditation session with vivid imagery of tranquil walk through nature to help me to sleep"
+    # user_query = "I need a meditation session with vivid imagery of a boat sailing around the lighthouse and rocky shores to help me sleep"
     pipeline = RunnableParallel(description=voice_character_chain, text=story_generator_chain)
     result = pipeline.invoke({"query": user_query})
     
