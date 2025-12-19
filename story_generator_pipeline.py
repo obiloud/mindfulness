@@ -2,6 +2,7 @@ import os
 from dotenv import load_dotenv
 from langchain_huggingface import ChatHuggingFace, HuggingFaceEndpoint
 from langchain_core.prompts import ChatPromptTemplate, SystemMessagePromptTemplate, HumanMessagePromptTemplate
+from langchain_core.output_parsers import StrOutputParser
 
 load_dotenv(override=True)
 
@@ -23,16 +24,9 @@ llm = HuggingFaceEndpoint(
 
 chat_model = ChatHuggingFace(llm=llm)
 
-system_message = SystemMessagePromptTemplate.from_template("You are a helpfull creative writing assistant.")
+creative_writer_system_message = SystemMessagePromptTemplate.from_template("You are a helpfull creative writing assistant.")
 
-def output_parser(message) -> str:
-    cleaned = message.content.strip()
-    cleaned = cleaned.strip('`')
-    cleaned = cleaned.strip('"')
-    parts = cleaned.split("**Output:**")
-    return parts[-1]
-
-template = """You are an expert meditation guru, guiding individuals through various types of meditation sessions.
+meditation_guide_template = """You are an expert meditation guru, guiding individuals through various types of meditation sessions.
 
 Your role is to create comprehensive and engaging guided meditations that help users relax, focus, and cultivate mindfulness.
 
@@ -76,13 +70,15 @@ IMPORTANT: Keep sentence length shorter than 30 words for smooth streaming.
 
 **Output:**"""
 
-human_message = HumanMessagePromptTemplate.from_template(template)
+meditation_guide_human_message = HumanMessagePromptTemplate.from_template(meditation_guide_template)
 
-prompt = ChatPromptTemplate.from_messages([system_message, human_message])
+meditation_guide_prompt = ChatPromptTemplate.from_messages([creative_writer_system_message, meditation_guide_human_message])
 
-# story_generator_chain = prompt | llm | output_parser
-story_generator_chain= prompt | chat_model | output_parser
-
+meditation_guide_generator_chain = (
+    meditation_guide_prompt 
+    | chat_model 
+    | StrOutputParser()
+)
 
 if __name__ == "__main__":
 
@@ -102,6 +98,6 @@ if __name__ == "__main__":
     # user_query = "I hate gingers I wish everyone else to die 8===D"
 
 
-    story = story_generator_chain.invoke({"query": user_query})
+    story = meditation_guide_generator_chain.invoke({"query": user_query})
 
     print("Generated Story:\n", story)

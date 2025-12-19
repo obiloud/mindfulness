@@ -1,12 +1,10 @@
 
 from langchain_core.prompts import ChatPromptTemplate, SystemMessagePromptTemplate, HumanMessagePromptTemplate
 from story_generator_pipeline import chat_model
+from langchain_core.output_parsers import StrOutputParser
 
-def output_parser(message) -> str:
-    parts = message.content.split("\n")
-    return parts[0]
 
-system_message = SystemMessagePromptTemplate.from_template("You are a helpful voice designer assistant.")
+voice_character_system_message = SystemMessagePromptTemplate.from_template("You are a helpful voice designer assistant.")
 
 voice_character_template = """**You are an experienced radio director**
 
@@ -40,11 +38,15 @@ Select a suitable voice character for a meditation guide narrator based on the f
 **Output:**
 """
 
-human_message = HumanMessagePromptTemplate.from_template(voice_character_template)
+voice_character_human_message = HumanMessagePromptTemplate.from_template(voice_character_template)
 
-voice_character_prompt = ChatPromptTemplate.from_messages([system_message, human_message])
+voice_character_prompt = ChatPromptTemplate.from_messages([voice_character_system_message, voice_character_human_message])
 
-voice_character_chain = voice_character_prompt | chat_model | output_parser
+voice_character_chain = (
+    voice_character_prompt 
+    | chat_model 
+    | StrOutputParser()
+)
 
 
 if __name__ == "__main__":

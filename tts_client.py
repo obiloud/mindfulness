@@ -10,8 +10,8 @@ from urllib3.util.retry import Retry
 import re
 import numpy as np
 import json
-from story_generator_pipeline import story_generator_chain
-from voice_generator import voice_character_chain
+from story_generator_pipeline import meditation_guide_generator_chain
+from voice_generator_pipeline import voice_character_chain
 from langchain_core.runnables import RunnableParallel
 
 # --- CONFIGURATION ---
@@ -346,12 +346,12 @@ if __name__ == "__main__":
     # user_query = "I want to strengthen my inner self, defeat negative self-talk, and resolve the low self-esteem and self-doubt issues."
     # user_query = "My muscles are tensed, and I want to loosen up"
     # user_query = "I am having a job interview tomorrow and I am anxious about it, help me focus and relax"
-    # user_query = "I need a meditation session with vivid imagery of tranquil walk through nature to put me to sleep"
-    user_query = "I wish to hear a vivid advanture story from a sail boat expedition around the lighthouse and rocky shores, told by a skipper, to gide me to sleep"
+    user_query = "I need a meditation session with vivid imagery of tranquil walk through nature to put me to sleep"
+    # user_query = "I wish to hear a vivid advanture story from a sail boat expedition around the lighthouse and rocky shores, told by a skipper, to gide me to sleep"
     # user_query = "I need a good bed time story to move me out of the bar and into the bed"
     # user_query = "My frequent episodes of anger are weighing heavily on my social life and family interactions. I am constantly in conflict with people around me and I cannot help it."
 
-    pipeline = RunnableParallel(description=voice_character_chain, text=story_generator_chain)
+    pipeline = RunnableParallel(description=voice_character_chain, text=meditation_guide_generator_chain)
     result = pipeline.invoke({"query": user_query})
     
     print(json.dumps(result))
