@@ -26,7 +26,7 @@ SAMPLES_PER_SEC = RATE * CHANNELS
 CROSSFADE_SAMPLES = int(CROSSFADE_DURATION_SEC * SAMPLES_PER_SEC)
 
 # Token Budget (100 WPM)
-TOKEN_PER_WORD = 53
+TOKEN_PER_WORD = 60
 TOKEN_PER_TAG_SHORT = 150
 TOKEN_PER_TAG_LONG = 400
 BASE_TOKEN_OVERHEAD = 100
@@ -348,6 +348,9 @@ if __name__ == "__main__":
     # user_query = "I am having a job interview tomorrow and I am anxious about it, help me focus and relax"
     # user_query = "I need a meditation session with vivid imagery of tranquil walk through nature to put me to sleep"
     user_query = "I wish to hear a vivid advanture story from a sail boat expedition around the lighthouse and rocky shores, told by a skipper, to gide me to sleep"
+    # user_query = "I need a good bed time story to move me out of the bar and into the bed"
+    # user_query = "My frequent episodes of anger are weighing heavily on my social life and family interactions. I am constantly in conflict with people around me and I cannot help it."
+
     pipeline = RunnableParallel(description=voice_character_chain, text=story_generator_chain)
     result = pipeline.invoke({"query": user_query})
     

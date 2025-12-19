@@ -13,7 +13,7 @@ llm = HuggingFaceEndpoint(
     repo_id=repo_id,
     task="text-generation",
     max_new_tokens=1024,
-    temperature=0.6,
+    temperature=0.7,
     top_k=80,
     top_p=0.9,
     repetition_penalty=1.1,
@@ -49,25 +49,26 @@ The generated output should contain only the text of the guided meditation sessi
 	* Use clear, gentle language to guide the listener through various breathing techniques, visualisations or physical relaxations
     * Use often pauses in the speech to give a listener time to follow the instructions, let the message sink in, or guide a listener through the breathing exercises.
 3. **Breathing and relaxation techniques:**
-	* Include breathing exercises (e.g., diaphragmatic breathing, 4-7-8 breathing) tailored to the user's specific needs
+	* Include breathing exercises (e.g., diaphragmatic breathing, 4-7-8 breathing) tailored to the user's specific needs. Example: "Breathe in for four. [PAUSE:4.0] Hold that life force for seven. [PAUSE:7.0] Exhale all your tension for eight. [PAUSE:8.0]" 
 	* Suggest physical relaxations such as progressive muscle relaxation, yoga-inspired postures or gentle stretches
 4. **Imagery and visualisation:**
 	* Use vivid, descriptive language to paint a peaceful picture for the listener's imagination
-5. **Emotions:** for expressive and impactful storytelling include emotion tags from the following list: <angry>, <appalled>, <chuckle>, <cry>, <curious>, <disappointed>, <excited>, <exhale>, <gasp>, <giggle>, <gulp>, <laugh>, <laugh_harder>, <mischievous>, <sarcastic>, <scream>, <sigh>, <sing>, <snort>, <whisper>.      
+5. **Emotions:** for expressive and impactful storytelling include emotion tags from the following list: <angry>, <appalled>, <chuckle>, <cry>, <curious>, <disappointed>, <excited>, <exhale>, <gasp>, <giggle>, <gulp>, <laugh>, <laugh_harder>, <mischievous>, <sarcastic>, <scream>, <sigh>, <sing>, <snort>, <whisper>.
+6. **Output Format:**
+    * Use emotion tags for stressing certain words or to include emotions: <angry>, <appalled>, <chuckle>, <cry>, <curious>, <disappointed>, <excited>, <exhale>, <gasp>, <giggle>, <gulp>, <laugh>, <laugh_harder>, <mischievous>, <sarcastic>, <scream>, <sigh>, <sing>, <snort>, <whisper>
+    * Use [PAUSE:1.0] tags to instruct the narrator to make a pause in speech of arbitrary duration in seconds
+    * Separate sentences with newline characters.
+    * Do not include quotes or backticks around the generated text. 
+    * No section titles.
+    * No markdown.
+    * No html.
+    * No indentation.
+    * No special characters.
+    * No emojis.
+    * No examples.
+    * No additional notes.
 
 IMPORTANT: Keep sentence length shorter than 30 words for smooth streaming.
-IMPORTANT: Use emotion tags for stressing certain words or to include emotions: <angry>, <appalled>, <chuckle>, <cry>, <curious>, <disappointed>, <excited>, <exhale>, <gasp>, <giggle>, <gulp>, <laugh>, <laugh_harder>, <mischievous>, <sarcastic>, <scream>, <sigh>, <sing>, <snort>, <whisper>
-IMPORTANT: Use [PAUSE:1.0] tags to instruct the narrator to make a pause in speech of arbitrary duration in seconds
-IMPORTANT: Separate sentences with newline characters.
-IMPORTANT: Do not include quotes or backticks around the generated text. 
-IMPORTANT: No section titles.
-IMPORTANT: No markdown.
-IMPORTANT: No html.
-IMPORTANT: No indentation.
-IMPORTANT: No special characters.
-IMPORTANT: No emojis.
-IMPORTANT: No examples.
-IMPORTANT: No additional notes.
 
 **User Input (Query):**
 
