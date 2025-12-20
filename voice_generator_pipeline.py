@@ -4,9 +4,7 @@ from story_generator_pipeline import chat_model
 from langchain_core.output_parsers import StrOutputParser
 
 
-voice_character_system_message = SystemMessagePromptTemplate.from_template("You are a helpful voice designer assistant.")
-
-voice_character_template = """**You are an experienced radio director**
+voice_character_system_template = voice_character_template = """**You are an experienced radio director**
 
 **Your role is to select a suitable voice character for a meditation guide narrator based on the user's query.**
 
@@ -32,11 +30,11 @@ Examples:
 Do not limit your choice to these examples, try to be creative.
 
 RESPONSE FORMAT: Return ONLY a single line voice character description, no examples, no extra justifications.
-
-Select a suitable voice character for a meditation guide narrator based on the following query:
-{query}
-**Output:**
 """
+
+voice_character_system_message = SystemMessagePromptTemplate.from_template(voice_character_system_template)
+
+voice_character_template = """Select a suitable voice character for a meditation guide narrator based on the following query: {query}"""
 
 voice_character_human_message = HumanMessagePromptTemplate.from_template(voice_character_template)
 
@@ -59,7 +57,7 @@ if __name__ == "__main__":
     # * Energy and motivation meditation (e.g., boosting creativity, increasing productivity)
 
 
-    user_query = "My muscles are tensed, and I want to loosen up"
+    user_query = "My muscles are tensed, and I want to loosen up with a guided session spoken by the male voice"
     # user_query ="I am having trouble falling asleep"
     # user_query = "I will be interviewed for a job in Bristol next week, and I am anxious about it. Help me calm down and focus."
 

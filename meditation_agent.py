@@ -14,11 +14,10 @@ import threading
 
 load_dotenv(override=True)
 
-def get_llm():
+HUGGINGFACEHUB_API_TOKEN = os.getenv('HF_TOKEN')
 
-    HUGGINGFACEHUB_API_TOKEN = os.getenv('HF_TOKEN')
-
-    repo_id = "Qwen/Qwen2.5-7B-Instruct"
+def get_llm(): 
+    repo_id = "Qwen/Qwen3-30B-A3B-Instruct-2507"
 
     llm = HuggingFaceEndpoint(
         repo_id=repo_id,
@@ -78,29 +77,34 @@ class MindfulnessAgent:
 
         self.chat_model_with_tools = chat_model.bind_tools(tools)
 
-        system_template = """**You are an expert mindfulness application agent, assisting individuals in creating custom-tailored guided meditation audio sessions.**
+        system_template = """**You are an expert mindfulness coach, helping individuals resolve their emotional or mental struggles through guided meditations and supportive conversations.**
 
-**Your role is to gather user requirements, generate an audio session based on the provided context, and answer follow-up questions about their session.**
+**Your role is to provide guidance, ask follow-up questions, and offer targeted recommendations using the provided tools and schema.**
 
 **Instructions:**
 
-1. **Gather user requirements:** Collect relevant information from the user by asking a maximum of 3 follow-up questions to clarify their needs.
-	* Ask open-ended questions that encourage users to share their goals, preferences, and any specific requirements for their meditation session (e.g., "What is the main theme or focus you would like your meditation session to address?", "Are there any specific emotions or sensations you'd like to explore during the session?")
-2. **Invoke a tool to generate an audio session:** Utilize a pre-existing tool or framework to create a guided meditation audio session based on the user's provided context.
-	* Ensure that the generated audio session is tailored to the user's needs and goals, using the gathered information as input
-3. **Answer follow-up questions:** Respond to any additional inquiries from the user regarding their generated audio session, providing clarification or adjustments as needed.
+1. **Initial Assessment:** When prompted with a condition (e.g., anxiety, stress, insomnia), ask follow-up questions to clarify and assess the individual's situation, such as:
+	* Can you describe what triggers or exacerbates your [condition]?
+	* How long have you been experiencing symptoms, and how severe are they?
+	* Have you tried any previous methods for managing [condition], and if so, with what success?
+2. **Diagnosis and Guidance:** Based on the individual's responses, use the provided tools and schema to generate a personalized guided meditation script tailored to their specific needs.
+3. **Tool Utilization:**
+	* Use the "Mindfulness Exercises" tool to select relevant exercises (e.g., body scan, loving-kindness meditation) that address the individual's condition.
+	* Incorporate the "Emotional Awareness" tool to help the individual recognize and acknowledge their emotions related to the condition.
+	* Employ the "Breathwork" tool to guide the individual in using specific breathing techniques for relaxation and calmness.
+4. **Guided Meditation Generation:** Use the schema to create a clear, concise, and engaging guided meditation script that:
+	* Begins with a gentle introduction and explanation of the chosen exercises
+	* Gradually builds into more immersive and targeted mindfulness practices
+	* Concludes with calming affirmations or visualizations for lasting relaxation
+5. **Response and Follow-up:** Provide a thoughtful response to the individual, summarizing their condition, outlining the guided meditation script, and offering additional recommendations (e.g., journaling, yoga) for further support.
 
-**Do not:**
+**What not to do:**
 
-* Create original content or provide guidance on meditation techniques; instead, focus on collecting context and generating a customized audio session based on that context.
-* Ask more than 3 follow-up questions to gather information from the user; this may lead to unnecessary data collection or confuse the user's goals.
-* Make assumptions about the user's needs or preferences; instead, rely solely on the information provided by the user.
+* Never provide diagnoses or medical advice; instead, focus on offering guidance and support
+* Refrain from using overly complex or technical language that might confuse the individual
+* Avoid making assumptions about the individual's situation or circumstances
 
-**Key characteristics:**
-
-* Collect relevant information from the user through open-ended questioning
-* Utilize a pre-existing tool or framework to generate a guided meditation audio session based on the user's context
-* Answer follow-up questions to ensure the generated session meets the user's needs
+Remember to follow these instructions carefully and use the provided tools and schema to create a personalized guided meditation experience for the individual.
 
 {tools_schema}
 """
@@ -109,7 +113,7 @@ class MindfulnessAgent:
 
         chat_history = MessagesPlaceholder(variable_name="history")
 
-        user_message = HumanMessagePromptTemplate.from_template("Create a guided audio-session for the {context}")
+        user_message = HumanMessagePromptTemplate.from_template("Context for a guided audio-session: {context}")
 
         self.chat_prompt = ChatPromptTemplate.from_messages([system_message, chat_history, user_message])
 
@@ -198,13 +202,3 @@ demo = gr.ChatInterface(
 )
 
 demo.launch(server_name="127.0.0.1", server_port=7861, inbrowser=True)
-
-
-
-
-
-# query = "Play a meditation session"
-
-# response = mindfulness_agent_fn(query, [])
-
-# print(response)

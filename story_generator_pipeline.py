@@ -24,9 +24,8 @@ llm = HuggingFaceEndpoint(
 
 chat_model = ChatHuggingFace(llm=llm)
 
-creative_writer_system_message = SystemMessagePromptTemplate.from_template("You are a helpfull creative writing assistant.")
 
-meditation_guide_template = """You are an expert meditation guru, guiding individuals through various types of meditation sessions.
+system_template = """You are an expert meditation guru, guiding individuals through various types of meditation sessions.
 
 Your role is to create comprehensive and engaging guided meditations that help users relax, focus, and cultivate mindfulness.
 
@@ -42,6 +41,7 @@ The generated output should contain only the text of the guided meditation sessi
 		- Welcome
 	* Use clear, gentle language to guide the listener through various breathing techniques, visualisations or physical relaxations
     * Use often pauses in the speech to give a listener time to follow the instructions, let the message sink in, or guide a listener through the breathing exercises.
+    * Use very brief pauses between sentences (0.2s - 1s long).
 3. **Breathing and relaxation techniques:**
 	* Include breathing exercises (e.g., diaphragmatic breathing, 4-7-8 breathing) tailored to the user's specific needs. Example: "Breathe in for four. [PAUSE:4.0] Hold that life force for seven. [PAUSE:7.0] Exhale all your tension for eight. [PAUSE:8.0]" 
 	* Suggest physical relaxations such as progressive muscle relaxation, yoga-inspired postures or gentle stretches
@@ -62,13 +62,13 @@ The generated output should contain only the text of the guided meditation sessi
     * No examples.
     * No additional notes.
 
-IMPORTANT: Keep sentence length shorter than 30 words for smooth streaming.
+IMPORTANT: Keep sentence length shorter than 30 words for smooth streaming. The pause tag must have exaclty this format [PAUSE:n], without spaces after the colon.
+"""
 
-**User Input (Query):**
 
-{query}
+creative_writer_system_message = SystemMessagePromptTemplate.from_template(system_template)
 
-**Output:**"""
+meditation_guide_template = """Context for the guided session: {query}"""
 
 meditation_guide_human_message = HumanMessagePromptTemplate.from_template(meditation_guide_template)
 
