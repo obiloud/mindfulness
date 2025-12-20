@@ -320,6 +320,62 @@ class AudioStreamer:
                 if self.is_downloading: state = "BUFFERING"
                 else: break
         self.cleanup()
+    
+    def make_generator(self, text):
+        """
+        Creates a generator that yields audio chunks for Gradio.
+        Format: (sample_rate, numpy_int16_array)
+        """
+        pipeline = self.prepare_pipeline(text)
+
+        print(f"PIPELINE PLAN:")
+        for idx, item in enumerate(pipeline):
+            if item['type'] == 'text':
+                print(f"  {idx}: [TTS] {item['content'][:30]}...")
+            else:
+                print(f"  {idx}: [SILENCE] {item['duration']}s")
+
+        # Start the background downloader
+        t = threading.Thread(target=self.fetch_audio_manager, args=(pipeline,))
+        t.start()
+                
+        current_buffer = []
+
+        # Yield from queue
+        while True:
+            try:
+                target = MIN_START_BYTES if self.total_buffered_bytes == 0 else REBUFFER_TARGET_BYTES
+
+                # Wait for data
+                chunk_bytes = self.audio_queue.get(timeout=10)
+                
+                if chunk_bytes is None:
+                    break
+                
+                # Convert bytes to Numpy for Gradio
+                # Gradio expects (rate, array)
+                audio_array = np.frombuffer(chunk_bytes, dtype=np.int16)
+
+                current_buffer.append(audio_array)
+
+                flattened = np.concatenate(current_buffer)
+                if len(flattened) >= target:
+                    # Yield the tuple Gradio needs
+                    yield (RATE, flattened)
+                    self.total_buffered_bytes += len(flattened)
+                    current_buffer = []
+                
+            except queue.Empty:
+                # If queue is empty but thread is alive, we just wait (loop)
+                # If thread is dead and queue empty, we break
+                if not t.is_alive():
+                    break
+                
+            except Exception as e:
+                logger.error(f"Generator Error: {e}")
+                break
+
+        t.join()
 
     def cleanup(self):
         if self.stream: self.stream.stop_stream(); self.stream.close()
@@ -358,3 +414,7 @@ if __name__ == "__main__":
 
     streamer = AudioStreamer(result['description'])
     streamer.start(result['text'])
+    # generator = streamer.make_generator(result['text'])
+
+    # for k, v in generator:
+    #     print(k, v)
