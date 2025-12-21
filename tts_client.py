@@ -315,7 +315,7 @@ class AudioStreamer:
                 data = self.audio_queue.get(timeout=0.1)
                 if data is None: break
                 self.stream.write(data)
-                self.total_buffered_bytes -= len(data)
+                self.total_buffered_bytes += len(data)
             except queue.Empty:
                 if self.is_downloading: state = "BUFFERING"
                 else: break
