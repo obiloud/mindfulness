@@ -53,10 +53,12 @@ def generate_audio_guided_meditation_session(context: str) -> str:
     voice_character = result.get("description")
     transcript = result.get("text", "")
 
-    streamer = AudioStreamer(voice_character)
+    print(f"\n{json.dumps(result, indent=4)}\n")
+
+    streamer = AudioStreamer()
     audio_stream_generator = streamer.make_generator(transcript)
 
-    return str(transcript)
+    return f"The audio will start in a few seconds, please be patient. Here is the transcript: {transcript}"
 
 
 class MindfulnessAgent:
@@ -200,7 +202,6 @@ def interaction_fn(user_input, history_state):
     
     # 4. Update History with AI response
     history_state.append({"role": "user", "content": user_input})
-    history_state.append({"role": "assistant", "content": response_text})
     
     # 5. Format Chat for Display (User, AI)
     # chat_display = []
@@ -213,15 +214,18 @@ def interaction_fn(user_input, history_state):
     # We yield the updated chat immediately, then yield audio chunks as they arrive
     if audio_stream_generator:
         # First yield: Text is done, Audio starts
+        history_state.append({"role": "assistant", "content": "Your session will start shortly."})
         yield "", history_state, None
         
         # Loop through audio chunks
         for chunk in audio_stream_generator:
             # Yield: Text (static), History (static), Audio (new chunk)
             yield "", history_state, chunk
-    else:
-        # No audio generated, just return text
-        yield "", history_state, None
+    
+    # No audio generated, just return text
+    history_state = history_state[:-1]
+    history_state.append({"role": "assistant", "content": response_text})
+    yield "", history_state, None
 
 
 # --- 5. Gradio Layout (Blocks) ---
@@ -238,10 +242,15 @@ with gr.Blocks(title="Mindfulness AI") as demo:
         with gr.Column(scale=1):
             # The Audio component is set to 'streaming=True' and 'autoplay=True'
             # It expects (sample_rate, numpy array) tuples
-            audio_out = gr.Audio(label="Guided Session", streaming=True, autoplay=True)
+            audio_out = gr.Audio(
+                label="Guided Session", 
+                streaming=True,
+                autoplay=True,
+                format="wav"
+            )
 
     # State to hold conversation history
-    # state = gr.State([])
+    state = gr.State([])
 
     # Event Listener
     submit_btn.click(
@@ -258,4 +267,4 @@ with gr.Blocks(title="Mindfulness AI") as demo:
     )
 
 if __name__ == "__main__":
-    demo.launch(server_name="127.0.0.1", server_port=7861)
+    demo.launch(server_name="127.0.0.1", server_port=7861, theme=gr.themes.Soft())

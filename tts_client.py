@@ -26,12 +26,12 @@ SAMPLES_PER_SEC = RATE * CHANNELS
 CROSSFADE_SAMPLES = int(CROSSFADE_DURATION_SEC * SAMPLES_PER_SEC)
 
 # Token Budget (100 WPM)
-TOKEN_PER_WORD = 60
+TOKEN_PER_WORD = 54
 TOKEN_PER_TAG_SHORT = 150
 TOKEN_PER_TAG_LONG = 400
-BASE_TOKEN_OVERHEAD = 100
+BASE_TOKEN_OVERHEAD = 150
 
-MAX_WORDS_PER_CHUNK = 35 
+MAX_WORDS_PER_CHUNK = 30
 
 # Buffering Config
 BUFFER_DURATION_SEC = 6.0
@@ -195,9 +195,8 @@ class AudioStreamer:
         return pipeline_items
 
     def _request_audio_chunk(self, text_chunk, chunk_index):
-        # (Same network logic)
         max_tokens = estimate_max_tokens(text_chunk)
-        payload = {"description": self.tts_description, "text": text_chunk, "max_tokens": max_tokens}
+        payload = {"description": self.tts_description, "text": text_chunk, "max_tokens": max_tokens, "temperature": 0.3 }
         try:
             response = self.session.post(SERVER_URL, json=payload, timeout=TTS_TIMEOUT)
             response.raise_for_status()
@@ -320,62 +319,6 @@ class AudioStreamer:
                 if self.is_downloading: state = "BUFFERING"
                 else: break
         self.cleanup()
-    
-    def make_generator(self, text):
-        """
-        Creates a generator that yields audio chunks for Gradio.
-        Format: (sample_rate, numpy_int16_array)
-        """
-        pipeline = self.prepare_pipeline(text)
-
-        print(f"PIPELINE PLAN:")
-        for idx, item in enumerate(pipeline):
-            if item['type'] == 'text':
-                print(f"  {idx}: [TTS] {item['content'][:30]}...")
-            else:
-                print(f"  {idx}: [SILENCE] {item['duration']}s")
-
-        # Start the background downloader
-        t = threading.Thread(target=self.fetch_audio_manager, args=(pipeline,))
-        t.start()
-                
-        current_buffer = []
-
-        # Yield from queue
-        while True:
-            try:
-                target = MIN_START_BYTES if self.total_buffered_bytes == 0 else REBUFFER_TARGET_BYTES
-
-                # Wait for data
-                chunk_bytes = self.audio_queue.get(timeout=10)
-                
-                if chunk_bytes is None:
-                    break
-                
-                # Convert bytes to Numpy for Gradio
-                # Gradio expects (rate, array)
-                audio_array = np.frombuffer(chunk_bytes, dtype=np.int16)
-
-                current_buffer.append(audio_array)
-
-                flattened = np.concatenate(current_buffer)
-                if len(flattened) >= target:
-                    # Yield the tuple Gradio needs
-                    yield (RATE, flattened)
-                    self.total_buffered_bytes += len(flattened)
-                    current_buffer = []
-                
-            except queue.Empty:
-                # If queue is empty but thread is alive, we just wait (loop)
-                # If thread is dead and queue empty, we break
-                if not t.is_alive():
-                    break
-                
-            except Exception as e:
-                logger.error(f"Generator Error: {e}")
-                break
-
-        t.join()
 
     def cleanup(self):
         if self.stream: self.stream.stop_stream(); self.stream.close()
@@ -396,6 +339,58 @@ class AudioStreamer:
         t.start()
         self.play_stream()
         t.join()
+    
+    def make_generator(self, text):
+        """
+        Adapts the existing fetch_audio_manager to yield aggregated 
+        numpy chunks for smooth Gradio web streaming.
+        """
+        # 1. Prepare and start the downloader thread (uses your existing logic)
+        pipeline = self.prepare_pipeline(text)
+        logger.info(f"Starting Gradio Stream for: {text[:50]}...")
+        
+        t = threading.Thread(target=self.fetch_audio_manager, args=(pipeline,))
+        t.start()
+
+        # 2. Buffering Logic
+        # This provides enough 'lookahead' for the browser to stay smooth
+        yield_threshold_samples = (BYTES_PER_SEC * 4)
+        accumulated_samples = []
+
+        try:
+            while True:
+                try:
+                    # Get chunk from your existing audio_queue
+                    chunk_bytes = self.audio_queue.get(timeout=5.0)
+                    
+                    if chunk_bytes is None: # End of stream signal
+                        break
+                    
+                    # Convert raw bytes to numpy (int16 as defined in your FORMAT)
+                    audio_np = np.frombuffer(chunk_bytes, dtype=np.int16)
+                    accumulated_samples.append(audio_np)
+
+                    # Calculate current buffer size
+                    current_size = sum(len(s) for s in accumulated_samples)
+
+                    if current_size >= yield_threshold_samples:
+                        # Combine small chunks into one smooth block
+                        yield_block = np.concatenate(accumulated_samples)
+                        yield (RATE, yield_block)
+                        accumulated_samples = []
+
+                except queue.Empty:
+                    if not t.is_alive():
+                        break
+                    continue
+
+            # Yield any remaining samples
+            if accumulated_samples:
+                yield (RATE, np.concatenate(accumulated_samples))
+
+        finally:
+            t.join()
+            logger.info("Gradio Stream Complete.")
 
 if __name__ == "__main__":
     # Test with a long, slow-paced text
