@@ -166,7 +166,7 @@ class AudioStreamer:
         self.stream = None
         self.total_buffered_bytes = 0 
         self.tts_description = tts_description
-        self.previous_chunk_tail = bytearray(CROSSFADE_SAMPLES) 
+        self.previous_chunk_tail = np.zeros(CROSSFADE_SAMPLES, dtype=np.int16) 
         
         self.session = requests.Session()
         retries = Retry(total=8, backoff_factor=1, status_forcelist=[500, 502, 503, 504], allowed_methods=frozenset(['POST', 'GET']), read=True)
@@ -260,7 +260,7 @@ class AudioStreamer:
                     # 1. Flush any pending crossfade tail so the silence starts cleanly
                     if self.previous_chunk_tail is not None:
                         self.audio_queue.put(self.previous_chunk_tail.astype(np.int16).tobytes())
-                        self.previous_chunk_tail = bytearray(CROSSFADE_SAMPLES)  # Reset crossfader
+                        self.previous_chunk_tail = np.zeros(CROSSFADE_SAMPLES, dtype=np.int16)    # Reset crossfader
                     
                     # 2. Inject Silence
                     duration = item['duration']
