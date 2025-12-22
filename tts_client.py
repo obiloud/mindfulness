@@ -31,7 +31,7 @@ TOKEN_PER_TAG_SHORT = 150
 TOKEN_PER_TAG_LONG = 400
 BASE_TOKEN_OVERHEAD = 150
 
-MAX_WORDS_PER_CHUNK = 30
+MAX_WORDS_PER_CHUNK = 15
 
 # Buffering Config
 BUFFER_DURATION_SEC = 6.0
@@ -69,7 +69,7 @@ def parse_pause_tags(text: str):
     where float represents silence duration in seconds.
     """
     # Regex to find [PAUSE:2] or [PAUSE:0.5]
-    pattern = r'\[PAUSE:(\d+(?:\.\d+)?)\]'
+    pattern = r'\[PAUSE:\s?(\d+(?:\.\d+)?)\]'
     parts = re.split(pattern, text)
     
     parsed_sequence = []
@@ -223,8 +223,8 @@ class AudioStreamer:
         prev_tail = self.previous_chunk_tail
         new_head = new_audio[:CROSSFADE_SAMPLES]
         
-        fade_out = np.linspace(1.0, 0.0, CROSSFADE_SAMPLES, dtype=np.float32)
-        fade_in = np.linspace(0.0, 1.0, CROSSFADE_SAMPLES, dtype=np.float32)
+        fade_out = np.linspace(1.0, 0.0, CROSSFADE_SAMPLES, dtype=np.int16)
+        fade_in = np.linspace(0.0, 1.0, CROSSFADE_SAMPLES, dtype=np.int16)
         mixed = (prev_tail * fade_out) + (new_head * fade_in)
         
         self.previous_chunk_tail = new_audio[-CROSSFADE_SAMPLES:]

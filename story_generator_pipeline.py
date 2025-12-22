@@ -24,7 +24,6 @@ llm = HuggingFaceEndpoint(
 
 chat_model = ChatHuggingFace(llm=llm)
 
-
 system_template = """You are an expert meditation guru, guiding individuals through various types of meditation sessions.
 
 Your role is to create comprehensive and engaging guided meditations that help users relax, focus, and cultivate mindfulness.
@@ -62,9 +61,8 @@ The generated output should contain only the text of the guided meditation sessi
     * No examples.
     * No additional notes.
 
-IMPORTANT: Keep sentence length shorter than 30 words for smooth streaming. The pause tag must have exaclty this format [PAUSE:n], without spaces after the colon.
+IMPORTANT: Keep sentence length shorter than 15 words for smooth streaming. The pause tag must have exaclty this format [PAUSE:n], without spaces after the colon.
 """
-
 
 creative_writer_system_message = SystemMessagePromptTemplate.from_template(system_template)
 

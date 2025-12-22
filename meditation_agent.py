@@ -55,7 +55,7 @@ def generate_audio_guided_meditation_session(context: str) -> str:
 
     print(f"\n{json.dumps(result, indent=4)}\n")
 
-    streamer = AudioStreamer()
+    streamer = AudioStreamer(voice_character)
     audio_stream_generator = streamer.make_generator(transcript)
 
     return f"The audio will start in a few seconds, please be patient. Here is the transcript: {transcript}"
@@ -183,12 +183,10 @@ Remember to follow these instructions carefully and use the provided tools and s
 
 def interaction_fn(user_input, history_state):
     global audio_stream_generator
-    audio_stream_generator = None # Reset previous stream
+    # audio_stream_generator = None # Reset previous stream
     
-    # 1. Update History
     history_state = history_state or []
     
-    # 2. Initialize Agent
     tool_map = {"generate_audio_guided_meditation_session": generate_audio_guided_meditation_session}
     
     agent = MindfulnessAgent(
@@ -197,20 +195,10 @@ def interaction_fn(user_input, history_state):
         tool_mapping=tool_map
     )
     
-    # 3. Run Agent Logic
     response_text = agent.run(user_input)
     
-    # 4. Update History with AI response
     history_state.append({"role": "user", "content": user_input})
     
-    # 5. Format Chat for Display (User, AI)
-    # chat_display = []
-    # for i in range(0, len(history_state), 2):
-    #     u = history_state[i]
-    #     a = history_state[i+1] if i+1 < len(history_state) else ChatMessage(role="assistant", content="")
-    #     chat_display.append([u, a])
-
-    # 6. Stream Audio if available
     # We yield the updated chat immediately, then yield audio chunks as they arrive
     if audio_stream_generator:
         # First yield: Text is done, Audio starts
@@ -219,11 +207,10 @@ def interaction_fn(user_input, history_state):
         
         # Loop through audio chunks
         for chunk in audio_stream_generator:
-            # Yield: Text (static), History (static), Audio (new chunk)
             yield "", history_state, chunk
     
-    # No audio generated, just return text
-    history_state = history_state[:-1]
+        history_state = history_state[:-1]
+
     history_state.append({"role": "assistant", "content": response_text})
     yield "", history_state, None
 
