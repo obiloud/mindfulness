@@ -26,15 +26,15 @@ SAMPLES_PER_SEC = RATE * CHANNELS
 CROSSFADE_SAMPLES = int(CROSSFADE_DURATION_SEC * SAMPLES_PER_SEC)
 
 # Token Budget (100 WPM)
-TOKEN_PER_WORD = 54
+TOKEN_PER_WORD = 53
 TOKEN_PER_TAG_SHORT = 150
 TOKEN_PER_TAG_LONG = 400
-BASE_TOKEN_OVERHEAD = 150
+BASE_TOKEN_OVERHEAD = 10
 
-MAX_WORDS_PER_CHUNK = 15
+MAX_WORDS_PER_CHUNK = 60
 
 # Buffering Config
-BUFFER_DURATION_SEC = 6.0
+BUFFER_DURATION_SEC = 3.0
 BYTES_PER_SEC = RATE * 2 * CHANNELS
 MIN_START_BYTES = BYTES_PER_SEC * BUFFER_DURATION_SEC 
 REBUFFER_TARGET_SEC = 2.0
@@ -45,7 +45,7 @@ TTS_TIMEOUT = 60 * 3
 QUEUE_MAX_SIZE = 2000
 
 SERVER_URL = "https://maya1-tts-434000853810.europe-west1.run.app/v1/tts/generate"
-DESCRIPTION_DEFAULT = "Realistic male voice in the 40s with British accent. Low pitch, warm timbre, slow pacing, soothing voice."
+DESCRIPTION_DEFAULT = "Realistic male voice in the 40s with British accent. Low pitch, mellow timbre, slow pacing."
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
@@ -59,7 +59,7 @@ def generate_silent_bytes(duration_sec: float) -> bytes:
     """Generates pure digital silence (zeros) for the specified duration."""
     num_samples = int(duration_sec * RATE * CHANNELS)
     # create array of zeros (int16)
-    silent_array = np.zeros(num_samples, dtype=np.int16)
+    silent_array = np.random.normal(0, 0.01, num_samples)
     return silent_array.tobytes()
 
 def parse_pause_tags(text: str):
@@ -153,7 +153,7 @@ def estimate_max_tokens(text: str) -> int:
                    (chuckles * TOKEN_PER_TAG_SHORT) + \
                    BASE_TOKEN_OVERHEAD
     if token_budget < 250: return 250
-    if token_budget > 2048: return 2048
+    # if token_budget > 2048: return 2048
     return int(token_budget)
 
 # --- STREAMER ---
@@ -182,6 +182,8 @@ class AudioStreamer:
         raw_sequence = parse_pause_tags(text)
         pipeline_items = []
         
+        r = r'[\n\s]+'
+
         for item in raw_sequence:
             if isinstance(item, float):
                 # It's a pause
@@ -190,13 +192,15 @@ class AudioStreamer:
                 # It's text, chunk it further
                 chunks = recursive_word_chunker(item, MAX_WORDS_PER_CHUNK)
                 for c in chunks:
-                    pipeline_items.append({'type': 'text', 'content': c})
+                    pipeline_items.append({'type': 'text', 'content': re.sub(pattern=r, repl=" ", string=c)})
                     
         return pipeline_items
 
     def _request_audio_chunk(self, text_chunk, chunk_index):
         max_tokens = estimate_max_tokens(text_chunk)
-        payload = {"description": self.tts_description, "text": text_chunk, "max_tokens": max_tokens, "temperature": 0.3 }
+        print(f"{text_chunk[:100]}... {max_tokens}")
+        
+        payload = {"description": self.tts_description, "text": text_chunk, "max_tokens": max_tokens, "temperature": 0.1 }
         try:
             response = self.session.post(SERVER_URL, json=payload, timeout=TTS_TIMEOUT)
             response.raise_for_status()
@@ -331,7 +335,7 @@ class AudioStreamer:
         print(f"PIPELINE PLAN:")
         for idx, item in enumerate(pipeline):
             if item['type'] == 'text':
-                print(f"  {idx}: [TTS] {item['content'][:30]}...")
+                print(f"  {idx}: [TTS] {item['content']}")
             else:
                 print(f"  {idx}: [SILENCE] {item['duration']}s")
             
@@ -394,20 +398,21 @@ class AudioStreamer:
 
 if __name__ == "__main__":
     # Test with a long, slow-paced text
-    # user_query = "I want to strengthen my inner self, defeat negative self-talk, and resolve the low self-esteem and self-doubt issues."
+    # user_query = "I want to strengthen my inner self, silence negative self-talk, and resolve the low self-esteem and self-doubt issues."
     # user_query = "My muscles are tensed, and I want to loosen up"
     # user_query = "I am having a job interview tomorrow and I am anxious about it, help me focus and relax"
     user_query = "I need a meditation session with vivid imagery of tranquil walk through nature to put me to sleep"
     # user_query = "I wish to hear a vivid advanture story from a sail boat expedition around the lighthouse and rocky shores, told by a skipper, to gide me to sleep"
     # user_query = "I need a good bed time story to move me out of the bar and into the bed"
     # user_query = "My frequent episodes of anger are weighing heavily on my social life and family interactions. I am constantly in conflict with people around me and I cannot help it."
+    # user_query = "I want to hear an adventurous story about finding a hidden treasure, the story that hops from one part of the world to the next, from an urban setting through the mountains to the sea, and across the deserts into a jungle, across a river and all the way back. The treasure we seek is an adventure in itself, but what we find is far more precious: a more profound sense of self-respect and kindness towards our inner child. "
 
     pipeline = RunnableParallel(description=voice_character_chain, text=meditation_guide_generator_chain)
     result = pipeline.invoke({"query": user_query})
     
     print(json.dumps(result))
 
-    streamer = AudioStreamer(result['description'])
+    streamer = AudioStreamer("Male, late 20s, neutral American, warm baritone, calm pacing")
     streamer.start(result['text'])
     # generator = streamer.make_generator(result['text'])
 
