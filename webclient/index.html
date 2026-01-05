@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Maya1 TTS POC</title>
+    <script src="https://cdn.jsdelivr.net/npm/onnxruntime-web/dist/ort.min.js"></script>
+    <style>
+        body {
+            font-family: sans-serif;
+            max-width: 600px;
+            margin: 40px auto;
+            padding: 20px;
+            line-height: 1.6;
+        }
+
+        .field {
+            margin-bottom: 20px;
+        }
+
+        label {
+            display: block;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+
+        input,
+        textarea {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+
+        button {
+            background: #007bff;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+
+        button:disabled {
+            background: #ccc;
+        }
+
+        #status {
+            margin-top: 10px;
+            font-size: 0.9em;
+            color: #666;
+        }
+    </style>
+</head>
+
+<body>
+    <h1>Maya1 Voice Agent</h1>
+
+    <div class="field">
+        <label>Voice Description</label>
+        <input type="text" id="description" value="Realistic male voice, British accent, slow pacing.">
+    </div>
+
+    <div class="field">
+        <label>Text to Speech</label>
+        <textarea id="ttsText"
+            rows="4">Hello! I am decoding SNAC tokens directly in your browser. This reduces server load and improves latency.</textarea>
+    </div>
+
+    <button id="playBtn">Generate & Play</button>
+    <div id="status">Ready</div>
+
+    <script>
+        let snacSession;
+        let snacNode;
+        let audioCtx;
+
+        // In index.html, update initONNX
+        async function initONNX() {
+            if (!snacSession) {
+                // Clear previous configurations
+                ort.env.wasm.numThreads = 1;
+                ort.env.wasm.wasmPaths = 'https://cdn.jsdelivr.net/npm/onnxruntime-web/dist/';
+
+                try {
+                    // Try to load with very basic settings
+                    snacSession = await ort.InferenceSession.create('./snac_decoder_24khz.onnx', {
+                        executionProviders: ['wasm'], // You can try 'webgl' here if wasm keeps failing
+                        graphOptimizationLevel: 'disabled' // Disable optimizations to find the root cause
+                    });
+                    console.log("✅ ONNX Ready");
+                } catch (e) {
+                    // In Firefox, if 'e' is a number, we try to catch the actual text
+                    console.error("ONNX Load Failed. Error Object:", e);
+                    if (typeof e === 'number') {
+                        status.innerText = "WASM Memory Error: Try clearing browser cache.";
+                    }
+                    throw e;
+                }
+            }
+        }
+
+        async function startVoiceStream() {
+            const status = document.getElementById('status');
+            const btn = document.getElementById('playBtn');
+
+            try {
+                btn.disabled = true;
+                status.innerText = "Initializing ONNX & Audio...";
+
+                // 1. Initialize ONNX in Main Thread
+                await initONNX();
+
+                // 2. Setup Audio Context & Worklet
+                if (!audioCtx) {
+                    audioCtx = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 24000 });
+                    await audioCtx.audioWorklet.addModule('snac-processor.js');
+                    snacNode = new AudioWorkletNode(audioCtx, 'snac-processor');
+                    snacNode.connect(audioCtx.destination);
+                }
+
+                // 3. Force Resume (Required by browsers)
+                if (audioCtx.state === 'suspended') {
+                    await audioCtx.resume();
+                }
+
+                status.innerText = "Connecting to Maya1...";
+                const response = await fetch('https://maya1-tts-434000853810.europe-west1.run.app/v1/tts/tokens', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        description: document.getElementById('description').value,
+                        text: document.getElementById('ttsText').value,
+                        stream: true
+                    })
+                });
+
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder();
+                let buffer = '';
+
+                status.innerText = "Streaming and Decoding...";
+
+                while (true) {
+                    const { value, done } = await reader.read();
+                    if (done) break;
+
+                    buffer += decoder.decode(value, { stream: true });
+                    const lines = buffer.split('\n');
+                    buffer = lines.pop();
+
+                    for (const line of lines) {
+                        if (!line.trim()) continue;
+                        const packet = JSON.parse(line);
+
+                        if (packet.type === 'tokens') {
+                            try {
+                                // Apply a modulo 4096 to ensure tokens are within the decoder's range
+                                // This is a common fix if the server is sending "un-offset" tokens
+                                const validatedTokens = packet.data.map(t => BigInt(t % 4096));
+
+                                const bigIntArray = new BigInt64Array(validatedTokens);
+                                const tensor = new ort.Tensor('int64', bigIntArray, [1, 7]);
+
+                                const results = await snacSession.run({ "codes": tensor });
+                                const pcm = results.audio.data;
+
+                                // Check if we actually have audio data now
+                                let sum = 0;
+                                for (let i = 0; i < pcm.length; i++) sum += pcm[i] * pcm[i];
+                                let rms = Math.sqrt(sum / pcm.length);
+                                console.log(`🔊 Success! Decoded Audio. Volume: ${rms.toFixed(4)}`);
+
+                                snacNode.port.postMessage({ type: 'PCM_DATA', data: pcm });
+
+                            } catch (e) {
+                                console.error("Inference Error:", e.message);
+                            }
+                        } else if (packet.type === 'heartbeat') {
+                            console.log("💓 Server Heartbeat...");
+                        }
+                    }
+                }
+                status.innerText = "Playback Complete.";
+            } catch (err) {
+                console.error("Critical Error:", err);
+                status.innerText = "Error: " + err.message;
+            } finally {
+                btn.disabled = false;
+            }
+        }
+
+        document.getElementById('playBtn').addEventListener('click', startVoiceStream);
+    </script>
+</body>
+
+</html>
