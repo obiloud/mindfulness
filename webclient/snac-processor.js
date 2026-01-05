@@ -1,65 +1,38 @@
+// snac-processor.js
 class SNACProcessor extends AudioWorkletProcessor {
     constructor() {
         super();
-        // 2 seconds @ 24kHz. 
-        this.bufferSize = 48000;
-        this.buffer = new Float32Array(this.bufferSize);
-        this.readIndex = 0;
-        this.writeIndex = 0;
-        this.isBuffering = true;
-
-        // FIXED: Lower threshold (approx 200ms) to avoid deadlock
-        // 24000 * 0.2 = 4,800 samples
-        this.bufferThreshold = 24000 * 0.5;
+        this.audioBuffer = new Float32Array(0);
 
         this.port.onmessage = (e) => {
             if (e.data.type === 'PCM_DATA') {
-                this.writeToBuffer(e.data.data);
+                const newAudio = e.data.data;
+                if (!(newAudio instanceof Float32Array)) {
+                    console.error("Worklet expected Float32Array, got:", typeof newAudio);
+                    return;
+                }
+                this.appendAudio(e.data.data);
+            } else if (e.data.type === 'PAUSE') {
+                const silentSamples = new Float32Array(Math.floor(24000 * e.data.duration));
+                this.appendAudio(silentSamples);
             }
         };
     }
 
-    writeToBuffer(data) {
-        for (let i = 0; i < data.length; i++) {
-            this.buffer[this.writeIndex] = data[i];
-            this.writeIndex = (this.writeIndex + 1) % this.bufferSize;
-        }
+    appendAudio(newAudio) {
+        const combined = new Float32Array(this.audioBuffer.length + newAudio.length);
+        combined.set(this.audioBuffer);
+        combined.set(newAudio, this.audioBuffer.length);
+        this.audioBuffer = combined;
     }
 
     process(inputs, outputs) {
         const output = outputs[0][0];
-        if (!output) return true;
-
-        // Calculate how many samples are currently waiting
-        const available = (this.writeIndex - this.readIndex + this.bufferSize) % this.bufferSize;
-
-        // 1. Buffering Logic
-        if (this.isBuffering) {
-            if (available >= this.bufferThreshold) {
-                this.isBuffering = false;
-                console.log("Buffer ready, starting playback...");
-            } else {
-                output.fill(0);
-                return true;
-            }
+        if (this.audioBuffer.length >= output.length) {
+            output.set(this.audioBuffer.subarray(0, output.length));
+            this.audioBuffer = this.audioBuffer.subarray(output.length);
         }
-
-        // 2. Underflow Protection
-        if (available < output.length) {
-            console.warn("Underflow detected, re-buffering...");
-            this.isBuffering = true;
-            output.fill(0);
-            return true;
-        }
-
-        // 3. Playback
-        for (let i = 0; i < output.length; i++) {
-            output[i] = this.buffer[this.readIndex];
-            this.readIndex = (this.readIndex + 1) % this.bufferSize;
-        }
-
         return true;
     }
 }
-
 registerProcessor('snac-processor', SNACProcessor);
