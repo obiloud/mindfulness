@@ -56,6 +56,32 @@
 </head>
 
 <body>
+    <script>
+        (async () => {
+            if (!navigator.gpu) {
+                console.log("WebGPU is NOT supported in this browser.");
+            } else {
+                const adapter = await navigator.gpu.requestAdapter();
+                console.log("✅ WebGPU is supported!", adapter);
+            }
+        })();
+    </script>
+    <script src="https://unpkg.com/wasm-feature-detect/dist/umd/index.js"></script>
+
+    <!-- <script>
+        async function checkCapabilities() {
+            const status = document.getElementById('status');
+            const hasSimd = await wasmFeatureDetect.simd();
+
+            if (!hasSimd) {
+                status.innerHTML = "⚠️ <strong>SIMD Not Supported:</strong> Audio will be choppy. Please try Chrome or check Firefox flags.";
+                console.error("WASM SIMD is disabled in this browser.");
+            } else {
+                console.log("✅ WASM SIMD is supported.");
+            }
+        }
+        checkCapabilities();
+    </script> -->
     <h1>Maya1 Voice Agent</h1>
 
     <div class="field">
@@ -73,34 +99,45 @@
     <div id="status">Ready</div>
 
     <script>
-        let snacSession;
         let snacNode;
         let audioCtx;
+        let mediaRecorder;
+        let recordedChunks = [];
 
-        // In index.html, update initONNX
-        async function initONNX() {
-            if (!snacSession) {
-                // Clear previous configurations
-                ort.env.wasm.numThreads = 1;
-                ort.env.wasm.wasmPaths = 'https://cdn.jsdelivr.net/npm/onnxruntime-web/dist/';
+        // 1. Initialize Worker ONCE at page load
+        const snacWorker = new Worker('snac-worker.js');
 
-                try {
-                    // Try to load with very basic settings
-                    snacSession = await ort.InferenceSession.create('./snac_decoder_24khz.onnx', {
-                        executionProviders: ['wasm'], // You can try 'webgl' here if wasm keeps failing
-                        graphOptimizationLevel: 'disabled' // Disable optimizations to find the root cause
-                    });
-                    console.log("✅ ONNX Ready");
-                } catch (e) {
-                    // In Firefox, if 'e' is a number, we try to catch the actual text
-                    console.error("ONNX Load Failed. Error Object:", e);
-                    if (typeof e === 'number') {
-                        status.innerText = "WASM Memory Error: Try clearing browser cache.";
-                    }
-                    throw e;
-                }
+        // 2. Wrap initialization in an async function to allow 'await'
+        async function initSystem() {
+            try {
+                // Check for SIMD support (required to fix the 630ms lag)
+                const hasSimd = await wasmFeatureDetect.simd();
+                console.log("Main Thread SIMD Check:", hasSimd);
+
+                // Tell worker to load the model with the correct SIMD flag
+                snacWorker.postMessage({
+                    type: 'INIT',
+                    modelUrl: './snac_decoder_24khz.onnx',
+                    hasSimd: hasSimd
+                });
+            } catch (e) {
+                console.error("Initialization failed:", e);
             }
         }
+
+        // Call the init function immediately
+        initSystem();
+
+        // 2. Handle incoming audio from Worker
+        snacWorker.onmessage = (e) => {
+            if (e.data.type === 'PCM_DATA') {
+                if (snacNode) {
+                    snacNode.port.postMessage({ type: 'PCM_DATA', data: e.data.data });
+                    // If you still see 700ms+ here, the M2 is throttling the Worker
+                    console.log(`Worker decode: ${e.data.time}ms`);
+                }
+            }
+        };
 
         async function startVoiceStream() {
             const status = document.getElementById('status');
@@ -108,25 +145,46 @@
 
             try {
                 btn.disabled = true;
-                status.innerText = "Initializing ONNX & Audio...";
 
-                // 1. Initialize ONNX in Main Thread
-                await initONNX();
-
-                // 2. Setup Audio Context & Worklet
+                // Setup Audio once
                 if (!audioCtx) {
-                    audioCtx = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 24000 });
+                    audioCtx = new (window.AudioContext || window.webkitAudioContext)({
+                        sampleRate: 24000,
+                        latencyHint: "playback"
+                    });
                     await audioCtx.audioWorklet.addModule('snac-processor.js');
                     snacNode = new AudioWorkletNode(audioCtx, 'snac-processor');
-                    snacNode.connect(audioCtx.destination);
+
+                    // Filter Chain
+                    const lowPass = audioCtx.createBiquadFilter();
+                    lowPass.type = 'lowpass';
+                    lowPass.frequency.value = 8500;
+
+                    const highShelf = audioCtx.createBiquadFilter();
+                    highShelf.type = 'highshelf';
+                    highShelf.frequency.value = 5000;
+                    highShelf.gain.value = 3;
+
+                    snacNode.connect(lowPass);
+                    lowPass.connect(highShelf);
+                    highShelf.connect(audioCtx.destination);
+
+                    // Debug Recording Setup
+                    const dest = audioCtx.createMediaStreamDestination();
+                    snacNode.connect(dest);
+                    mediaRecorder = new MediaRecorder(dest.stream);
+                    mediaRecorder.ondataavailable = (e) => { if (e.data.size > 0) recordedChunks.push(e.data); };
+                    mediaRecorder.onstop = () => {
+                        const blob = new Blob(recordedChunks, { type: 'audio/wav' });
+                        const url = URL.createObjectURL(blob);
+                        const a = document.createElement('a');
+                        a.href = url; a.download = 'debug_audio.wav';
+                        document.body.appendChild(a); a.click();
+                    };
                 }
 
-                // 3. Force Resume (Required by browsers)
-                if (audioCtx.state === 'suspended') {
-                    await audioCtx.resume();
-                }
+                if (audioCtx.state === 'suspended') await audioCtx.resume();
 
-                status.innerText = "Connecting to Maya1...";
                 const response = await fetch('https://maya1-tts-434000853810.europe-west1.run.app/v1/tts/tokens', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -138,9 +196,11 @@
                 });
 
                 const reader = response.body.getReader();
+                recordedChunks = [];
+                mediaRecorder.start();
+
                 const decoder = new TextDecoder();
                 let buffer = '';
-
                 status.innerText = "Streaming and Decoding...";
 
                 while (true) {
@@ -151,35 +211,19 @@
                     const lines = buffer.split('\n');
                     buffer = lines.pop();
 
-                    for (const line of lines) {
+                    for (let line of lines) {
                         if (!line.trim()) continue;
-                        const packet = JSON.parse(line);
+                        try {
+                            let sanitized = line.trim();
+                            if (sanitized.startsWith('"')) sanitized = JSON.parse(sanitized);
+                            const packet = typeof sanitized === 'string' ? JSON.parse(sanitized) : sanitized;
 
-                        if (packet.type === 'tokens') {
-                            try {
-                                // Apply a modulo 4096 to ensure tokens are within the decoder's range
-                                // This is a common fix if the server is sending "un-offset" tokens
-                                const validatedTokens = packet.data.map(t => BigInt(t % 4096));
-
-                                const bigIntArray = new BigInt64Array(validatedTokens);
-                                const tensor = new ort.Tensor('int64', bigIntArray, [1, 7]);
-
-                                const results = await snacSession.run({ "codes": tensor });
-                                const pcm = results.audio.data;
-
-                                // Check if we actually have audio data now
-                                let sum = 0;
-                                for (let i = 0; i < pcm.length; i++) sum += pcm[i] * pcm[i];
-                                let rms = Math.sqrt(sum / pcm.length);
-                                console.log(`🔊 Success! Decoded Audio. Volume: ${rms.toFixed(4)}`);
-
-                                snacNode.port.postMessage({ type: 'PCM_DATA', data: pcm });
-
-                            } catch (e) {
-                                console.error("Inference Error:", e.message);
+                            if (packet.type === 'tokens') {
+                                // Send to worker and move on immediately
+                                snacWorker.postMessage({ type: 'DECODE', tokens: packet.data });
                             }
-                        } else if (packet.type === 'heartbeat') {
-                            console.log("💓 Server Heartbeat...");
+                        } catch (e) {
+                            console.error("JSON Error:", e);
                         }
                     }
                 }
@@ -189,6 +233,7 @@
                 status.innerText = "Error: " + err.message;
             } finally {
                 btn.disabled = false;
+                if (mediaRecorder && mediaRecorder.state !== 'inactive') mediaRecorder.stop();
             }
         }
 
