@@ -25,12 +25,10 @@ class SessionRequest(BaseModel):
 class SessionResponse(BaseModel):
     message: str
     transcript: Optional[str] = None
-    voice_character: Optional[str] = None
 
 
 class AudioRequest(BaseModel):
     transcript: str
-    voice_character: str
 
 
 app = FastAPI(title="Mindfulness AI API")
@@ -72,26 +70,22 @@ async def create_session(body: SessionRequest) -> SessionResponse:
         tools=[generate_audio_guided_meditation_session],
     )
 
-    # Optionally, when the tool is called, it returns a JSON payload with
-    # transcript and voice_character. The LangGraph wrapper can be extended to
-    # surface these; for now we just return the main message.
     return SessionResponse(
         message=result["message"],
         transcript=result.get("transcript"),
-        voice_character=result.get("voice_character"),
     )
 
 
 @app.post("/v1/mindfulness/audio")
 async def generate_audio(body: AudioRequest):
     """
-    Generate audio using Cartesia for a given transcript and voice character.
+    Generate audio using Cartesia for a given transcript.
     Returns a streaming WAV response.
     """
     tts = CartesiaTTSClient()
 
     def audio_generator():
-        for chunk in tts.stream_bytes(body.transcript, body.voice_character):
+        for chunk in tts.stream_bytes(body.transcript):
             yield chunk
 
     headers: Dict[str, Any] = {
