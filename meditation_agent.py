@@ -7,9 +7,7 @@ from langchain_core.runnables import RunnableParallel, RunnableLambda
 from langchain_core.messages import ToolMessage
 from story_generator_pipeline import meditation_guide_generator_chain
 from voice_generator_pipeline import voice_character_chain
-from tts_client import AudioStreamer
-import gradio as gr
-from gradio import ChatMessage
+from cartesia_tts_client import CartesiaTTSClient
 import json
 
 load_dotenv(override=True)
@@ -33,11 +31,9 @@ def get_llm():
 
     return llm
 
-audio_stream_generator = None
-
 @tool
 def generate_audio_guided_meditation_session(context: str) -> str:
-    """ Generates the guided meditation session tailored to user's specific context and prepares the audio stream.
+    """Generates a guided meditation session and prepares Cartesia audio.
 
         Args:
             context (str): User's context/condition
@@ -45,8 +41,6 @@ def generate_audio_guided_meditation_session(context: str) -> str:
         Returns:
             str: The transcript of the session
     """
-    global audio_stream_generator
-
     pipeline = RunnableParallel(description=voice_character_chain, text=meditation_guide_generator_chain)
     result = pipeline.invoke({"query": context})
 
@@ -55,10 +49,20 @@ def generate_audio_guided_meditation_session(context: str) -> str:
 
     print(f"\n{json.dumps(result, indent=4)}\n")
 
-    streamer = AudioStreamer(voice_character)
-    audio_stream_generator = streamer.make_generator(transcript)
+    # Use Cartesia to synthesize audio; for now we return only metadata and
+    # let the FastAPI layer handle actual streaming using the same pipeline.
+    tts_client = CartesiaTTSClient()
 
-    return f"The audio will start in a few seconds, please be patient. Here is the transcript: {transcript}"
+    # We don't eagerly materialize all bytes here to keep this tool lightweight.
+    # The API layer will call `CartesiaTTSClient.stream_bytes` when needed.
+
+    payload = {
+        "message": "The audio will start in a few seconds, please be patient.",
+        "transcript": transcript,
+        "voice_character": voice_character,
+    }
+
+    return json.dumps(payload)
 
 
 class MindfulnessAgent:
@@ -181,77 +185,11 @@ Remember to follow these instructions carefully and use the provided tools and s
             return f"Error: {e}"
 
 
-def interaction_fn(user_input, history_state):
-    global audio_stream_generator
-    # audio_stream_generator = None # Reset previous stream
-    
-    history_state = history_state or []
-    
-    tool_map = {"generate_audio_guided_meditation_session": generate_audio_guided_meditation_session}
-    
-    agent = MindfulnessAgent(
-        llm=get_llm(), 
-        history=history_state, 
-        tool_mapping=tool_map
-    )
-    
-    response_text = agent.run(user_input)
-    
-    history_state.append({"role": "user", "content": user_input})
-    
-    # We yield the updated chat immediately, then yield audio chunks as they arrive
-    if audio_stream_generator:
-        # First yield: Text is done, Audio starts
-        history_state.append({"role": "assistant", "content": "Your session will start shortly."})
-        yield "", history_state, None
-        
-        # Loop through audio chunks
-        for chunk in audio_stream_generator:
-            yield "", history_state, chunk
-    
-        history_state = history_state[:-1]
-
-    history_state.append({"role": "assistant", "content": response_text})
-    yield "", history_state, None
-
-
-# --- 5. Gradio Layout (Blocks) ---
-
-with gr.Blocks(title="Mindfulness AI") as demo:
-    gr.Markdown("# 🧘 Mindfulness AI Agent")
-    
-    with gr.Row():
-        with gr.Column(scale=2):
-            chatbot = gr.Chatbot(label="Conversation", height=400)
-            msg = gr.Textbox(label="How are you feeling?", placeholder="I'm feeling anxious about work...")
-            submit_btn = gr.Button("Send")
-        
-        with gr.Column(scale=1):
-            # The Audio component is set to 'streaming=True' and 'autoplay=True'
-            # It expects (sample_rate, numpy array) tuples
-            audio_out = gr.Audio(
-                label="Guided Session", 
-                streaming=True,
-                autoplay=True,
-                format="wav"
-            )
-
-    # State to hold conversation history
-    state = gr.State([])
-
-    # Event Listener
-    submit_btn.click(
-        fn=interaction_fn,
-        inputs=[msg, chatbot],
-        outputs=[msg, chatbot, audio_out]
-    )
-    
-    # Allow "Enter" key to submit
-    msg.submit(
-        fn=interaction_fn,
-        inputs=[msg, chatbot],
-        outputs=[msg, chatbot, audio_out]
-    )
-
 if __name__ == "__main__":
-    demo.launch(server_name="127.0.0.1", server_port=7861, theme=gr.themes.Soft())
+    tool_map = {"generate_audio_guided_meditation_session": generate_audio_guided_meditation_session}
+    agent = MindfulnessAgent(
+        llm=get_llm(),
+        history=[],
+        tool_mapping=tool_map,
+    )
+    print(agent.run("I am feeling anxious about work and cannot relax."))
