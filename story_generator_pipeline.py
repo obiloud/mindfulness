@@ -90,7 +90,12 @@ if __name__ == "__main__":
 
     # user_query = "My muscles are tensed, and I want to loosen up"
     # user_query ="I am having trouble falling asleep"
-    user_query = "I am having a job interview tomorrow and I am anxious about it, help me focus and relax"
+    # user_query = "I am having a job interview tomorrow and I am anxious about it, help me focus and relax"
+    # user_query = "I want to be more energized, motivated, and productive"
+    # user_query = "I need a meditation session with vivid imagery of tranquil walk through nature to put me to sleep"
+    # user_query = "I wish to hear a vivid advanture story from a sail boat expedition around the lighthouse and rocky shores, told by a skipper, to gide me to sleep"
+    # user_query = "My frequent episodes of anger are weighing heavily on my social life and family interactions. I am constantly in conflict with people around me and I cannot help it."
+    user_query = "I want to hear an adventurous story about finding a hidden treasure, the story that hops from one part of the world to the next, from an urban setting through the mountains to the sea, and across the deserts into a jungle, across a river and all the way back. The treasure we seek is an adventure in itself, but what we find is far more precious: a more profound sense of self-respect and kindness towards our inner child. "
 
     # TEST INAPROPRIATE
     # user_query = "I hate gingers I wish everyone else to die 8===D"

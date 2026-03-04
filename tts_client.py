@@ -49,7 +49,7 @@ DESCRIPTION_DEFAULT = "Realistic male voice in the 40s with British accent. Low 
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
-
+ 
 # --- UTILS ---
 
 def get_word_count(text: str) -> int:
@@ -59,7 +59,7 @@ def generate_silent_bytes(duration_sec: float) -> bytes:
     """Generates pure digital silence (zeros) for the specified duration."""
     num_samples = int(duration_sec * RATE * CHANNELS)
     # create array of zeros (int16)
-    silent_array = np.random.normal(0, 0.01, num_samples)
+    silent_array = np.random.normal(0, 5, num_samples).astype(np.int16)
     return silent_array.tobytes()
 
 def parse_pause_tags(text: str):
@@ -153,7 +153,7 @@ def estimate_max_tokens(text: str) -> int:
                    (chuckles * TOKEN_PER_TAG_SHORT) + \
                    BASE_TOKEN_OVERHEAD
     if token_budget < 250: return 250
-    # if token_budget > 2048: return 2048
+    if token_budget > 2048: return 2048
     return int(token_budget)
 
 # --- STREAMER ---
