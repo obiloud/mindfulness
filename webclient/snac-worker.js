@@ -42,7 +42,23 @@ onmessage = async (e) => {
         if (!session) {
             queue.push(e.data.tokens);
         } else {
-            await performDecode(e.data.tokens);
+
+            // CHECK: Is 'data' a list of lists?
+            if (Array.isArray(e.data.tokens[0])) {
+                // It's a batch! Process each frame inside
+                for (const frame of e.data.tokens) {
+                    try {
+                        await performDecode(frame);
+                    } catch (err) {
+                        console.error("Frame Decode Error:", err);
+                    }
+                }
+            } else {
+                // It's a single frame (fallback)
+                await performDecode(e.data.tokens);
+            }
+
+
         }
     }
 };

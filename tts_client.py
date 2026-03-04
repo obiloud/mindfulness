@@ -62,7 +62,7 @@ def generate_silent_bytes(duration_sec: float) -> bytes:
     """Generates pure digital silence (zeros) for the specified duration."""
     num_samples = int(duration_sec * RATE * CHANNELS)
     # create array of zeros (int16)
-    silent_array = np.random.normal(0, 0.01, num_samples)
+    silent_array = np.random.normal(0, 5, num_samples).astype(np.int16)
     return silent_array.tobytes()
 
 
@@ -175,7 +175,8 @@ def estimate_max_tokens(text: str) -> int:
         BASE_TOKEN_OVERHEAD
     if token_budget < 250:
         return 250
-    # if token_budget > 2048: return 2048
+    if token_budget > 2048:
+        return 2048
     return int(token_budget)
 
 # --- STREAMER ---
