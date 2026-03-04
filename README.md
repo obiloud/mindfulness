@@ -21,7 +21,6 @@ This project provides a mindfulness coaching agent that:
   - `meditation_graph.py` – LangGraph-based reflection agent.
   - `meditation_agent.py` – LangChain tools and legacy agent wiring.
   - `story_generator_pipeline.py` – meditation script generator.
-  - `voice_generator_pipeline.py` – voice character designer.
   - `cartesia_tts_client.py` – Cartesia.ai TTS wrapper.
 
 ### Environment and configuration
@@ -93,8 +92,8 @@ reach your FastAPI instance (e.g. via local network / simulator configuration).
 ## Architecture Summary
 
 - **LLM + tools**:
-  - Hugging Face endpoints (via `langchain-huggingface`) for script and voice design.
-  - A LangGraph graph (`meditation_graph.py`) that can reflect on its answers.
+  - Hugging Face endpoints (via `langchain-huggingface`) for meditation script generation.
+  - A LangGraph graph (`meditation_graph.py`) that can clarify user intent, reflect on its answers, and generate a final transcript.
 - **TTS**:
   - Cartesia.ai via `cartesia_tts_client.py` and the `/v1/mindfulness/audio` endpoint.
 - **Clients**:

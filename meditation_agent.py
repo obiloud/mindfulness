@@ -6,8 +6,6 @@ from langchain_core.prompts import ChatPromptTemplate, SystemMessagePromptTempla
 from langchain_core.runnables import RunnableParallel, RunnableLambda
 from langchain_core.messages import ToolMessage
 from story_generator_pipeline import meditation_guide_generator_chain
-from voice_generator_pipeline import voice_character_chain
-from cartesia_tts_client import CartesiaTTSClient
 import json
 
 load_dotenv(override=True)
@@ -33,33 +31,21 @@ def get_llm():
 
 @tool
 def generate_audio_guided_meditation_session(context: str) -> str:
-    """Generates a guided meditation session and prepares Cartesia audio.
+    """Generates a guided meditation session transcript.
 
         Args:
             context (str): User's context/condition
 
         Returns:
-            str: The transcript of the session
+            str: JSON string containing the transcript of the session.
     """
-    pipeline = RunnableParallel(description=voice_character_chain, text=meditation_guide_generator_chain)
-    result = pipeline.invoke({"query": context})
-
-    voice_character = result.get("description")
-    transcript = result.get("text", "")
-
-    print(f"\n{json.dumps(result, indent=4)}\n")
-
-    # Use Cartesia to synthesize audio; for now we return only metadata and
-    # let the FastAPI layer handle actual streaming using the same pipeline.
-    tts_client = CartesiaTTSClient()
-
-    # We don't eagerly materialize all bytes here to keep this tool lightweight.
-    # The API layer will call `CartesiaTTSClient.stream_bytes` when needed.
+    result = meditation_guide_generator_chain.invoke({"query": context})
+    # `result` is expected to contain the generated meditation text.
+    transcript = result.get("text", "") if isinstance(result, dict) else str(result)
 
     payload = {
         "message": "The audio will start in a few seconds, please be patient.",
         "transcript": transcript,
-        "voice_character": voice_character,
     }
 
     return json.dumps(payload)

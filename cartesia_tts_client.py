@@ -34,7 +34,7 @@ class CartesiaTTSClient:
         self.voice_id = voice_id
         self.sample_rate = sample_rate
 
-    def _voice_payload(self, voice_character: str):
+    def _voice_payload(self, voice_character: Optional[str] = None):
         """
         Build the `voice` payload for Cartesia.
 
@@ -47,10 +47,11 @@ class CartesiaTTSClient:
         # Default: design mode using the natural language description.
         return {
             "mode": "design",
-            "text": voice_character or "Realistic, calm, warm, slow-paced meditation voice.",
+            "text": voice_character
+            or "Realistic, calm, warm, slow-paced meditation voice.",
         }
 
-    def _iter_tts_bytes(self, text: str, voice_character: str) -> Iterable[bytes]:
+    def _iter_tts_bytes(self, text: str, voice_character: Optional[str] = None) -> Iterable[bytes]:
         voice = self._voice_payload(voice_character)
         output_format = {
             "container": "wav",
@@ -65,7 +66,7 @@ class CartesiaTTSClient:
             output_format=output_format,
         )
 
-    def stream_bytes(self, transcript: str, voice_character: str, max_words_per_chunk: int = 60) -> Generator[bytes, None, None]:
+    def stream_bytes(self, transcript: str, voice_character: Optional[str] = None, max_words_per_chunk: int = 60) -> Generator[bytes, None, None]:
         """
         Interpret pauses, chunk text segments, and stream Cartesia audio bytes.
         """
