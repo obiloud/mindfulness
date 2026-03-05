@@ -92,7 +92,16 @@ def build_mindfulness_graph():
     - optionally call tools (e.g. guided meditation audio session)
     - reflect on its answer once and improve it.
     """
-    llm = _get_llm()
+    # Lazily construct the LLM so that purely unsafe/refusal paths
+    # (which never call the model) do not incur the heavyweight
+    # Hugging Face client initialization cost. This also plays nicely
+    # with tests that monkeypatch `_get_llm`.
+    llm_ref: dict[str, ChatHuggingFace | None] = {"llm": None}
+
+    def get_llm() -> ChatHuggingFace:
+        if llm_ref["llm"] is None:
+            llm_ref["llm"] = _get_llm()
+        return llm_ref["llm"]
 
     def detect_unsafe(text: str) -> bool:
         """
@@ -206,7 +215,7 @@ Respond only with that single question."""
 
         system = SystemMessage(content=system_prompt)
         human = HumanMessage(content=clarification_prompt)
-        ai_msg = llm.invoke([system] + messages + [human])
+        ai_msg = get_llm().invoke([system] + messages + [human])
         messages = messages + [ai_msg]
 
         return {
@@ -269,7 +278,7 @@ Meditation transcript (for your reference only, do NOT repeat it verbatim):
             content=answer_context
         )
 
-        ai_msg = llm.invoke([system] + messages + [answer_human])
+        ai_msg = get_llm().invoke([system] + messages + [answer_human])
         answer_text = ai_msg.content if isinstance(ai_msg, AIMessage) else str(ai_msg)
 
         return {
@@ -319,7 +328,7 @@ Respond in EXACTLY ONE LINE using one of these formats:
 """
 
         reflect_msg = SystemMessage(content=reflection_prompt)
-        reflect_ai = llm.invoke([reflect_msg] + messages)
+        reflect_ai = get_llm().invoke([reflect_msg] + messages)
         reflect_text = reflect_ai.content.strip() if isinstance(reflect_ai, AIMessage) else str(reflect_ai).strip()
 
         max_reflections = 3
