@@ -67,7 +67,6 @@ async def create_session(body: SessionRequest) -> SessionResponse:
     result = run_mindfulness_graph(
         query=body.query,
         history=history_msgs,
-        tools=[generate_audio_guided_meditation_session],
     )
 
     return SessionResponse(
