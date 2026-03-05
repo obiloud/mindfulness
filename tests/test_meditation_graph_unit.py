@@ -1,0 +1,126 @@
+import types
+
+import pytest
+from langchain_core.messages import HumanMessage, AIMessage
+
+import meditation_graph
+
+
+class FakeLLM:
+    """Minimal fake LLM that returns deterministic AIMessage objects."""
+
+    def __init__(self, response_text: str = "FAKE_ANSWER"):
+        self.response_text = response_text
+
+    def invoke(self, messages):
+        return AIMessage(content=self.response_text)
+
+
+@pytest.fixture
+def fake_transcript(monkeypatch):
+    """Monkeypatch the meditation transcript generator with a deterministic fake."""
+
+    def _fake_invoke(payload):
+        # Mirror the interface used in meditation_graph (dict with 'text').
+        return {"text": "FAKE_TRANSCRIPT"}
+
+    monkeypatch.setattr(
+        meditation_graph, "meditation_guide_generator_chain", types.SimpleNamespace(invoke=_fake_invoke)
+    )
+
+
+@pytest.fixture
+def fake_llm(monkeypatch):
+    """Monkeypatch _get_llm to avoid external Hugging Face calls."""
+
+    def _fake_get_llm():
+        return FakeLLM()
+
+    monkeypatch.setattr(meditation_graph, "_get_llm", _fake_get_llm)
+
+
+def test_run_mindfulness_graph_unsafe_input_refuses():
+    """Safety detection should block clearly abusive language and not return a transcript."""
+    result = meditation_graph.run_mindfulness_graph("you are stupid")
+
+    assert "refusal" in result["message"].lower() or "can't respond" in result["message"].lower()
+    assert result["transcript"] is None
+
+
+def test_run_mindfulness_graph_safe_input_allows(monkeypatch, fake_llm, fake_transcript):
+    """Benign input should not trigger the safety refusal path."""
+    # Ensure run_mindfulness_graph sees our patched llm and transcript generator.
+    result = meditation_graph.run_mindfulness_graph("I feel a bit stressed about work lately.")
+
+    assert result["message"]  # non-empty answer
+    assert result["transcript"] == "FAKE_TRANSCRIPT"
+
+
+def test_clarification_triggered_for_vague_short_query(monkeypatch):
+    """Very short, generic queries should route through the clarification step."""
+
+    # Use a simple LLM that echoes a clarifying question.
+    class ClarificationLLM(FakeLLM):
+        def invoke(self, messages):
+            return AIMessage(content="Can you share a bit more about what is causing this feeling?")
+
+    def _fake_get_llm():
+        return ClarificationLLM()
+
+    monkeypatch.setattr(meditation_graph, "_get_llm", _fake_get_llm)
+
+    graph = meditation_graph.build_mindfulness_graph()
+
+    initial_state = {
+        "query": "stress",
+        "history": [],
+        "messages": [],
+        "transcript": None,
+        "safety_flag": None,
+        "refusal_message": None,
+        "status": "initial",
+        "clarification_count": 0,
+        "reflection_count": 0,
+    }
+
+    final_state = graph.invoke(initial_state)
+
+    # After a vague query, the graph should move into a clarifying status and
+    # produce at least one AIMessage asking a follow-up question.
+    assert final_state["status"] in ("clarifying", "done")
+    ai_messages = [m for m in final_state["messages"] if isinstance(m, AIMessage)]
+    assert ai_messages, "Expected at least one AIMessage from clarification node."
+    assert "share a bit more" in ai_messages[-1].content
+
+
+def test_router_function_behavior_via_status(monkeypatch):
+    """Router should send finished conversations to END and others to reflection."""
+
+    class InspectableLLM(FakeLLM):
+        def __init__(self):
+            super().__init__(response_text="SATISFACTORY")
+
+    def _fake_get_llm():
+        return InspectableLLM()
+
+    monkeypatch.setattr(meditation_graph, "_get_llm", _fake_get_llm)
+
+    graph = meditation_graph.build_mindfulness_graph()
+
+    # Start from a state that is already marked done; router_function should treat it as end.
+    done_state = {
+        "query": "some query",
+        "history": [],
+        "messages": [],
+        "transcript": "short transcript",
+        "safety_flag": None,
+        "refusal_message": None,
+        "status": "done",
+        "clarification_count": 0,
+        "reflection_count": 0,
+    }
+
+    # Invoking the graph on a state that is already done should be effectively a no-op.
+    final_state = graph.invoke(done_state)
+    assert final_state["status"] == "done"
+
