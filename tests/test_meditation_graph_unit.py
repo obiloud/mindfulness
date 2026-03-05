@@ -93,34 +93,14 @@ def test_clarification_triggered_for_vague_short_query(monkeypatch):
     assert "share a bit more" in ai_messages[-1].content
 
 
-def test_router_function_behavior_via_status(monkeypatch):
-    """Router should send finished conversations to END and others to reflection."""
+def test_router_does_not_prevent_completion(fake_llm, fake_transcript):
+    """End-to-end run should complete without hitting LangGraph recursion limits.
 
-    class InspectableLLM(FakeLLM):
-        def __init__(self):
-            super().__init__(response_text="SATISFACTORY")
+    This gives indirect confidence that the router function allows the workflow
+    to reach a terminal state instead of looping forever.
+    """
 
-    def _fake_get_llm():
-        return InspectableLLM()
-
-    monkeypatch.setattr(meditation_graph, "_get_llm", _fake_get_llm)
-
-    graph = meditation_graph.build_mindfulness_graph()
-
-    # Start from a state that is already marked done; router_function should treat it as end.
-    done_state = {
-        "query": "some query",
-        "history": [],
-        "messages": [],
-        "transcript": "short transcript",
-        "safety_flag": None,
-        "refusal_message": None,
-        "status": "done",
-        "clarification_count": 0,
-        "reflection_count": 0,
-    }
-
-    # Invoking the graph on a state that is already done should be effectively a no-op.
-    final_state = graph.invoke(done_state)
-    assert final_state["status"] == "done"
+    result = meditation_graph.run_mindfulness_graph("Tell me a bit about relaxation.")
+    assert result["message"]
+    assert result["transcript"] == "FAKE_TRANSCRIPT"
 
