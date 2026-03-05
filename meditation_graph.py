@@ -2,17 +2,30 @@ import os
 from typing import List, Literal, Optional, TypedDict
 
 from dotenv import load_dotenv
-from langchain_core.messages import AnyMessage, HumanMessage, AIMessage, ToolMessage
-from langchain_core.tools import BaseTool
+from langchain_core.messages import AnyMessage, HumanMessage, AIMessage, SystemMessage
+from langchain_core.tools import BaseTool, tool
 from langchain_huggingface import ChatHuggingFace, HuggingFaceEndpoint
 from langgraph.graph import StateGraph, END
+from story_generator_pipeline import meditation_guide_generator_chain
+from langgraph.prebuilt import ToolNode
+from pydantic import BaseModel, Field
 
 import json
 import re
 
-
 load_dotenv(override=True)
 
+class AssistantResponse(BaseModel):
+    answer: str = Field(description="The empathetic, conversational response to the user.")
+    transcript: str = Field(description="The step-by-step guided meditation script.")
+
+class ReflectionOutput(BaseModel):
+    is_satisfactory: bool = Field(
+        description="True if the answer and transcript meet all safety and quality guidelines."
+    )
+    feedback: str = Field(
+        description="Detailed feedback if the content needs revision. Be specific about what is missing or wrong."
+    )
 
 class ConversationState(TypedDict):
     """Shared state for the mindfulness LangGraph agent."""
@@ -20,6 +33,7 @@ class ConversationState(TypedDict):
     query: str
     history: List[AnyMessage]
     messages: List[AnyMessage]
+    answer: Optional[str]
     transcript: Optional[str]
     # Safety / refusal
     safety_flag: Optional[str]
@@ -28,6 +42,7 @@ class ConversationState(TypedDict):
     status: Literal["initial", "answering", "reflecting", "clarifying", "done"]
     clarification_count: int
     reflection_count: int
+    reflection_notes: Optional[str]
 
 
 def _get_llm() -> ChatHuggingFace:
@@ -41,7 +56,7 @@ def _get_llm() -> ChatHuggingFace:
         max_new_tokens=1024,
         temperature=0.5,
         top_k=80,
-        top_p=0.9,
+        top_p=0.8,
         repetition_penalty=1.1,
         huggingfacehub_api_token=hf_token,
         provider="auto",
@@ -50,14 +65,34 @@ def _get_llm() -> ChatHuggingFace:
     return ChatHuggingFace(llm=llm)
 
 
-def build_mindfulness_graph(tools: List[BaseTool]):
+@tool
+def generate_transcript(context: str):
+    """Generates a guided meditation session transcript.
+
+        Args:
+            context (str): User's context/condition
+
+        Returns:
+            str: JSON string containing the transcript of the session.
+    """
+    result = meditation_guide_generator_chain.invoke({"query": context})
+    transcript = result.get("text", "") if isinstance(result, dict) else str(result)
+
+    print(transcript)
+
+    return transcript
+
+tools = [generate_transcript]
+tool_node = ToolNode(tools)
+
+def build_mindfulness_graph():
     """
     Build a LangGraph graph that can:
     - hold a short conversation about the user's context
     - optionally call tools (e.g. guided meditation audio session)
     - reflect on its answer once and improve it.
     """
-    chat_model_with_tools = _get_llm().bind_tools(tools)
+    llm = _get_llm()
 
     def detect_unsafe(text: str) -> bool:
         """
@@ -153,15 +188,25 @@ def build_mindfulness_graph(tools: List[BaseTool]):
         """
         messages = state["messages"]
 
-        clarification_prompt = (
-            "Before I guide you with a meditation, I need a bit more context.\n"
-            "Ask the user one short, compassionate follow-up question that helps "
-            "you understand what they are experiencing or what they hope to get "
-            "from this session. Respond only with that single question."
-        )
+        system_prompt = """You are the Clarification Node for a Mindfulness Coach. Your sole task is to gather necessary context before a meditation is generated.
 
+When a user mentions a condition (e.g., anxiety, stress), ask targeted follow-up questions:
+
+    What specifically triggers or exacerbates this feeling?
+
+    How long have you been experiencing this, and what is the current severity?
+
+    What have you tried in the past to manage this?
+
+Constraint: Do not provide exercises yet. Only ask the questions needed to move to the next phase."""
+
+        clarification_prompt = """Before I guide you with a meditation, I need a bit more context.
+Ask the user one short, compassionate follow-up question that helps you understand what they are experiencing or what they hope to get from this session.
+Respond only with that single question."""
+
+        system = SystemMessage(content=system_prompt)
         human = HumanMessage(content=clarification_prompt)
-        ai_msg = _get_llm().invoke(messages + [human])
+        ai_msg = llm.invoke([system] + messages + [human])
         messages = messages + [ai_msg]
 
         return {
@@ -172,21 +217,67 @@ def build_mindfulness_graph(tools: List[BaseTool]):
         }
 
     def node_assistant(state: ConversationState) -> ConversationState:
-        """Main assistant step that can decide to call tools."""
+        """Main assistant step that generates both answer and transcript."""
+
         messages = state["messages"]
-        ai_msg = chat_model_with_tools.invoke(messages)
-        messages = messages + [ai_msg]
 
-        # If the model decided to call tools, we defer transcript handling
-        # until after the tools have been executed by the runtime using
-        # the bound tools. Here we only work with already produced messages.
+        # Decide whether this is the initial pass or a refinement loop.
+        reflection_notes = state.get("reflection_notes")
+        is_refinement = bool(reflection_notes)
 
-        # If no explicit transcript has been set yet and there is an AI answer
-        # and no tools were called, we can later use the final AI content
-        # as a fallback transcript.
+        # 1. Ensure we have a meditation transcript, generating it directly in code.
+        transcript = state.get("transcript")
+        if not transcript or not transcript.strip():
+            # Build a simple textual context from the conversation.
+            human_messages = [m for m in messages if isinstance(m, HumanMessage)]
+            if human_messages:
+                context_text = "\n\n".join(m.content for m in human_messages)
+            else:
+                context_text = state.get("query", "")
+
+            try:
+                raw_transcript = meditation_guide_generator_chain.invoke({"query": context_text})
+                transcript = raw_transcript.get("text", "") if isinstance(raw_transcript, dict) else str(raw_transcript)
+            except Exception:
+                # In case transcript generation fails, fall back to an empty string.
+                transcript = ""
+
+        # 2. Generate only the conversational answer via the chat model.
+        system_prompt = """You are the Mindfulness Assistant. Your role is to resolve emotional struggles through supportive, empathetic conversation and to introduce a guided meditation (which has already been generated separately).
+
+Task: Based on the user's clarified situation, generate a personalized answer:
+
+    Answer: Be empathetic and supportive. Acknowledge the user's feelings, normalise their experience, and offer gentle guidance. You may briefly mention that a guided meditation has been prepared for them, but do not include the full script.
+
+Constraints:
+- Do NOT output the meditation transcript or script itself.
+- Respond in a warm, concise, and human tone.
+- Avoid medical or clinical diagnoses."""
+
+        if reflection_notes:
+            system_prompt += f"\n\nIMPORTANT: Please address this feedback when refining your answer: {reflection_notes}"
+
+        system = SystemMessage(content=system_prompt)
+
+        # Provide the model with the user context and the transcript as background only.
+        answer_context = f"""User query: {state.get('query', '')}
+
+Meditation transcript (for your reference only, do NOT repeat it verbatim):
+{transcript}
+"""
+        answer_human = HumanMessage(
+            content=answer_context
+        )
+
+        ai_msg = llm.invoke([system] + messages + [answer_human])
+        answer_text = ai_msg.content if isinstance(ai_msg, AIMessage) else str(ai_msg)
+
         return {
             **state,
-            "messages": messages,
+            "answer": answer_text,
+            "transcript": transcript,
+            "messages": messages + [ai_msg],
+            "status": "answering" if not is_refinement else state.get("status", "answering"),
         }
 
     def node_reflection(state: ConversationState) -> ConversationState:
@@ -194,6 +285,13 @@ def build_mindfulness_graph(tools: List[BaseTool]):
         Iterative reflection: the model critiques and, if needed, refines
         its previous answer into a clearer, more soothing response.
         """
+
+        if not state.get("transcript") or len(state["transcript"].strip()) < 10:
+            return {
+                **state,
+                "reflection_notes": "The assistant failed to generate a meditation transcript. Please provide a full script.",
+            }
+
         messages = state["messages"]
         last_ai = next((m for m in reversed(messages) if isinstance(m, AIMessage)), None)
 
@@ -203,48 +301,53 @@ def build_mindfulness_graph(tools: List[BaseTool]):
                 "status": "done",
             }
 
-        reflection_prompt = (
-            "You are reflecting on your previous response as a mindfulness coach.\n"
-            "1. Briefly critique your last answer for clarity, empathy, and usefulness.\n"
-            "2. Then provide an improved response, keeping only what helps the user.\n"
-            "If the previous answer is already clear, empathetic, and helpful, "
-            "respond with the single word SATISFIED.\n"
-            "Otherwise, respond only with the improved response."
-        )
+        # Ask the model for a simple, parseable reflection signal.
+        reflection_prompt = f"""You are a Senior Mindfulness Supervisor. Review the following Assistant response:
 
-        reflect_msg = HumanMessage(content=reflection_prompt)
-        reflected = _get_llm().invoke(messages + [reflect_msg])
+ANSWER TO USER: {state['answer']}
+MEDITATION TRANSCRIPT: {state['transcript']}
 
-        content = reflected.content.strip() if isinstance(reflected.content, str) else str(reflected.content)
+CRITERIA:
+1. SAFETY: Does it avoid medical diagnoses or clinical advice?
+2. LANGUAGE: Is the tone simple, accessible, and free of jargon?
+3. STRUCTURE: Does the transcript include an Intro, Practice, and Affirmations?
+4. PERSONALIZATION: Is it tailored to the user's specific triggers without making assumptions?
+
+Respond in EXACTLY ONE LINE using one of these formats:
+- \"SATISFACTORY\"  (if the answer and transcript fully meet all criteria)
+- \"REVISION_NEEDED: <short explanation of what must be improved>\"
+"""
+
+        reflect_msg = SystemMessage(content=reflection_prompt)
+        reflect_ai = llm.invoke([reflect_msg] + messages)
+        reflect_text = reflect_ai.content.strip() if isinstance(reflect_ai, AIMessage) else str(reflect_ai).strip()
 
         max_reflections = 3
         current_count = state.get("reflection_count", 0)
 
-        if content.upper() == "SATISFIED" or current_count >= max_reflections:
-            # No further reflection; keep the existing last_ai message as final.
+        lower = reflect_text.lower()
+        if lower.startswith("satisfactory") or current_count >= max_reflections:
             return {
                 **state,
                 "reflection_count": current_count,
                 "status": "done",
             }
 
-        messages = messages + [AIMessage(content=content)]
+        feedback = reflect_text
+        if ":" in reflect_text:
+            feedback = reflect_text.split(":", 1)[1].strip() or reflect_text
 
         return {
             **state,
             "messages": messages,
             "reflection_count": current_count + 1,
+            "reflection_notes": feedback,
         }
 
-    def should_reflect(state: ConversationState) -> str:
-        """
-        Decide whether to go through a reflection pass.
-
-        We reflect until the model is satisfied (signaled inside node_reflection)
-        or until a maximum number of passes is reached.
-        """
+    def router_function(state: ConversationState) -> Literal["reflect", "end"]:
         if state.get("status") == "done":
             return "end"
+
         return "reflect"
 
     graph = StateGraph(ConversationState)
@@ -265,24 +368,23 @@ def build_mindfulness_graph(tools: List[BaseTool]):
     graph.add_edge("clarification", END)
     graph.add_conditional_edges(
         "assistant",
-        should_reflect,
+        router_function,
         {
             "reflect": "reflection",
             "end": END,
         },
     )
-    graph.add_edge("reflection", END)
+    graph.add_edge("reflection", "assistant")
 
     return graph.compile()
 
 
-def run_mindfulness_graph(query: str, history: Optional[List[AnyMessage]] = None, tools: Optional[List[BaseTool]] = None):
+def run_mindfulness_graph(query: str, history: Optional[List[AnyMessage]] = None):
     """
     Convenience function for external callers (FastAPI, CLI, etc.).
     Returns the last assistant message content and any generated metadata.
     """
-    tools = tools or []
-    app = build_mindfulness_graph(tools)
+    app = build_mindfulness_graph()
 
     initial_state: ConversationState = {
         "query": query,
@@ -311,34 +413,13 @@ def run_mindfulness_graph(query: str, history: Optional[List[AnyMessage]] = None
 
     transcript = final_state.get("transcript")
 
-    # If a tool was called and returned a JSON payload, prefer its transcript.
-    if transcript is None:
-        tool_msg = next(
-            (m for m in reversed(messages) if isinstance(m, ToolMessage)),
-            None,
-        )
-        if tool_msg is not None:
-            try:
-                data = json.loads(tool_msg.content)
-                if isinstance(data, dict) and "transcript" in data:
-                    transcript = data.get("transcript")
-            except Exception:
-                # If parsing fails, silently fall back to other strategies.
-                pass
-
-    # Fallback: if no explicit transcript was set but we have an AI message
-    # and the conversation reached a completed state, use the final AI content
-    # as the transcript.
-    if (
-        final_state.get("status") == "done"
-        and transcript is None
-        and isinstance(content, str)
-        and content.strip()
-    ):
-        transcript = content
-
     return {
         "message": content,
         "transcript": transcript,
     }
 
+if __name__ == "__main__":
+    graph = build_mindfulness_graph()
+
+    with open("graph_output(1).png", "wb") as f:
+        f.write(graph.get_graph().draw_mermaid_png())
