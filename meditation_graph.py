@@ -15,18 +15,6 @@ import re
 
 load_dotenv(override=True)
 
-class AssistantResponse(BaseModel):
-    answer: str = Field(description="The empathetic, conversational response to the user.")
-    transcript: str = Field(description="The step-by-step guided meditation script.")
-
-class ReflectionOutput(BaseModel):
-    is_satisfactory: bool = Field(
-        description="True if the answer and transcript meet all safety and quality guidelines."
-    )
-    feedback: str = Field(
-        description="Detailed feedback if the content needs revision. Be specific about what is missing or wrong."
-    )
-
 class ConversationState(TypedDict):
     """Shared state for the mindfulness LangGraph agent."""
 
