@@ -65,14 +65,11 @@ export default function App() {
     try {
       const reply = await sendMessage(userMsg.content, newHistory);
 
-      // Now we directly access the transcript field from the response
-      // Instead of parsing the content string
       if (reply.transcript) {
         setTranscript(reply.transcript);
         setIsStreaming(true);
       }
 
-      // Add the response to messages
       setMessages((prev) => [...prev, reply]);
     } catch (e) {
       setMessages((prev) => [
@@ -98,59 +95,74 @@ export default function App() {
       audioRef.current.currentTime = 0;
     }
 
-    // Simulate streaming by playing audio in chunks
-    const playAudioInChunks = () => {
+    const playAudioInChunks = async () => {
       const audio = audioRef.current;
       if (!audio || !transcript) return;
 
-      // POST request to initiate audio streaming with transcript in body
+      console.log('Starting audio streaming with transcript:', transcript.length, 'characters');
       const audioUrl = `${API_BASE}/v1/mindfulness/audio`;
 
-      fetch(audioUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ transcript }),
-      })
-        .then(async (response) => {
-          if (!response.ok) {
-            throw new Error(`Audio streaming failed: ${response.status}`);
-          }
+      try {
+        const response = await fetch(audioUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ transcript }),
+        });
+        if (!response.ok) {
+          console.error('Audio streaming failed:', response.status, response.statusText);
+          return;
+        }
 
-          // Check if response.body is a valid ReadableStream
-          if (!response.body || !(response.body instanceof ReadableStream)) {
-            console.warn('Response body is not a readable stream. Skipping streaming.');
+        console.log('Successfully received audio stream response');
+
+        // Check if response.body is a valid ReadableStream
+        if (!response.body || !(response.body instanceof ReadableStream)) {
+          console.warn('Response body is not a readable stream. Skipping streaming.');
+          return;
+        }
+
+        // Set up streaming playback
+        const reader = response.body.getReader();
+        const audio = new Audio();
+        audio.src = URL.createObjectURL(new Blob([], { type: 'audio/wav' }));
+
+        // Play the stream in chunks
+        const playStream = async () => {
+          const { done, value } = await reader.read();
+          if (done) {
+            console.log('Audio stream ended');
             return;
           }
 
-          // Stream the audio response as a readable stream
-          const reader = response.body.getReader();
-          const audio = new Audio();
-          audio.src = URL.createObjectURL(new Blob([], { type: 'audio/wav' }));
+          console.log('Processing audio chunk with size:', value?.byteLength);
+          // Convert chunk to blob and update audio source
+          const blob = new Blob([value], { type: 'audio/wav' });
+          const url = URL.createObjectURL(blob);
 
-          // Set up streaming playback
-          const playStream = async () => {
-            const { done, value } = await reader.read();
-            if (done) return;
+          // Update audio source
+          audio.src = url;
 
-            // Convert chunk to blob and append to audio source
-            const blob = new Blob([value], { type: 'audio/wav' });
-            const url = URL.createObjectURL(blob);
-            audio.src = url;
-            audio.play().catch(() => {
-              console.warn('Audio playback failed');
-            });
+          // Play the audio
+          audio.play().catch((playError) => {
+            console.error('Audio playback failed:', playError);
+            // Try to play again after a short delay
+            setTimeout(() => {
+              audio.play().catch((retryError) => {
+                console.error('Failed to play audio after retry:', retryError);
+              });
+            }, 1000);
+          });
 
-            // Schedule next chunk
-            setTimeout(playStream, 100);
-          };
+          // Schedule next chunk
+          setTimeout(playStream, 100);
+        };
 
-          playStream();
-        })
-        .catch((error) => {
-          console.error('Error during audio streaming:', error);
-        });
+        playStream();
+      } catch (error) {
+        console.error('Error during audio streaming:', error);
+      }
     };
 
     playAudioInChunks();
