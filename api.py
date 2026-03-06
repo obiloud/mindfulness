@@ -42,7 +42,7 @@ app.add_middleware(
 )
 
 
-@app.on_event("startup")
+# Modern lifespan implementation for startup
 async def startup_event() -> None:
     """Initialize any heavyweight resources here if needed."""
     # This keeps a simple LangChain-based agent available as a fallback.
@@ -52,6 +52,18 @@ async def startup_event() -> None:
         history=[],
         tool_mapping=tool_map,
     )
+
+
+# Modern lifespan implementation for shutdown
+async def shutdown_event() -> None:
+    """Clean up any resources if needed."""
+    # Add any cleanup logic here if necessary
+    pass
+
+
+# Register the lifespan events
+app.add_event_handler("startup", startup_event)
+app.add_event_handler("shutdown", shutdown_event)
 
 
 @app.post("/v1/mindfulness/session", response_model=SessionResponse)
@@ -101,4 +113,3 @@ async def generate_audio(body: AudioRequest):
 @app.get("/health")
 async def health_check() -> Dict[str, str]:
     return {"status": "ok"}
-
