@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect, useRef } from "react";
 
 type Message = {
   role: "user" | "assistant";
@@ -6,6 +6,12 @@ type Message = {
 };
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
+
+// Define a more specific interface for the response to include transcript info
+interface AgentResponse {
+  message: string;
+  transcript?: string; // Optional transcript field in the response
+}
 
 async function sendMessage(query: string, history: Message[]): Promise<Message> {
   const resp = await fetch(`${API_BASE}/v1/mindfulness/session`, {
@@ -18,7 +24,7 @@ async function sendMessage(query: string, history: Message[]): Promise<Message> 
     throw new Error("Failed to send message");
   }
 
-  const data = await resp.json();
+  const data: AgentResponse = await resp.json();
   return { role: "assistant", content: data.message };
 }
 
@@ -26,6 +32,9 @@ export default function App() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
+  const [transcript, setTranscript] = useState<string | null>(null);
+  const [isStreaming, setIsStreaming] = useState(false);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
 
   const handleSend = async () => {
     if (!input.trim() || loading) return;
@@ -35,9 +44,25 @@ export default function App() {
     setMessages(newHistory);
     setInput("");
     setLoading(true);
+    setIsStreaming(false);
+    setTranscript(null);
 
     try {
       const reply = await sendMessage(userMsg.content, newHistory);
+
+      // Check if the response contains a transcript
+      if (reply.content && reply.content.includes("transcript")) {
+        // Extract transcript from response (this is a simplified example)
+        // In a real implementation, you'd parse the response more precisely
+        const transcriptMatch = reply.content.match(/transcript:\s*(.*?)\n/g);
+        if (transcriptMatch) {
+          const transcriptText = transcriptMatch[0].replace("transcript:", "").trim();
+          setTranscript(transcriptText);
+          setIsStreaming(true);
+        }
+      }
+
+      // Add the response to messages
       setMessages((prev) => [...prev, reply]);
     } catch (e) {
       setMessages((prev) => [
@@ -51,6 +76,74 @@ export default function App() {
       setLoading(false);
     }
   };
+
+  // Handle audio streaming when transcript is available
+  useEffect(() => {
+    if (!isStreaming || !transcript) return;
+
+    // Create audio element for streaming
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current.currentTime = 0;
+    }
+
+    // Simulate streaming by playing audio in chunks
+    const playAudioInChunks = () => {
+      const audio = audioRef.current;
+      if (!audio || !transcript) return;
+
+      // POST request to initiate audio streaming with transcript in body
+      const audioUrl = `${API_BASE}/v1/mindfulness/audio`;
+
+      fetch(audioUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ transcript }),
+      })
+        .then(async (response) => {
+          if (!response.ok) {
+            throw new Error(`Audio streaming failed: ${response.status}`);
+          }
+
+          // Check if response.body is a valid ReadableStream
+          if (!response.body || !(response.body instanceof ReadableStream)) {
+            console.warn('Response body is not a readable stream. Skipping streaming.');
+            return;
+          }
+
+          // Stream the audio response as a readable stream
+          const reader = response.body.getReader();
+          const audio = new Audio();
+          audio.src = URL.createObjectURL(new Blob([], { type: 'audio/wav' }));
+
+          // Set up streaming playback
+          const playStream = async () => {
+            const { done, value } = await reader.read();
+            if (done) return;
+
+            // Convert chunk to blob and append to audio source
+            const blob = new Blob([value], { type: 'audio/wav' });
+            const url = URL.createObjectURL(blob);
+            audio.src = url;
+            audio.play().catch(() => {
+              console.warn('Audio playback failed');
+            });
+
+            // Schedule next chunk
+            setTimeout(playStream, 100);
+          };
+
+          playStream();
+        })
+        .catch((error) => {
+          console.error('Error during audio streaming:', error);
+        });
+    };
+
+    playAudioInChunks();
+  }, [isStreaming, transcript]);
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Enter") {
@@ -80,24 +173,34 @@ export default function App() {
               “I feel anxious about work and cannot relax.”
             </p>
           )}
+
           {messages.map((m, idx) => (
             <div
               key={idx}
-              className={`flex ${
-                m.role === "user" ? "justify-end" : "justify-start"
-              }`}
+              className={`flex ${m.role === "user" ? "justify-end" : "justify-start"
+                }`}
             >
               <div
-                className={`max-w-[80%] rounded-2xl px-3 py-2 text-sm leading-relaxed whitespace-pre-wrap ${
-                  m.role === "user"
-                    ? "bg-mind-accent/90 text-slate-950"
-                    : "bg-slate-800/80 text-slate-100 border border-slate-700/70"
-                }`}
+                className={`max-w-[80%] rounded-2xl px-3 py-2 text-sm leading-relaxed whitespace-pre-wrap ${m.role === "user"
+                  ? "bg-mind-accent/90 text-slate-950"
+                  : "bg-slate-800/80 text-slate-100 border border-slate-700/70"
+                  }`}
               >
                 {m.content}
               </div>
             </div>
           ))}
+
+          {/* Loading animation */}
+          {loading && (
+            <div className="flex justify-center items-center py-2">
+              <div className="flex items-center space-x-2">
+                <div className="w-2 h-2 bg-sky-400 rounded-full animate-pulse"></div>
+                <div className="w-2 h-2 bg-sky-400 rounded-full animate-pulse delay-100"></div>
+                <div className="w-2 h-2 bg-sky-400 rounded-full animate-pulse delay-200"></div>
+              </div>
+            </div>
+          )}
         </div>
 
         <div className="mt-2 flex gap-2">
@@ -121,4 +224,3 @@ export default function App() {
     </div>
   );
 }
-
