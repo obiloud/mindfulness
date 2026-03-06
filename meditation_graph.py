@@ -454,5 +454,5 @@ def run_mindfulness_graph(query: str, history: Optional[List[AnyMessage]] = None
 if __name__ == "__main__":
     graph = build_mindfulness_graph()
 
-    with open("graph_output(1).png", "wb") as f:
+    with open("graph_mermaid.png", "wb") as f:
         f.write(graph.get_graph().draw_mermaid_png())
