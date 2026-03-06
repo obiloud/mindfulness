@@ -4,3 +4,6 @@ venv/
 .DS_Store
 .env
 *.wav
+.continue/
+.cursor/
+.pytest_cache/
