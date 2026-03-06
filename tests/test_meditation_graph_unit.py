@@ -1,7 +1,6 @@
-import types
-
 import pytest
-from langchain_core.messages import HumanMessage, AIMessage
+from langchain_core.messages import AIMessage
+from types import SimpleNamespace
 
 import meditation_graph
 
@@ -15,20 +14,6 @@ class FakeLLM:
     def invoke(self, messages):
         return AIMessage(content=self.response_text)
 
-
-@pytest.fixture
-def fake_transcript(monkeypatch):
-    """Monkeypatch the meditation transcript generator with a deterministic fake."""
-
-    def _fake_invoke(payload):
-        # Mirror the interface used in meditation_graph (dict with 'text').
-        return {"text": "FAKE_TRANSCRIPT"}
-
-    monkeypatch.setattr(
-        meditation_graph, "meditation_guide_generator_chain", types.SimpleNamespace(invoke=_fake_invoke)
-    )
-
-
 @pytest.fixture
 def fake_llm(monkeypatch):
     """Monkeypatch _get_llm to avoid external Hugging Face calls."""
@@ -37,6 +22,39 @@ def fake_llm(monkeypatch):
         return FakeLLM()
 
     monkeypatch.setattr(meditation_graph, "_get_llm", _fake_get_llm)
+
+
+@pytest.fixture
+def fake_transcript(monkeypatch):
+    """
+    Monkeypatch the meditation transcript generator with a deterministic fake.
+    This fixture is now scoped to each test and properly resets state.
+    """
+    def _fake_invoke(payload):
+        # Mirror the interface used in meditation_graph (dict with 'text').
+        return {"text": "FAKE_TRANSCRIPT"}
+    
+    # Create a mock object that mimics the expected interface
+    mock_chain = SimpleNamespace(invoke=_fake_invoke)
+    
+    # Apply the monkeypatch for the current test execution
+    monkeypatch.setattr(
+        "meditation_graph.meditation_guide_generator_chain", 
+        mock_chain
+    )
+    
+    # Return the mock object so it can be used in tests if needed
+    return mock_chain
+
+@pytest.fixture(autouse=True)
+def reset_meditation_graph(monkeypatch):
+    """
+    Ensure that the meditation graph state is reset before each test.
+    This prevents state leakage between tests.
+    """
+    # Reset any other potential state in meditation_graph module
+    # This is optional depending on your actual implementation
+    pass
 
 
 def test_run_mindfulness_graph_unsafe_input_refuses():

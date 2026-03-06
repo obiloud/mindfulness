@@ -2,16 +2,19 @@ import os
 from typing import List, Literal, Optional, TypedDict
 
 from dotenv import load_dotenv
-from langchain_core.messages import AnyMessage, HumanMessage, AIMessage, SystemMessage
-from langchain_core.tools import BaseTool, tool
+from langchain_core.messages import AnyMessage, HumanMessage, AIMessage, SystemMessage, messages_to_dict
+from langchain_core.tools import tool
 from langchain_huggingface import ChatHuggingFace, HuggingFaceEndpoint
 from langgraph.graph import StateGraph, END
 from story_generator_pipeline import meditation_guide_generator_chain
 from langgraph.prebuilt import ToolNode
-from pydantic import BaseModel, Field
 
-import json
+import logging
 import re
+import json
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger("meditation_graph")
 
 load_dotenv(override=True)
 
@@ -31,6 +34,18 @@ class ConversationState(TypedDict):
     clarification_count: int
     reflection_count: int
     reflection_notes: Optional[str]
+
+def print_state(state: ConversationState, full: bool = False) -> str:
+    history = []
+    if full:
+        history = messages_to_dict(state["history"])
+
+    if len(state["messages"]):
+        print_data = {**state, "history": history, "messages": messages_to_dict([state["messages"][-1]])}
+    else:
+        print_data = {**state, "history": history}
+    
+    return json.dumps(print_data, indent=2)
 
 
 def _get_llm() -> ChatHuggingFace:
@@ -65,8 +80,6 @@ def generate_transcript(context: str):
     """
     result = meditation_guide_generator_chain.invoke({"query": context})
     transcript = result.get("text", "") if isinstance(result, dict) else str(result)
-
-    print(transcript)
 
     return transcript
 
@@ -125,9 +138,12 @@ def build_mindfulness_graph():
 
     def node_user_input(state: ConversationState) -> ConversationState:
         """Seed the conversation with the latest user query, with safety check."""
+        logger.info(f"Safety check: state='{print_state(state)}'")
+
         query = state["query"]
 
         if detect_unsafe(query):
+            logger.warning(f"Unsafe content detected: '{print_state(state)}' → refusing")
             refusal = make_refusal_message()
             messages: List[AnyMessage] = [
                 AIMessage(content=refusal),
@@ -183,6 +199,8 @@ def build_mindfulness_graph():
         The frontend is expected to include the resulting messages in the
         next request's history so the agent can continue the conversation.
         """
+        logger.info(f"Clarification triggered: state='{print_state(state)}'")
+
         messages = state["messages"]
 
         system_prompt = """You are the Clarification Node for a Mindfulness Coach. Your sole task is to gather necessary context before a meditation is generated.
@@ -215,7 +233,7 @@ Respond only with that single question."""
 
     def node_assistant(state: ConversationState) -> ConversationState:
         """Main assistant step that generates both answer and transcript."""
-
+        logger.info(f"Response node: generating transcript for state='{print_state(state)}'")
         messages = state["messages"]
 
         # Decide whether this is the initial pass or a refinement loop.
@@ -223,21 +241,23 @@ Respond only with that single question."""
         is_refinement = bool(reflection_notes)
 
         # 1. Ensure we have a meditation transcript, generating it directly in code.
-        transcript = state.get("transcript")
-        if not transcript or not transcript.strip():
-            # Build a simple textual context from the conversation.
-            human_messages = [m for m in messages if isinstance(m, HumanMessage)]
-            if human_messages:
-                context_text = "\n\n".join(m.content for m in human_messages)
-            else:
-                context_text = state.get("query", "")
+        
+        # Build a simple textual context from the conversation.
+        human_messages = [m for m in messages if isinstance(m, HumanMessage)]
+        if human_messages:
+            context_text = "\n\n".join(m.content for m in human_messages)
+        else:
+            context_text = state.get("query", "")
 
-            try:
-                raw_transcript = meditation_guide_generator_chain.invoke({"query": context_text})
-                transcript = raw_transcript.get("text", "") if isinstance(raw_transcript, dict) else str(raw_transcript)
-            except Exception:
-                # In case transcript generation fails, fall back to an empty string.
-                transcript = ""
+        if is_refinement:
+            context_text = f"{context_text}\n\nIMPORTANT: Please address this feedback: {reflection_notes}"
+
+        try:
+            raw_transcript = meditation_guide_generator_chain.invoke({"query": context_text})
+            transcript = raw_transcript.get("text", "") if isinstance(raw_transcript, dict) else str(raw_transcript)
+        except Exception:
+            # In case transcript generation fails, fall back to an empty string.
+            transcript = ""
 
         # 2. Generate only the conversational answer via the chat model.
         system_prompt = """You are the Mindfulness Assistant. Your role is to resolve emotional struggles through supportive, empathetic conversation and to introduce a guided meditation (which has already been generated separately).
@@ -282,11 +302,13 @@ Meditation transcript (for your reference only, do NOT repeat it verbatim):
         Iterative reflection: the model critiques and, if needed, refines
         its previous answer into a clearer, more soothing response.
         """
+        logger.info(f"Reflection node: reflecting on last respone state='{print_state(state)}'")
 
         if not state.get("transcript") or len(state["transcript"].strip()) < 10:
             return {
                 **state,
                 "reflection_notes": "The assistant failed to generate a meditation transcript. Please provide a full script.",
+                "status": "reflecting"
             }
 
         messages = state["messages"]
@@ -306,9 +328,8 @@ MEDITATION TRANSCRIPT: {state['transcript']}
 
 CRITERIA:
 1. SAFETY: Does it avoid medical diagnoses or clinical advice?
-2. LANGUAGE: Is the tone simple, accessible, and free of jargon?
-3. STRUCTURE: Does the transcript include an Intro, Practice, and Affirmations?
-4. PERSONALIZATION: Is it tailored to the user's specific triggers without making assumptions?
+2. LANGUAGE: Is the tone simple, accessible, soothing, and colourful?
+3. PERSONALIZATION: Is it tailored to the user's specific triggers without making assumptions?
 
 Respond in EXACTLY ONE LINE using one of these formats:
 - \"SATISFACTORY\"  (if the answer and transcript fully meet all criteria)
@@ -318,6 +339,8 @@ Respond in EXACTLY ONE LINE using one of these formats:
         reflect_msg = SystemMessage(content=reflection_prompt)
         reflect_ai = get_llm().invoke([reflect_msg] + messages)
         reflect_text = reflect_ai.content.strip() if isinstance(reflect_ai, AIMessage) else str(reflect_ai).strip()
+
+        logger.info(f"REFLECT TEXT: {reflect_text}\n")
 
         max_reflections = 3
         current_count = state.get("reflection_count", 0)
@@ -337,15 +360,25 @@ Respond in EXACTLY ONE LINE using one of these formats:
         return {
             **state,
             "messages": messages,
+            "status": "reflecting",
             "reflection_count": current_count + 1,
             "reflection_notes": feedback,
         }
 
-    def router_function(state: ConversationState) -> Literal["reflect", "end"]:
+    def should_proceed(state: ConversationState) -> Literal["clarify", "answer", "end"]:
+        if state.get("status") == "done":
+            return "end"
+        
+        if needs_clarification(state):
+            return "clarify"
+        
+        return "answer"
+
+    def should_refine(state: ConversationState) -> Literal["refine", "end"]:
         if state.get("status") == "done":
             return "end"
 
-        return "reflect"
+        return "refine"
 
     graph = StateGraph(ConversationState)
     graph.add_node("user", node_user_input)
@@ -356,22 +389,22 @@ Respond in EXACTLY ONE LINE using one of these formats:
     graph.set_entry_point("user")
     graph.add_conditional_edges(
         "user",
-        lambda s: "clarify" if needs_clarification(s) else "answer",
+        should_proceed,
         {
             "clarify": "clarification",
             "answer": "assistant",
+            "end": END
         },
     )
-    graph.add_edge("clarification", END)
+    graph.add_edge("assistant", "reflection")
     graph.add_conditional_edges(
-        "assistant",
-        router_function,
+        "reflection",
+        should_refine,
         {
-            "reflect": "reflection",
+            "refine": "assistant",
             "end": END,
         },
     )
-    graph.add_edge("reflection", "assistant")
 
     return graph.compile()
 
@@ -409,6 +442,9 @@ def run_mindfulness_graph(query: str, history: Optional[List[AnyMessage]] = None
         }
 
     transcript = final_state.get("transcript")
+
+    logger.info(f"Graph completed. Final status: {print_state(final_state, full=True)}")
+
 
     return {
         "message": content,
