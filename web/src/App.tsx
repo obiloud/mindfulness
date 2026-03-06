@@ -5,15 +5,20 @@ type Message = {
   content: string;
 };
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
-
 // Define a more specific interface for the response to include transcript info
 interface AgentResponse {
   message: string;
   transcript?: string; // Optional transcript field in the response
 }
 
-async function sendMessage(query: string, history: Message[]): Promise<Message> {
+// Define a more specific interface for the message type to include transcript
+interface MessageWithTranscript extends Message {
+  transcript?: string;
+}
+
+const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
+
+async function sendMessage(query: string, history: Message[]): Promise<MessageWithTranscript> {
   const resp = await fetch(`${API_BASE}/v1/mindfulness/session`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -25,11 +30,17 @@ async function sendMessage(query: string, history: Message[]): Promise<Message> 
   }
 
   const data: AgentResponse = await resp.json();
-  return { role: "assistant", content: data.message };
+
+  // Return a message with the transcript field if available
+  return {
+    role: "assistant",
+    content: data.message,
+    transcript: data.transcript
+  };
 }
 
 export default function App() {
-  const [messages, setMessages] = useState<Message[]>([]);
+  const [messages, setMessages] = useState<MessageWithTranscript[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [transcript, setTranscript] = useState<string | null>(null);
@@ -39,7 +50,11 @@ export default function App() {
   const handleSend = async () => {
     if (!input.trim() || loading) return;
 
-    const userMsg: Message = { role: "user", content: input.trim() };
+    const userMsg: MessageWithTranscript = {
+      role: "user",
+      content: input.trim(),
+      transcript: undefined
+    };
     const newHistory = [...messages, userMsg];
     setMessages(newHistory);
     setInput("");
@@ -50,16 +65,11 @@ export default function App() {
     try {
       const reply = await sendMessage(userMsg.content, newHistory);
 
-      // Check if the response contains a transcript
-      if (reply.content && reply.content.includes("transcript")) {
-        // Extract transcript from response (this is a simplified example)
-        // In a real implementation, you'd parse the response more precisely
-        const transcriptMatch = reply.content.match(/transcript:\s*(.*?)\n/g);
-        if (transcriptMatch) {
-          const transcriptText = transcriptMatch[0].replace("transcript:", "").trim();
-          setTranscript(transcriptText);
-          setIsStreaming(true);
-        }
+      // Now we directly access the transcript field from the response
+      // Instead of parsing the content string
+      if (reply.transcript) {
+        setTranscript(reply.transcript);
+        setIsStreaming(true);
       }
 
       // Add the response to messages
@@ -70,6 +80,7 @@ export default function App() {
         {
           role: "assistant",
           content: "Sorry, something went wrong while contacting the server.",
+          transcript: undefined
         },
       ]);
     } finally {
