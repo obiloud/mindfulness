@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
+import { cartesiaTTSClient } from "./CartesiaTTSClient";
 
 type Message = {
   role: "user" | "assistant";
@@ -112,61 +113,16 @@ export default function App() {
 
       try {
         // Make the POST request to get the audio stream
-        const response = await fetch(`${API_BASE}/v1/mindfulness/audio`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ transcript }),
-        });
 
-        console.log('Response status:', response.status, 'Response headers:', response.headers);
-
-        if (!response.ok) {
-          console.error('Audio streaming failed:', response.status, response.statusText);
-          return;
-        }
-
-        console.log('Successfully received audio stream response');
-
-        // Check if response.body is a valid ReadableStream
-        if (!response.body || !(response.body instanceof ReadableStream)) {
-          console.warn('Response body is not a readable stream. Skipping streaming.');
-          return;
-        }
-
-        // Set up streaming playback
-        const reader = response.body.getReader();
+        cartesiaTTSClient.sendTranscript(transcript)
 
         // Play the stream in chunks
         const playStream = async () => {
-          const { done, value } = await reader.read();
-          if (done) {
-            console.log('Audio stream ended');
-            return;
+          if (audioRef.current) {
+            audioRef.current.play().catch((err) => {
+              console.error('Error playing audio:', err);
+            });
           }
-
-          console.log('Processing audio chunk with size:', value?.byteLength);
-
-          if (!value) return;
-
-          const blob = new Blob([value], { type: 'audio/wav' });
-          const url = URL.createObjectURL(blob);
-
-          if (!audio) return;
-
-          audio.src = url;
-
-          audio.play().catch((playError) => {
-            console.error('Audio playback failed:', playError);
-            setTimeout(() => {
-              audio.play().catch((retryError) => {
-                console.error('Failed to play audio after retry:', retryError);
-              });
-            }, 1000);
-          });
-
-          setTimeout(playStream, 100);
         };
 
         playStream();
