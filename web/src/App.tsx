@@ -65,9 +65,15 @@ export default function App() {
     try {
       const reply = await sendMessage(userMsg.content, newHistory);
 
+      // Debug: Log when transcript is received
+      console.log('Received transcript from assistant:', reply.transcript ? reply.transcript.length : 'null');
+
       if (reply.transcript) {
         setTranscript(reply.transcript);
         setIsStreaming(true);
+
+        // Debug: Log when streaming is activated
+        console.log('Streaming activated with transcript length:', reply.transcript.length);
       }
 
       setMessages((prev) => [...prev, reply]);
@@ -85,11 +91,14 @@ export default function App() {
     }
   };
 
-  // Handle audio streaming when transcript is available
   useEffect(() => {
+    console.log('Effect triggered - isStreaming:', isStreaming, 'transcript:', transcript);
+
     if (!isStreaming || !transcript) return;
 
-    // Create audio element for streaming
+    console.log('Starting audio streaming with transcript:', transcript.length, 'characters');
+
+    // Pause and reset audio if needed
     if (audioRef.current) {
       audioRef.current.pause();
       audioRef.current.currentTime = 0;
@@ -99,17 +108,20 @@ export default function App() {
       const audio = audioRef.current;
       if (!audio || !transcript) return;
 
-      console.log('Starting audio streaming with transcript:', transcript.length, 'characters');
-      const audioUrl = `${API_BASE}/v1/mindfulness/audio`;
+      console.log('Making POST request to /v1/mindfulness/audio with transcript length:', transcript.length);
 
       try {
-        const response = await fetch(audioUrl, {
+        // Make the POST request to get the audio stream
+        const response = await fetch(`${API_BASE}/v1/mindfulness/audio`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({ transcript }),
         });
+
+        console.log('Response status:', response.status, 'Response headers:', response.headers);
+
         if (!response.ok) {
           console.error('Audio streaming failed:', response.status, response.statusText);
           return;
@@ -125,8 +137,6 @@ export default function App() {
 
         // Set up streaming playback
         const reader = response.body.getReader();
-        const audio = new Audio();
-        audio.src = URL.createObjectURL(new Blob([], { type: 'audio/wav' }));
 
         // Play the stream in chunks
         const playStream = async () => {
@@ -137,17 +147,18 @@ export default function App() {
           }
 
           console.log('Processing audio chunk with size:', value?.byteLength);
-          // Convert chunk to blob and update audio source
+
+          if (!value) return;
+
           const blob = new Blob([value], { type: 'audio/wav' });
           const url = URL.createObjectURL(blob);
 
-          // Update audio source
+          if (!audio) return;
+
           audio.src = url;
 
-          // Play the audio
           audio.play().catch((playError) => {
             console.error('Audio playback failed:', playError);
-            // Try to play again after a short delay
             setTimeout(() => {
               audio.play().catch((retryError) => {
                 console.error('Failed to play audio after retry:', retryError);
@@ -155,7 +166,6 @@ export default function App() {
             }, 1000);
           });
 
-          // Schedule next chunk
           setTimeout(playStream, 100);
         };
 
@@ -242,6 +252,19 @@ export default function App() {
           >
             {loading ? "Sending..." : "Send"}
           </button>
+
+          {/* Audio playback indicator */}
+          {transcript && (
+            <div className="flex justify-center mt-2">
+              <audio
+                ref={audioRef}
+                className="hidden" // Hidden by default, but accessible
+                style={{ display: 'none' }}
+                onCanPlay={() => console.log('Audio can play')}
+                onEnded={() => console.log('Audio ended')}
+              />
+            </div>
+          )}
         </div>
       </div>
     </div>
