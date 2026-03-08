@@ -4,78 +4,61 @@ from langgraph.runtime import Runtime
 from prompts.meditation import MEDITATION_PROMPT, ANSWER_PROMPT, TRANSCRIPT_PROMPT
 
 def node_assistant(state: ConversationState, runtime: Runtime[GraphContext]) -> ConversationState:
-        """Main assistant step that generates both answer and transcript."""
-        logger = runtime.context.logger
-        llm = runtime.context.llm
+    """Main assistant step that generates both answer and transcript."""
+    logger = runtime.context.logger
+    llm = runtime.context.llm
 
-        logger.info(f"Response node: generating transcript for state='{print_state(state)}'")
-        messages = state["messages"]
+    logger.info(f"Response node: generating transcript for state='{print_state(state)}'")
+    messages = state["messages"]
 
-        # Decide whether this is the initial pass or a refinement loop.
-        reflection_notes = state.get("reflection_notes")
-        is_refinement = bool(reflection_notes)
+    # Decide whether this is the initial pass or a refinement loop.
+    reflection_notes = state.get("reflection_notes")
+    is_refinement = bool(reflection_notes)
 
-        # Ensure we have a meditation transcript, generating it directly in code.
-        
-        # Build a simple textual context from the conversation.
-        human_messages = [m for m in messages if isinstance(m, HumanMessage)]
-        if human_messages:
-            context_text = "\n\n".join(m.content for m in human_messages)
-        else:
-            context_text = state.get("query", "")
+    # Ensure we have a meditation transcript, generating it directly in code.
+    
+    # Build a simple textual context from the conversation.
+    human_messages = [m for m in messages if isinstance(m, HumanMessage)]
+    if human_messages:
+        context_text = "\n\n".join(m.content for m in human_messages)
+    else:
+        context_text = state.get("query", "")
 
-        if is_refinement:
-            context_text = f"{context_text}\n\n# IMPORTANT: Please address this feedback: {reflection_notes}"
+    if is_refinement:
+        context_text = f"{context_text}\n\n# IMPORTANT: Please address this feedback: {reflection_notes}"
 
-        try:
-            transcript_agent_system = SystemMessage(content=TRANSCRIPT_PROMPT)
-            transcript_agent_context = HumanMessage(content=f"""Context for the guided session: {context_text}""")
-            raw_transcript = llm.invoke([transcript_agent_system, transcript_agent_context])
-            transcript = raw_transcript.content if isinstance(raw_transcript, AIMessage) else str(raw_transcript)
-        except Exception:
-            # In case transcript generation fails, fall back to an empty string.
-            transcript = ""
+    try:
+        transcript_agent_system = SystemMessage(content=TRANSCRIPT_PROMPT)
+        transcript_agent_context = HumanMessage(content=f"""Context for the guided session: {context_text}""")
+        raw_transcript = llm.invoke([transcript_agent_system, transcript_agent_context])
+        transcript = raw_transcript.content if isinstance(raw_transcript, AIMessage) else str(raw_transcript)
+    except Exception:
+        # In case transcript generation fails, fall back to an empty string.
+        transcript = ""
 
-        # 2. Generate only the conversational answer via the chat model.
-#         system_prompt = """You are the Mindfulness Assistant. Your role is to resolve emotional struggles through supportive, empathetic conversation and to introduce a guided meditation (which has already been generated separately).
+    system_prompt = MEDITATION_PROMPT
 
-# Task: Based on the user's clarified situation, generate a personalized answer:
+    if reflection_notes:
+        system_prompt += f"\n\n# IMPORTANT: Please address this feedback when refining your answer: {reflection_notes}"
 
-#     Answer: Be empathetic and supportive. Acknowledge the user's feelings, normalise their experience, and offer gentle guidance. You may briefly mention that a guided meditation has been prepared for them, but do not include the full script.
+    system = SystemMessage(content=system_prompt)
 
-# Constraints:
-# - Do NOT output the meditation transcript or script itself.
-# - Respond in a warm, concise, and human tone.
-# - Avoid medical or clinical diagnoses."""
-        system_prompt = MEDITATION_PROMPT
+    answer_context = ANSWER_PROMPT.format(
+        user_query=state.get('query', ''),
+        transcript=transcript
+    )
 
-        if reflection_notes:
-            system_prompt += f"\n\n# IMPORTANT: Please address this feedback when refining your answer: {reflection_notes}"
+    answer_human = HumanMessage(
+        content=answer_context
+    )
 
-        system = SystemMessage(content=system_prompt)
+    ai_msg = llm.invoke([system] + messages + [answer_human])
+    answer_text = ai_msg.content if isinstance(ai_msg, AIMessage) else str(ai_msg)
 
-        # Provide the model with the user context and the transcript as background only.
-#         answer_context = f"""User query: {state.get('query', '')}
-
-# Meditation transcript (for your reference only, do NOT repeat it verbatim):
-# {transcript}
-# """
-        answer_context = ANSWER_PROMPT.format(
-            user_query=state.get('query', ''),
-            transcript=transcript
-        )
-
-        answer_human = HumanMessage(
-            content=answer_context
-        )
-
-        ai_msg = llm.invoke([system] + messages + [answer_human])
-        answer_text = ai_msg.content if isinstance(ai_msg, AIMessage) else str(ai_msg)
-
-        return {
-            **state,
-            "answer": answer_text,
-            "transcript": transcript,
-            "messages": messages + [ai_msg],
-            "status": "answering" if not is_refinement else state.get("status", "answering"),
-        }
+    return {
+        **state,
+        "answer": answer_text,
+        "transcript": transcript,
+        "messages": messages + [ai_msg],
+        "status": "answering" if not is_refinement else state.get("status", "answering"),
+    }

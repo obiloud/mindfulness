@@ -18,20 +18,6 @@ def node_clarification(state: ConversationState, runtime: Runtime[GraphContext])
 
     messages = state["messages"]
 
-    # system_prompt = inspect.cleandoc("""
-    #     You are the Clarification Node for a Mindfulness Coach. Your sole task is to gather necessary context before a meditation is generated.
-
-    #     When a user mentions a condition (e.g., anxiety, stress), ask targeted follow-up questions:
-
-    #         What specifically triggers or exacerbates this feeling?
-
-    #         How long have you been experiencing this, and what is the current severity?
-
-    #         What have you tried in the past to manage this?
-
-    #     Constraint: Do not provide exercises yet. Only ask the questions needed to move to the next phase.
-    # """)
-
     clarification_prompt = inspect.cleandoc("""
         Before I guide you with a meditation, I need a bit more context.
         Ask the user one short, compassionate follow-up question that helps you understand what they are experiencing or what they hope to get from this session.
