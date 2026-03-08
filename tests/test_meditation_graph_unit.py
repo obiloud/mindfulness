@@ -1,9 +1,11 @@
 import pytest
+import logging
 from langchain_core.messages import AIMessage
-from types import SimpleNamespace
-
 import meditation_graph
+from state import GraphContext
 
+logging.basicConfig(level=logging.DEBUG)
+logger = logging.getLogger(__name__)
 
 class FakeLLM:
     """Minimal fake LLM that returns deterministic AIMessage objects."""
@@ -24,39 +26,6 @@ def fake_llm(monkeypatch):
     monkeypatch.setattr(meditation_graph, "_get_llm", _fake_get_llm)
 
 
-@pytest.fixture
-def fake_transcript(monkeypatch):
-    """
-    Monkeypatch the meditation transcript generator with a deterministic fake.
-    This fixture is now scoped to each test and properly resets state.
-    """
-    def _fake_invoke(payload):
-        # Mirror the interface used in meditation_graph (dict with 'text').
-        return {"text": "FAKE_TRANSCRIPT"}
-    
-    # Create a mock object that mimics the expected interface
-    mock_chain = SimpleNamespace(invoke=_fake_invoke)
-    
-    # Apply the monkeypatch for the current test execution
-    monkeypatch.setattr(
-        "meditation_graph.meditation_guide_generator_chain", 
-        mock_chain
-    )
-    
-    # Return the mock object so it can be used in tests if needed
-    return mock_chain
-
-@pytest.fixture(autouse=True)
-def reset_meditation_graph(monkeypatch):
-    """
-    Ensure that the meditation graph state is reset before each test.
-    This prevents state leakage between tests.
-    """
-    # Reset any other potential state in meditation_graph module
-    # This is optional depending on your actual implementation
-    pass
-
-
 def test_run_mindfulness_graph_unsafe_input_refuses():
     """Safety detection should block clearly abusive language and not return a transcript."""
     result = meditation_graph.run_mindfulness_graph("you are stupid")
@@ -65,13 +34,13 @@ def test_run_mindfulness_graph_unsafe_input_refuses():
     assert result["transcript"] is None
 
 
-def test_run_mindfulness_graph_safe_input_allows(monkeypatch, fake_llm, fake_transcript):
+def test_run_mindfulness_graph_safe_input_allows(monkeypatch, fake_llm):
     """Benign input should not trigger the safety refusal path."""
     # Ensure run_mindfulness_graph sees our patched llm and transcript generator.
     result = meditation_graph.run_mindfulness_graph("I feel a bit stressed about work lately.")
 
     assert result["message"]  # non-empty answer
-    assert result["transcript"] == "FAKE_TRANSCRIPT"
+    assert result["transcript"] == "FAKE_ANSWER"
 
 
 def test_clarification_triggered_for_vague_short_query(monkeypatch):
@@ -81,11 +50,6 @@ def test_clarification_triggered_for_vague_short_query(monkeypatch):
     class ClarificationLLM(FakeLLM):
         def invoke(self, messages):
             return AIMessage(content="Can you share a bit more about what is causing this feeling?")
-
-    def _fake_get_llm():
-        return ClarificationLLM()
-
-    monkeypatch.setattr(meditation_graph, "_get_llm", _fake_get_llm)
 
     graph = meditation_graph.build_mindfulness_graph()
 
@@ -101,7 +65,12 @@ def test_clarification_triggered_for_vague_short_query(monkeypatch):
         "reflection_count": 0,
     }
 
-    final_state = graph.invoke(initial_state)
+    dependencies = GraphContext(
+        logger=logger,
+        llm=ClarificationLLM()
+    )
+
+    final_state = graph.invoke(initial_state, context=dependencies)
 
     # After a vague query, the graph should move into a clarifying status and
     # produce at least one AIMessage asking a follow-up question.
@@ -111,7 +80,7 @@ def test_clarification_triggered_for_vague_short_query(monkeypatch):
     assert "share a bit more" in ai_messages[-1].content
 
 
-def test_router_does_not_prevent_completion(fake_llm, fake_transcript):
+def test_router_does_not_prevent_completion(fake_llm):
     """End-to-end run should complete without hitting LangGraph recursion limits.
 
     This gives indirect confidence that the router function allows the workflow
@@ -120,5 +89,5 @@ def test_router_does_not_prevent_completion(fake_llm, fake_transcript):
 
     result = meditation_graph.run_mindfulness_graph("Tell me a bit about relaxation.")
     assert result["message"]
-    assert result["transcript"] == "FAKE_TRANSCRIPT"
+    assert result["transcript"] == "FAKE_ANSWER"
 
