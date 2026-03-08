@@ -31,4 +31,3 @@ if __name__ == "__main__":
     s = get_settings()
     print(f"API: http://{s.api_host}:{s.api_port}")
     print(f"Cartesia model: {s.cartesia_model_id}")
-

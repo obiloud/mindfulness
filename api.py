@@ -5,6 +5,7 @@ from langchain_core.messages import HumanMessage
 from pydantic import BaseModel
 from workflow import run_mindfulness_graph
 
+
 class Message(BaseModel):
     role: str
     content: str
@@ -40,7 +41,8 @@ async def create_session(body: SessionRequest) -> SessionResponse:
     For now this uses the LangGraph-based agent for conversational text and
     the existing meditation tool for generating audio metadata.
     """
-    history_msgs = [HumanMessage(content=m.content) for m in body.history if m.role == "user"]
+    history_msgs = [HumanMessage(content=m.content)
+                    for m in body.history if m.role == "user"]
 
     result = run_mindfulness_graph(
         query=body.query,

@@ -7,11 +7,11 @@ import logging
 import json
 
 
-
 @dataclass
 class GraphContext:
     logger: logging.Logger
     llm: ChatHuggingFace
+
 
 class ConversationState(TypedDict):
     """Shared state for the mindfulness LangGraph agent."""
@@ -31,10 +31,11 @@ class ConversationState(TypedDict):
     reflection_count: int
     reflection_notes: Optional[str]
 
+
 def print_state(state: ConversationState, full: bool = False) -> str:
     print_data = {
-        **state, 
-        "history": messages_to_dict(state["history"]), 
+        **state,
+        "history": messages_to_dict(state["history"]),
         "messages": messages_to_dict(state["messages"])
     }
     return json.dumps(print_data, indent=2)
