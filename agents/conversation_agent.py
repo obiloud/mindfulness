@@ -4,6 +4,7 @@ from langgraph.runtime import Runtime
 from prompts.conversation import CONVERSATION_PROMPT
 import inspect
 
+
 def node_clarification(state: ConversationState, runtime: Runtime[GraphContext]) -> ConversationState:
     """
     Ask a short, targeted follow-up question to gather more context.
@@ -28,7 +29,6 @@ def node_clarification(state: ConversationState, runtime: Runtime[GraphContext])
         memories=state.get("long_term_memory", "No history available."),
         summary=state.get("summary", "New conversation.")
     )
-
 
     system = SystemMessage(content=system_prompt)
     human = HumanMessage(content=clarification_prompt)

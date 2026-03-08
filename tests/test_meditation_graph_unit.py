@@ -7,6 +7,7 @@ from state import GraphContext
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 
+
 class FakeLLM:
     """Minimal fake LLM that returns deterministic AIMessage objects."""
 
@@ -15,6 +16,7 @@ class FakeLLM:
 
     def invoke(self, messages):
         return AIMessage(content=self.response_text)
+
 
 @pytest.fixture
 def fake_llm(monkeypatch):
@@ -30,14 +32,16 @@ def test_run_mindfulness_graph_unsafe_input_refuses():
     """Safety detection should block clearly abusive language and not return a transcript."""
     result = workflow.run_mindfulness_graph("you are stupid")
 
-    assert "refusal" in result["message"].lower() or "can't respond" in result["message"].lower()
+    assert "refusal" in result["message"].lower(
+    ) or "can't respond" in result["message"].lower()
     assert result["transcript"] is None
 
 
 def test_run_mindfulness_graph_safe_input_allows(monkeypatch, fake_llm):
     """Benign input should not trigger the safety refusal path."""
     # Ensure run_mindfulness_graph sees our patched llm and transcript generator.
-    result = workflow.run_mindfulness_graph("I feel a bit stressed about work lately.")
+    result = workflow.run_mindfulness_graph(
+        "I feel a bit stressed about work lately.")
 
     assert result["message"]  # non-empty answer
     assert result["transcript"] == "FAKE_ANSWER"
@@ -75,7 +79,8 @@ def test_clarification_triggered_for_vague_short_query(monkeypatch):
     # After a vague query, the graph should move into a clarifying status and
     # produce at least one AIMessage asking a follow-up question.
     assert final_state["status"] in ("clarifying", "done")
-    ai_messages = [m for m in final_state["messages"] if isinstance(m, AIMessage)]
+    ai_messages = [m for m in final_state["messages"]
+                   if isinstance(m, AIMessage)]
     assert ai_messages, "Expected at least one AIMessage from clarification node."
     assert "share a bit more" in ai_messages[-1].content
 
@@ -90,4 +95,3 @@ def test_router_does_not_prevent_completion(fake_llm):
     result = workflow.run_mindfulness_graph("Tell me a bit about relaxation.")
     assert result["message"]
     assert result["transcript"] == "FAKE_ANSWER"
-

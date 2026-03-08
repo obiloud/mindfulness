@@ -3,6 +3,7 @@ from langchain_core.messages import AIMessage, SystemMessage
 from langgraph.runtime import Runtime
 from prompts.supervisor import SUPERVISOR_PROMPT
 
+
 def node_reflection(state: ConversationState, runtime: Runtime[GraphContext]) -> ConversationState:
     """
     Iterative reflection: the model critiques and, if needed, refines
@@ -12,7 +13,8 @@ def node_reflection(state: ConversationState, runtime: Runtime[GraphContext]) ->
     logger = runtime.context.logger
     llm = runtime.context.llm
 
-    logger.info(f"Reflection node: reflecting on last respone state='{print_state(state)}'")
+    logger.info(
+        f"Reflection node: reflecting on last respone state='{print_state(state)}'")
 
     if not state.get("transcript") or len(state["transcript"].strip()) < 10:
         return {
@@ -22,22 +24,24 @@ def node_reflection(state: ConversationState, runtime: Runtime[GraphContext]) ->
         }
 
     messages = state["messages"]
-    last_ai = next((m for m in reversed(messages) if isinstance(m, AIMessage)), None)
+    last_ai = next((m for m in reversed(messages)
+                   if isinstance(m, AIMessage)), None)
 
     if last_ai is None:
         return {
             **state,
             "status": "done",
         }
-    
+
     reflection_prompt = SUPERVISOR_PROMPT.format(
-        answer = state.get('answer', ''),
-        transcript = state.get('transcript', '')
+        answer=state.get('answer', ''),
+        transcript=state.get('transcript', '')
     )
 
     reflect_msg = SystemMessage(content=reflection_prompt)
     reflect_ai = llm.invoke([reflect_msg] + messages)
-    reflect_text = reflect_ai.content.strip() if isinstance(reflect_ai, AIMessage) else str(reflect_ai).strip()
+    reflect_text = reflect_ai.content.strip() if isinstance(
+        reflect_ai, AIMessage) else str(reflect_ai).strip()
 
     logger.info(f"REFLECT TEXT: {reflect_text}\n")
 

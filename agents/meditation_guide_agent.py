@@ -3,12 +3,14 @@ from state import ConversationState, GraphContext, print_state
 from langgraph.runtime import Runtime
 from prompts.meditation import MEDITATION_PROMPT, ANSWER_PROMPT, TRANSCRIPT_PROMPT
 
+
 def node_assistant(state: ConversationState, runtime: Runtime[GraphContext]) -> ConversationState:
     """Main assistant step that generates both answer and transcript."""
     logger = runtime.context.logger
     llm = runtime.context.llm
 
-    logger.info(f"Response node: generating transcript for state='{print_state(state)}'")
+    logger.info(
+        f"Response node: generating transcript for state='{print_state(state)}'")
     messages = state["messages"]
 
     # Decide whether this is the initial pass or a refinement loop.
@@ -16,7 +18,7 @@ def node_assistant(state: ConversationState, runtime: Runtime[GraphContext]) -> 
     is_refinement = bool(reflection_notes)
 
     # Ensure we have a meditation transcript, generating it directly in code.
-    
+
     # Build a simple textual context from the conversation.
     human_messages = [m for m in messages if isinstance(m, HumanMessage)]
     if human_messages:
@@ -29,9 +31,12 @@ def node_assistant(state: ConversationState, runtime: Runtime[GraphContext]) -> 
 
     try:
         transcript_agent_system = SystemMessage(content=TRANSCRIPT_PROMPT)
-        transcript_agent_context = HumanMessage(content=f"""Context for the guided session: {context_text}""")
-        raw_transcript = llm.invoke([transcript_agent_system, transcript_agent_context])
-        transcript = raw_transcript.content if isinstance(raw_transcript, AIMessage) else str(raw_transcript)
+        transcript_agent_context = HumanMessage(
+            content=f"""Context for the guided session: {context_text}""")
+        raw_transcript = llm.invoke(
+            [transcript_agent_system, transcript_agent_context])
+        transcript = raw_transcript.content if isinstance(
+            raw_transcript, AIMessage) else str(raw_transcript)
     except Exception:
         # In case transcript generation fails, fall back to an empty string.
         transcript = ""
@@ -53,7 +58,8 @@ def node_assistant(state: ConversationState, runtime: Runtime[GraphContext]) -> 
     )
 
     ai_msg = llm.invoke([system] + messages + [answer_human])
-    answer_text = ai_msg.content if isinstance(ai_msg, AIMessage) else str(ai_msg)
+    answer_text = ai_msg.content if isinstance(
+        ai_msg, AIMessage) else str(ai_msg)
 
     return {
         **state,

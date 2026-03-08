@@ -20,16 +20,18 @@ logger = logging.getLogger("meditation_graph")
 
 load_dotenv(override=True)
 
+
 def print_state(state: ConversationState, full: bool = False) -> str:
     history = []
     if full:
         history = messages_to_dict(state["history"])
 
     if len(state["messages"]):
-        print_data = {**state, "history": history, "messages": messages_to_dict([state["messages"][-1]])}
+        print_data = {**state, "history": history,
+                      "messages": messages_to_dict([state["messages"][-1]])}
     else:
         print_data = {**state, "history": history}
-    
+
     return json.dumps(print_data, indent=2)
 
 
@@ -65,6 +67,7 @@ def _get_llm() -> ChatHuggingFace:
     )
 
     return ChatHuggingFace(llm=llm)
+
 
 def build_mindfulness_graph():
     """
@@ -113,7 +116,8 @@ def build_mindfulness_graph():
         query = state["query"]
 
         if detect_unsafe(query):
-            logger.warning(f"Unsafe content detected: '{print_state(state)}' → refusing")
+            logger.warning(
+                f"Unsafe content detected: '{print_state(state)}' → refusing")
             refusal = make_refusal_message()
             messages: List[AnyMessage] = [
                 AIMessage(content=refusal),
@@ -165,10 +169,10 @@ def build_mindfulness_graph():
     def should_proceed(state: ConversationState) -> Literal["clarify", "answer", "end"]:
         if state.get("status") == "done":
             return "end"
-        
+
         if needs_clarification(state):
             return "clarify"
-        
+
         return "answer"
 
     def should_refine(state: ConversationState) -> Literal["refine", "end"]:
@@ -232,7 +236,8 @@ def run_mindfulness_graph(query: str, history: Optional[List[AnyMessage]] = None
 
     final_state = app.invoke(initial_state, context=dependencies)
     messages = final_state["messages"]
-    last_ai = next((m for m in reversed(messages) if getattr(m, "type", None) == "ai"), None)
+    last_ai = next((m for m in reversed(messages)
+                   if getattr(m, "type", None) == "ai"), None)
     content = last_ai.content if last_ai is not None else ""
 
     # Safety refusal: never return a transcript.
@@ -245,13 +250,14 @@ def run_mindfulness_graph(query: str, history: Optional[List[AnyMessage]] = None
 
     transcript = final_state.get("transcript")
 
-    logger.info(f"Graph completed. Final status: {print_state(final_state, full=True)}")
-
+    logger.info(
+        f"Graph completed. Final status: {print_state(final_state, full=True)}")
 
     return {
         "message": content,
         "transcript": transcript,
     }
+
 
 if __name__ == "__main__":
     graph = build_mindfulness_graph()
