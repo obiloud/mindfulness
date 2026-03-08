@@ -36,18 +36,32 @@ def print_state(state: ConversationState, full: bool = False) -> str:
 def _get_llm() -> ChatHuggingFace:
     """Create the base chat model used by the graph."""
     hf_token = os.getenv("HF_TOKEN")
-    repo_id = "Qwen/Qwen3-30B-A3B-Instruct-2507"
+    # repo_id = "Qwen/Qwen3-30B-A3B-Instruct-2507"
+
+    # llm = HuggingFaceEndpoint(
+    #     repo_id=repo_id,
+    #     task="text-generation",
+    #     max_new_tokens=1024,
+    #     temperature=0.5,
+    #     top_k=80,
+    #     top_p=0.8,
+    #     repetition_penalty=1.1,
+    #     huggingfacehub_api_token=hf_token,
+    #     provider="auto",
+    # )
+
+    repo_id = "meta-llama/Meta-Llama-3-8B-Instruct"
 
     llm = HuggingFaceEndpoint(
         repo_id=repo_id,
         task="text-generation",
         max_new_tokens=1024,
-        temperature=0.5,
+        temperature=0.7,
         top_k=80,
-        top_p=0.8,
+        top_p=0.9,
         repetition_penalty=1.1,
         huggingfacehub_api_token=hf_token,
-        provider="auto",
+        provider="auto"
     )
 
     return ChatHuggingFace(llm=llm)
@@ -242,5 +256,5 @@ def run_mindfulness_graph(query: str, history: Optional[List[AnyMessage]] = None
 if __name__ == "__main__":
     graph = build_mindfulness_graph()
 
-    with open("graph_mermaid.png", "wb") as f:
+    with open("workflow_mermaid.png", "wb") as f:
         f.write(graph.get_graph().draw_mermaid_png())

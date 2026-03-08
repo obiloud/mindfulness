@@ -1,7 +1,7 @@
 import pytest
 import logging
 from langchain_core.messages import AIMessage
-import meditation_graph
+import workflow
 from state import GraphContext
 
 logging.basicConfig(level=logging.DEBUG)
@@ -23,12 +23,12 @@ def fake_llm(monkeypatch):
     def _fake_get_llm():
         return FakeLLM()
 
-    monkeypatch.setattr(meditation_graph, "_get_llm", _fake_get_llm)
+    monkeypatch.setattr(workflow, "_get_llm", _fake_get_llm)
 
 
 def test_run_mindfulness_graph_unsafe_input_refuses():
     """Safety detection should block clearly abusive language and not return a transcript."""
-    result = meditation_graph.run_mindfulness_graph("you are stupid")
+    result = workflow.run_mindfulness_graph("you are stupid")
 
     assert "refusal" in result["message"].lower() or "can't respond" in result["message"].lower()
     assert result["transcript"] is None
@@ -37,7 +37,7 @@ def test_run_mindfulness_graph_unsafe_input_refuses():
 def test_run_mindfulness_graph_safe_input_allows(monkeypatch, fake_llm):
     """Benign input should not trigger the safety refusal path."""
     # Ensure run_mindfulness_graph sees our patched llm and transcript generator.
-    result = meditation_graph.run_mindfulness_graph("I feel a bit stressed about work lately.")
+    result = workflow.run_mindfulness_graph("I feel a bit stressed about work lately.")
 
     assert result["message"]  # non-empty answer
     assert result["transcript"] == "FAKE_ANSWER"
@@ -51,7 +51,7 @@ def test_clarification_triggered_for_vague_short_query(monkeypatch):
         def invoke(self, messages):
             return AIMessage(content="Can you share a bit more about what is causing this feeling?")
 
-    graph = meditation_graph.build_mindfulness_graph()
+    graph = workflow.build_mindfulness_graph()
 
     initial_state = {
         "query": "stress",
@@ -87,7 +87,7 @@ def test_router_does_not_prevent_completion(fake_llm):
     to reach a terminal state instead of looping forever.
     """
 
-    result = meditation_graph.run_mindfulness_graph("Tell me a bit about relaxation.")
+    result = workflow.run_mindfulness_graph("Tell me a bit about relaxation.")
     assert result["message"]
     assert result["transcript"] == "FAKE_ANSWER"
 

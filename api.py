@@ -3,7 +3,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from langchain_core.messages import HumanMessage
 from pydantic import BaseModel
-from meditation_graph import run_mindfulness_graph
+from workflow import run_mindfulness_graph
 
 class Message(BaseModel):
     role: str

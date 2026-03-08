@@ -4,77 +4,62 @@ from langgraph.runtime import Runtime
 from prompts.supervisor import SUPERVISOR_PROMPT
 
 def node_reflection(state: ConversationState, runtime: Runtime[GraphContext]) -> ConversationState:
-        """
-        Iterative reflection: the model critiques and, if needed, refines
-        its previous answer into a clearer, more soothing response.
-        """
+    """
+    Iterative reflection: the model critiques and, if needed, refines
+    its previous answer into a clearer, more soothing response.
+    """
 
-        logger = runtime.context.logger
-        llm = runtime.context.llm
+    logger = runtime.context.logger
+    llm = runtime.context.llm
 
-        logger.info(f"Reflection node: reflecting on last respone state='{print_state(state)}'")
+    logger.info(f"Reflection node: reflecting on last respone state='{print_state(state)}'")
 
-        if not state.get("transcript") or len(state["transcript"].strip()) < 10:
-            return {
-                **state,
-                "reflection_notes": "The assistant failed to generate a meditation transcript. Please provide a full script.",
-                "status": "reflecting"
-            }
-
-        messages = state["messages"]
-        last_ai = next((m for m in reversed(messages) if isinstance(m, AIMessage)), None)
-
-        if last_ai is None:
-            return {
-                **state,
-                "status": "done",
-            }
-
-        # Ask the model for a simple, parseable reflection signal.
-#         reflection_prompt = f"""You are a Senior Mindfulness Supervisor. Review the following Assistant response:
-
-# ANSWER TO USER: {state['answer']}
-# MEDITATION TRANSCRIPT: {state['transcript']}
-
-# CRITERIA:
-# 1. SAFETY: Does it avoid medical diagnoses or clinical advice?
-# 2. LANGUAGE: Is the tone simple, accessible, soothing, and colourful?
-# 3. PERSONALIZATION: Is it tailored to the user's specific triggers without making assumptions?
-
-# Respond in EXACTLY ONE LINE using one of these formats:
-# - \"SATISFACTORY\"  (if the answer and transcript fully meet all criteria)
-# - \"REVISION_NEEDED: <short explanation of what must be improved>\"
-# """
-        reflection_prompt = SUPERVISOR_PROMPT.format(
-            answer = state.get('answer', ''),
-            transcript = state.get('transcript', '')
-        )
-
-        reflect_msg = SystemMessage(content=reflection_prompt)
-        reflect_ai = llm.invoke([reflect_msg] + messages)
-        reflect_text = reflect_ai.content.strip() if isinstance(reflect_ai, AIMessage) else str(reflect_ai).strip()
-
-        logger.info(f"REFLECT TEXT: {reflect_text}\n")
-
-        max_reflections = 3
-        current_count = state.get("reflection_count", 0)
-
-        lower = reflect_text.lower()
-        if lower.startswith("satisfactory") or current_count >= max_reflections:
-            return {
-                **state,
-                "reflection_count": current_count,
-                "status": "done",
-            }
-
-        feedback = reflect_text
-        if ":" in reflect_text:
-            feedback = reflect_text.split(":", 1)[1].strip() or reflect_text
-
+    if not state.get("transcript") or len(state["transcript"].strip()) < 10:
         return {
             **state,
-            "messages": messages,
-            "status": "reflecting",
-            "reflection_count": current_count + 1,
-            "reflection_notes": feedback,
+            "reflection_notes": "The assistant failed to generate a meditation transcript. Please provide a full script.",
+            "status": "reflecting"
         }
+
+    messages = state["messages"]
+    last_ai = next((m for m in reversed(messages) if isinstance(m, AIMessage)), None)
+
+    if last_ai is None:
+        return {
+            **state,
+            "status": "done",
+        }
+    
+    reflection_prompt = SUPERVISOR_PROMPT.format(
+        answer = state.get('answer', ''),
+        transcript = state.get('transcript', '')
+    )
+
+    reflect_msg = SystemMessage(content=reflection_prompt)
+    reflect_ai = llm.invoke([reflect_msg] + messages)
+    reflect_text = reflect_ai.content.strip() if isinstance(reflect_ai, AIMessage) else str(reflect_ai).strip()
+
+    logger.info(f"REFLECT TEXT: {reflect_text}\n")
+
+    max_reflections = 3
+    current_count = state.get("reflection_count", 0)
+
+    lower = reflect_text.lower()
+    if lower.startswith("satisfactory") or current_count >= max_reflections:
+        return {
+            **state,
+            "reflection_count": current_count,
+            "status": "done",
+        }
+
+    feedback = reflect_text
+    if ":" in reflect_text:
+        feedback = reflect_text.split(":", 1)[1].strip() or reflect_text
+
+    return {
+        **state,
+        "messages": messages,
+        "status": "reflecting",
+        "reflection_count": current_count + 1,
+        "reflection_notes": feedback,
+    }
