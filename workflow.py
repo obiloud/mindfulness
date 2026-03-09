@@ -2,15 +2,15 @@ import os
 from typing import List, Literal, Optional
 
 from dotenv import load_dotenv
-from langchain_core.messages import AnyMessage, HumanMessage, AIMessage, messages_to_dict
+from langchain_core.messages import AnyMessage, messages_to_dict
 from langchain_huggingface import ChatHuggingFace, HuggingFaceEndpoint
 from langgraph.graph import StateGraph, END
 
 import logging
-import re
 import json
 
 from state import ConversationState, GraphContext
+from agents.user_input_agent import node_user_input
 from agents.conversation_agent import node_clarification
 from agents.meditation_guide_agent import node_assistant
 from agents.supervisor_agent import node_reflection
@@ -76,67 +76,6 @@ def build_mindfulness_graph():
     - optionally call tools (e.g. guided meditation audio session)
     - reflect on its answer once and improve it.
     """
-
-    def detect_unsafe(text: str) -> bool:
-        """
-        Lightweight profanity / hate / insult detection.
-
-        This is intentionally conservative and can be tightened or replaced
-        with a dedicated moderation model if needed.
-        """
-        if not text:
-            return False
-
-        lower = text.lower()
-
-        profanity_patterns = [
-            r"\b(fuck|f\*\*k|shit|bitch|asshole|bastard|cunt)\b",
-        ]
-        hate_patterns = [
-            r"\b(?:kill|eliminate|exterminate|eradicate)\s+(?:them|those\s+people|all\s+\w+)\b",
-        ]
-        insult_patterns = [
-            r"\b(you\s+are\s+stupid|you\s+are\s+an\s+idiot|worthless\s+piece\s+of)\b",
-        ]
-
-        patterns = profanity_patterns + hate_patterns + insult_patterns
-        return any(re.search(p, lower) for p in patterns)
-
-    def make_refusal_message() -> str:
-        return (
-            "I'm here to support your wellbeing, but I can't respond to "
-            "hateful, abusive, or excessively profane language. "
-            "Please rephrase your request respectfully so we can continue."
-        )
-
-    def node_user_input(state: ConversationState) -> ConversationState:
-        """Seed the conversation with the latest user query, with safety check."""
-        logger.info(f"Safety check: state='{print_state(state)}'")
-
-        query = state["query"]
-
-        if detect_unsafe(query):
-            logger.warning(
-                f"Unsafe content detected: '{print_state(state)}' → refusing")
-            refusal = make_refusal_message()
-            messages: List[AnyMessage] = [
-                AIMessage(content=refusal),
-            ]
-            return {
-                **state,
-                "messages": messages,
-                "status": "done",
-                "safety_flag": "unsafe",
-                "refusal_message": refusal,
-            }
-
-        messages = list(state.get("history", []))
-        messages.append(HumanMessage(content=query))
-        return {
-            **state,
-            "messages": messages,
-            "status": "answering",
-        }
 
     def needs_clarification(state: ConversationState) -> bool:
         """
