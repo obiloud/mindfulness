@@ -16,7 +16,7 @@ from agents.meditation_guide_agent import node_assistant
 from agents.supervisor_agent import node_reflection
 
 logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger("meditation_graph")
+logger = logging.getLogger(__name__)
 
 load_dotenv(override=True)
 
