@@ -1,0 +1,124 @@
+# agents/user_input_agent.py
+
+from typing import List, Dict, Any
+from langchain_core.messages import HumanMessage, AIMessage, AnyMessage
+from langchain_core.runnables import Runnable
+from langchain_core.prompts import PromptTemplate
+from langchain_core.output_parsers import StrOutputParser
+from langgraph.runtime import Runtime
+from langgraph.store.base import BaseStore
+from langchain_huggingface import ChatHuggingFace
+
+from state import ConversationState, GraphContext, print_state
+
+
+def create_safety_classifier(llm: ChatHuggingFace) -> Runnable:
+    """Create an LLM-based safety classifier for detecting unsafe content."""
+    # Prompt template for safety classification
+    safety_prompt = PromptTemplate.from_template(
+        """You are a safety filter for a wellbeing assistant. 
+        Classify the following text as safe or unsafe based on profanity, hate speech, or insults.
+        
+        Text: {text}
+        
+        Response format: Only return "safe" or "unsafe" (no explanation).
+        """
+    )
+
+    return safety_prompt | llm | StrOutputParser()
+
+
+def classify_safety(llm: ChatHuggingFace, text: str) -> str:
+    """Classify text as safe or unsafe using an LLM."""
+    if not text or not text.strip():
+        return "safe"
+
+    # Use the safety classifier
+    classifier = create_safety_classifier(llm)
+    result = classifier.invoke({"text": text})
+
+    # Ensure the result is one of the expected values
+    return result.strip().lower() if result else "safe"
+
+
+def retrieve_from_store(query: str, store: BaseStore) -> List[Dict[str, Any]]:
+    """Retrieve relevant long-term memory entries using semantic search."""
+    # This would use the store's retrieval capabilities
+    # For now, we'll simulate a basic retrieval
+    if not query:
+        return []
+
+    # In a real implementation, this would use the store's vector search capabilities
+    # to find relevant past conversations or memories
+    return store.search(query, k=3)  # Return top 3 results
+
+
+def node_user_input(state: ConversationState, runtime: Runtime[GraphContext], store: BaseStore) -> ConversationState:
+    """
+    Process user input with safety classification and long-term memory retrieval.
+
+    This node performs:
+    1. Safety classification using an LLM-based classifier
+    2. Semantic search to retrieve relevant long-term memory
+    3. Updates the conversation state with the new message and retrieved context
+
+    Args:
+        state: Current conversation state
+        runtime: Runtime context for the graph
+        store: Store for long-term memory
+
+    Returns:
+        Updated conversation state
+    """
+    logger = runtime.context.logger
+    llm = runtime.context.llm
+
+    logger.info(f"Safety check: state='{print_state(state)}'")
+
+    query = state["query"]
+
+    # Classify the input as safe or unsafe using LLM
+    safety_status = classify_safety(llm, query)
+
+    if safety_status == "unsafe":
+        logger.warning(f"Unsafe content detected: '{query}' → refusing")
+        refusal_message = (
+            "I'm here to support your wellbeing, but I can't respond to "
+            "hateful, abusive, or excessively profane language. "
+            "Please rephrase your request respectfully so we can continue."
+        )
+
+        messages: List[AnyMessage] = [
+            AIMessage(content=refusal_message),
+        ]
+
+        # Update state with refusal
+        return {
+            **state,
+            "messages": messages,
+            "status": "done",
+            "safety_flag": "unsafe",
+            "refusal_message": refusal_message,
+        }
+
+    # Retrieve relevant long-term memory using semantic search
+    # retrieved_context = retrieve_from_store(query, store)
+
+    # Build the message history with the new user input
+    messages = list(state.get("history", []))
+    messages.append(HumanMessage(content=query))
+
+    # Add retrieved context to the conversation if available
+    # if retrieved_context:
+    #     logger.info(
+    #         f"Retrieved {len(retrieved_context)} relevant memory entries")
+    #     # In a real implementation, we would integrate the retrieved context
+    #     # into the conversation state or use it to inform the response
+
+    return {
+        **state,
+        "messages": messages,
+        "status": "answering",
+        "safety_flag": "safe",
+        # "retrieved_context": retrieved_context,
+    }

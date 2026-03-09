@@ -17,6 +17,10 @@ class FakeLLM:
     def invoke(self, messages):
         return AIMessage(content=self.response_text)
 
+    def __call__(self, messages):
+        """Make the FakeLLM callable as a Runnable."""
+        return AIMessage(content=self.response_text)
+
 
 @pytest.fixture
 def fake_llm(monkeypatch):
@@ -26,6 +30,10 @@ def fake_llm(monkeypatch):
         return FakeLLM()
 
     monkeypatch.setattr(workflow, "_get_llm", _fake_get_llm)
+
+    # Ensure the FakeLLM is properly mocked as a Runnable
+    # This is needed because LangChain expects Runnable types
+    # We'll verify this in the test assertions
 
 
 def test_run_mindfulness_graph_unsafe_input_refuses():
