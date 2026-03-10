@@ -26,8 +26,10 @@ class ConversationState(TypedDict):
     safety_flag: Optional[str]
     refusal_message: Optional[str]
     # Control flow
-    status: Literal["initial", "answering", "reflecting", "clarifying", "done"]
-    clarification_count: int
+    status: Literal["initial", "conversation", "answering",
+                    "reflecting", "done"]
+    info_score: float
+    turn_count: int
     reflection_count: int
     reflection_notes: Optional[str]
 

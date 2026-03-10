@@ -13,7 +13,7 @@ def node_reflection(state: ConversationState, runtime: Runtime[GraphContext]) ->
     logger = runtime.context.logger
     llm = runtime.context.llm
 
-    logger.info(
+    logger.debug(
         f"Reflection node: reflecting on last respone state='{print_state(state)}'")
 
     if not state.get("transcript") or len(state["transcript"].strip()) < 10:

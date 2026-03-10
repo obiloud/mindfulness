@@ -86,10 +86,10 @@ def test_clarification_triggered_for_vague_short_query(monkeypatch):
 
     # After a vague query, the graph should move into a clarifying status and
     # produce at least one AIMessage asking a follow-up question.
-    assert final_state["status"] in ("clarifying", "done")
+    assert final_state["status"] in ("conversation", "done")
     ai_messages = [m for m in final_state["messages"]
                    if isinstance(m, AIMessage)]
-    assert ai_messages, "Expected at least one AIMessage from clarification node."
+    assert ai_messages, "Expected at least one AIMessage from conversation node."
     assert "share a bit more" in ai_messages[-1].content
 
 
