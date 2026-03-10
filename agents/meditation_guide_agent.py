@@ -9,7 +9,7 @@ def node_assistant(state: ConversationState, runtime: Runtime[GraphContext]) -> 
     logger = runtime.context.logger
     llm = runtime.context.llm
 
-    logger.info(
+    logger.debug(
         f"Response node: generating transcript for state='{print_state(state)}'")
     messages = state["messages"]
 

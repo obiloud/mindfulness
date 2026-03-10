@@ -5,13 +5,14 @@ from dotenv import load_dotenv
 from langchain_core.messages import AnyMessage, messages_to_dict
 from langchain_huggingface import ChatHuggingFace, HuggingFaceEndpoint
 from langgraph.graph import StateGraph, END
+from langgraph.checkpoint.memory import MemorySaver
 
 import logging
 import json
 
 from state import ConversationState, GraphContext
 from agents.user_input_agent import node_user_input
-from agents.conversation_agent import node_clarification
+from agents.conversation_agent import node_conversation
 from agents.meditation_guide_agent import node_assistant
 from agents.supervisor_agent import node_reflection
 
@@ -52,7 +53,7 @@ def _get_llm() -> ChatHuggingFace:
     #     provider="auto",
     # )
 
-    repo_id = "meta-llama/Meta-Llama-3-8B-Instruct"
+    repo_id = "meta-llama/Meta-Llama-3-70B-Instruct"
 
     llm = HuggingFaceEndpoint(
         repo_id=repo_id,
@@ -76,43 +77,16 @@ def build_mindfulness_graph():
     - optionally call tools (e.g. guided meditation audio session)
     - reflect on its answer once and improve it.
     """
-
-    def needs_clarification(state: ConversationState) -> bool:
-        """
-        Heuristic to decide if we should ask for more information.
-
-        For now we look at very short or extremely vague queries and limit
-        the number of clarification turns to 3.
-        """
-        count = state.get("clarification_count", 0)
-        if count >= 3:
-            return False
-
-        query = (state.get("query") or "").strip().lower()
-        if len(query) < 10:
-            return True
-
-        vague_tokens = [
-            "stress",
-            "stressed",
-            "anxious",
-            "anxiety",
-            "bad",
-            "not good",
-            "overwhelmed",
-        ]
-        # Ask for clarification when the user gives only a very generic label
-        # without describing context.
-        return any(token == query or (token in query and len(query.split()) <= 6) for token in vague_tokens)
-
-    def should_proceed(state: ConversationState) -> Literal["clarify", "answer", "end"]:
+    def safe_to_proceed(state: ConversationState) -> Literal["conversation", "end"]:
         if state.get("status") == "done":
             return "end"
 
-        if needs_clarification(state):
-            return "clarify"
+        return "conversation"
 
-        return "answer"
+    def should_answer(state: ConversationState) -> Literal["proceed_to_draft", "ask_again"]:
+        if state.get("info_score", 0) >= 0.9 or state["turn_count"] > 5:
+            return "proceed_to_draft"
+        return "ask_again"
 
     def should_refine(state: ConversationState) -> Literal["refine", "end"]:
         if state.get("status") == "done":
@@ -122,20 +96,19 @@ def build_mindfulness_graph():
 
     graph = StateGraph(ConversationState)
     graph.add_node("user", node_user_input)
-    graph.add_node("clarification", node_clarification)
+    graph.add_node("conversation", node_conversation)
     graph.add_node("assistant", node_assistant)
     graph.add_node("reflection", node_reflection)
 
     graph.set_entry_point("user")
-    graph.add_conditional_edges(
-        "user",
-        should_proceed,
-        {
-            "clarify": "clarification",
-            "answer": "assistant",
-            "end": END
-        },
-    )
+    graph.add_conditional_edges("user", safe_to_proceed, {
+        "conversation": "conversation",
+        "end": END
+    })
+    graph.add_conditional_edges("conversation", should_answer, {
+        "ask_again": END,
+        "proceed_to_draft": "assistant"
+    })
     graph.add_edge("assistant", "reflection")
     graph.add_conditional_edges(
         "reflection",
@@ -146,7 +119,9 @@ def build_mindfulness_graph():
         },
     )
 
-    return graph.compile()
+    checkpointer = MemorySaver()
+
+    return graph.compile(checkpointer=checkpointer)
 
 
 def run_mindfulness_graph(query: str, history: Optional[List[AnyMessage]] = None):
@@ -169,11 +144,13 @@ def run_mindfulness_graph(query: str, history: Optional[List[AnyMessage]] = None
         "safety_flag": None,
         "refusal_message": None,
         "status": "initial",
-        "clarification_count": 0,
+        "info_score": 0,
+        "turn_count": 0,
         "reflection_count": 0,
     }
 
-    final_state = app.invoke(initial_state, context=dependencies)
+    final_state = app.invoke(initial_state, context=dependencies, config={
+                             "configurable": {"thread_id": "1"}})
     messages = final_state["messages"]
     last_ai = next((m for m in reversed(messages)
                    if getattr(m, "type", None) == "ai"), None)

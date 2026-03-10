@@ -104,9 +104,7 @@ def node_user_input(state: ConversationState, runtime: Runtime[GraphContext], st
     # Retrieve relevant long-term memory using semantic search
     # retrieved_context = retrieve_from_store(query, store)
 
-    # Build the message history with the new user input
     messages = list(state.get("history", []))
-    messages.append(HumanMessage(content=query))
 
     # Add retrieved context to the conversation if available
     # if retrieved_context:
