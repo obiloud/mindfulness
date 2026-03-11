@@ -52,6 +52,7 @@ export default function App() {
   const [session_id, setSessionId] = useState<string | undefined>(undefined)
   const [isStreaming, setIsStreaming] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const messagesContainerRef = useRef<HTMLDivElement | null>(null);
 
   const handleSend = async () => {
     if (!input.trim() || loading) return;
@@ -99,6 +100,18 @@ export default function App() {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    if (messagesContainerRef.current) {
+      messagesContainerRef.current.scrollTop = messagesContainerRef.current.scrollHeight;
+      // Optional: Add a small delay to avoid jank
+      const delay = setTimeout(() => {
+        messagesContainerRef.current?.scrollTo(0, messagesContainerRef.current.scrollHeight);
+      }, 50);
+
+      return () => clearTimeout(delay);
+    }
+  }, [messages]);
 
   useEffect(() => {
     console.log('Effect triggered - isStreaming:', isStreaming, 'transcript:', transcript);
@@ -163,7 +176,7 @@ export default function App() {
           </div>
         </header>
 
-        <div className="flex-1 min-h-[320px] max-h-[420px] overflow-y-auto space-y-3 pr-1">
+        <div className="flex-1 min-h-[320px] max-h-[420px] overflow-y-auto space-y-3 pr-1" ref={messagesContainerRef}>
           {messages.length === 0 && (
             <p className="text-slate-400 text-sm">
               Start by telling the guide what you are going through, for example:

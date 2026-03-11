@@ -7,3 +7,4 @@ venv/
 .continue/
 .cursor/
 .pytest_cache/
+postgres_data/
