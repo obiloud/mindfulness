@@ -8,22 +8,25 @@ type Message = {
 
 // Define a more specific interface for the response to include transcript info
 interface AgentResponse {
+  session_id: string;
   message: string;
   transcript?: string; // Optional transcript field in the response
 }
 
 // Define a more specific interface for the message type to include transcript
 interface MessageWithTranscript extends Message {
+  session_id?: string;
   transcript?: string;
 }
 
+
 const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
 
-async function sendMessage(query: string, history: Message[]): Promise<MessageWithTranscript> {
+async function sendMessage(query: string, session_id?: string): Promise<MessageWithTranscript> {
   const resp = await fetch(`${API_BASE}/v1/mindfulness/session`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ query, history }),
+    body: JSON.stringify({ query, session_id }),
   });
 
   if (!resp.ok) {
@@ -35,6 +38,7 @@ async function sendMessage(query: string, history: Message[]): Promise<MessageWi
   // Return a message with the transcript field if available
   return {
     role: "assistant",
+    session_id: data.session_id,
     content: data.message,
     transcript: data.transcript
   };
@@ -45,6 +49,7 @@ export default function App() {
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [transcript, setTranscript] = useState<string | null>(null);
+  const [session_id, setSessionId] = useState<string | undefined>(undefined)
   const [isStreaming, setIsStreaming] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
@@ -54,6 +59,7 @@ export default function App() {
     const userMsg: MessageWithTranscript = {
       role: "user",
       content: input.trim(),
+      session_id: session_id,
       transcript: undefined
     };
     const newHistory = [...messages, userMsg];
@@ -64,7 +70,7 @@ export default function App() {
     setTranscript(null);
 
     try {
-      const reply = await sendMessage(userMsg.content, newHistory);
+      const reply = await sendMessage(userMsg.content, session_id);
 
       // Debug: Log when transcript is received
       console.log('Received transcript from assistant:', reply.transcript ? reply.transcript.length : 'null');
@@ -77,6 +83,7 @@ export default function App() {
         console.log('Streaming activated with transcript length:', reply.transcript.length);
       }
 
+      setSessionId(reply.session_id)
       setMessages((prev) => [...prev, reply]);
     } catch (e) {
       setMessages((prev) => [
@@ -84,6 +91,7 @@ export default function App() {
         {
           role: "assistant",
           content: "Sorry, something went wrong while contacting the server.",
+          session_id: undefined,
           transcript: undefined
         },
       ]);

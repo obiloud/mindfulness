@@ -62,7 +62,6 @@ def node_reflection(state: ConversationState, runtime: Runtime[GraphContext]) ->
 
     return {
         **state,
-        "messages": messages,
         "status": "reflecting",
         "reflection_count": current_count + 1,
         "reflection_notes": feedback,

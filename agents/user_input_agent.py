@@ -53,7 +53,7 @@ def retrieve_from_store(query: str, store: BaseStore) -> List[Dict[str, Any]]:
     return store.search(query, k=3)  # Return top 3 results
 
 
-def node_user_input(state: ConversationState, runtime: Runtime[GraphContext], store: BaseStore) -> ConversationState:
+def node_user_input(state: ConversationState, runtime: Runtime[GraphContext]) -> ConversationState:
     """
     Process user input with safety classification and long-term memory retrieval.
 
@@ -65,7 +65,6 @@ def node_user_input(state: ConversationState, runtime: Runtime[GraphContext], st
     Args:
         state: Current conversation state
         runtime: Runtime context for the graph
-        store: Store for long-term memory
 
     Returns:
         Updated conversation state
@@ -73,9 +72,9 @@ def node_user_input(state: ConversationState, runtime: Runtime[GraphContext], st
     logger = runtime.context.logger
     llm = runtime.context.llm
 
-    logger.info(f"Safety check: state='{print_state(state)}'")
+    logger.debug(f"Safety check: state='{print_state(state)}'")
 
-    query = state["query"]
+    query = state["messages"][-1].content
 
     # Classify the input as safe or unsafe using LLM
     safety_status = classify_safety(llm, query)
@@ -88,35 +87,17 @@ def node_user_input(state: ConversationState, runtime: Runtime[GraphContext], st
             "Please rephrase your request respectfully so we can continue."
         )
 
-        messages: List[AnyMessage] = [
-            AIMessage(content=refusal_message),
-        ]
-
         # Update state with refusal
         return {
             **state,
-            "messages": messages,
+            "messages": [AIMessage(content=refusal_message)],
             "status": "done",
             "safety_flag": "unsafe",
             "refusal_message": refusal_message,
         }
 
-    # Retrieve relevant long-term memory using semantic search
-    # retrieved_context = retrieve_from_store(query, store)
-
-    messages = list(state.get("history", []))
-
-    # Add retrieved context to the conversation if available
-    # if retrieved_context:
-    #     logger.info(
-    #         f"Retrieved {len(retrieved_context)} relevant memory entries")
-    #     # In a real implementation, we would integrate the retrieved context
-    #     # into the conversation state or use it to inform the response
-
     return {
         **state,
-        "messages": messages,
         "status": "answering",
         "safety_flag": "safe",
-        # "retrieved_context": retrieved_context,
     }

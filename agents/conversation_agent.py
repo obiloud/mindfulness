@@ -88,8 +88,7 @@ def node_conversation(state: ConversationState, runtime: Runtime[GraphContext]) 
 
     turn_count = state.get("turn_count", 0)
 
-    conversation_history = format_conversation_history(
-        state.get("history", []))
+    conversation_history = format_conversation_history(messages)
 
     logger.info(f"Conversation history: {conversation_history}")
 
@@ -104,11 +103,10 @@ def node_conversation(state: ConversationState, runtime: Runtime[GraphContext]) 
     system = SystemMessage(content=system_prompt)
     human = HumanMessage(content=clarification_message)
     ai_msg = llm.invoke([system] + messages + [human])
-    messages = messages + [ai_msg]
 
     return {
         **state,
-        "messages": messages,
+        "messages": [ai_msg],
         "info_score": float(info_score),
         "turn_count": turn_count + 1,
         "status": "conversation"

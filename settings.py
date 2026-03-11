@@ -1,7 +1,8 @@
 import os
 from functools import lru_cache
 
-from pydantic import BaseSettings, Field
+from pydantic import Field
+from pydantic_settings import BaseSettings
 
 
 class Settings(BaseSettings):
@@ -10,11 +11,17 @@ class Settings(BaseSettings):
     api_port: int = Field(8000, env="API_PORT")
 
     # Hugging Face
-    hf_token: str = Field(..., env="HF_TOKEN")
+    hf_token: str = Field("", env="HF_TOKEN")
 
-    # Cartesia
-    cartesia_api_key: str = Field(..., env="CARTESIA_API_KEY")
+    # # Cartesia
+    cartesia_api_key: str = Field("", env="CARTESIA_API_KEY")
     cartesia_model_id: str = Field("sonic-3", env="CARTESIA_MODEL_ID")
+
+    # PostgreSQL
+    postgres_connection_string: str = Field(
+        "postgresql://user:password@localhost:5432/dbname",
+        env="POSTGRES_CONNECTION_STRING"
+    )
 
     class Config:
         env_file = ".env"
@@ -31,3 +38,4 @@ if __name__ == "__main__":
     s = get_settings()
     print(f"API: http://{s.api_host}:{s.api_port}")
     print(f"Cartesia model: {s.cartesia_model_id}")
+    print(f"PostgreSQL connection: {s.postgres_connection_string}")
