@@ -11,6 +11,7 @@ def node_assistant(state: ConversationState, runtime: Runtime[GraphContext]) -> 
 
     logger.debug(
         f"Response node: generating transcript for state='{print_state(state)}'")
+
     messages = state["messages"]
 
     # Decide whether this is the initial pass or a refinement loop.
@@ -65,6 +66,6 @@ def node_assistant(state: ConversationState, runtime: Runtime[GraphContext]) -> 
         **state,
         "answer": answer_text,
         "transcript": transcript,
-        "messages": messages + [ai_msg],
+        "messages": [ai_msg],
         "status": "answering" if not is_refinement else state.get("status", "answering"),
     }

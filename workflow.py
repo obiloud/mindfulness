@@ -1,11 +1,12 @@
 import os
-from typing import List, Literal, Optional
+from typing import Literal
 
 from dotenv import load_dotenv
-from langchain_core.messages import AnyMessage, messages_to_dict
+from langchain_core.messages import messages_to_dict
 from langchain_huggingface import ChatHuggingFace, HuggingFaceEndpoint
 from langgraph.graph import StateGraph, END
-from langgraph.checkpoint.memory import MemorySaver
+from langgraph.checkpoint.base import BaseCheckpointSaver
+from langgraph.store.base import BaseStore
 
 import logging
 import json
@@ -15,6 +16,7 @@ from agents.user_input_agent import node_user_input
 from agents.conversation_agent import node_conversation
 from agents.meditation_guide_agent import node_assistant
 from agents.supervisor_agent import node_reflection
+from settings import get_settings
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -22,37 +24,21 @@ logger = logging.getLogger(__name__)
 load_dotenv(override=True)
 
 
-def print_state(state: ConversationState, full: bool = False) -> str:
-    history = []
-    if full:
-        history = messages_to_dict(state["history"])
-
+def print_state(state: ConversationState) -> str:
     if len(state["messages"]):
-        print_data = {**state, "history": history,
-                      "messages": messages_to_dict([state["messages"][-1]])}
+        print_data = {
+            **state, "messages": messages_to_dict(state["messages"])}
     else:
-        print_data = {**state, "history": history}
+        print_data = state
 
     return json.dumps(print_data, indent=2)
 
 
-def _get_llm() -> ChatHuggingFace:
+def get_llm() -> ChatHuggingFace:
     """Create the base chat model used by the graph."""
     hf_token = os.getenv("HF_TOKEN")
+
     # repo_id = "Qwen/Qwen3-30B-A3B-Instruct-2507"
-
-    # llm = HuggingFaceEndpoint(
-    #     repo_id=repo_id,
-    #     task="text-generation",
-    #     max_new_tokens=1024,
-    #     temperature=0.5,
-    #     top_k=80,
-    #     top_p=0.8,
-    #     repetition_penalty=1.1,
-    #     huggingfacehub_api_token=hf_token,
-    #     provider="auto",
-    # )
-
     repo_id = "meta-llama/Meta-Llama-3-70B-Instruct"
 
     llm = HuggingFaceEndpoint(
@@ -70,7 +56,7 @@ def _get_llm() -> ChatHuggingFace:
     return ChatHuggingFace(llm=llm)
 
 
-def build_mindfulness_graph():
+def build_mindfulness_graph(checkpointer: BaseCheckpointSaver = None, store: BaseStore = None):
     """
     Build a LangGraph graph that can:
     - hold a short conversation about the user's context
@@ -119,12 +105,10 @@ def build_mindfulness_graph():
         },
     )
 
-    checkpointer = MemorySaver()
-
-    return graph.compile(checkpointer=checkpointer)
+    return graph.compile(checkpointer=checkpointer, store=store)
 
 
-def run_mindfulness_graph(query: str, history: Optional[List[AnyMessage]] = None):
+def run_mindfulness_graph(query: str):
     """
     Convenience function for external callers (FastAPI, CLI, etc.).
     Returns the last assistant message content and any generated metadata.
@@ -133,12 +117,11 @@ def run_mindfulness_graph(query: str, history: Optional[List[AnyMessage]] = None
 
     dependencies = GraphContext(
         logger=logger,
-        llm=_get_llm()
+        llm=get_llm()
     )
 
     initial_state: ConversationState = {
         "query": query,
-        "history": history or [],
         "messages": [],
         "transcript": None,
         "safety_flag": None,
@@ -167,7 +150,7 @@ def run_mindfulness_graph(query: str, history: Optional[List[AnyMessage]] = None
     transcript = final_state.get("transcript")
 
     logger.info(
-        f"Graph completed. Final status: {print_state(final_state, full=True)}")
+        f"Graph completed. Final status: {print_state(final_state)}")
 
     return {
         "message": content,
