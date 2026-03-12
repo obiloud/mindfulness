@@ -32,7 +32,7 @@ def node_conversation(state: ConversationState, runtime: Runtime[GraphContext]) 
     logger = runtime.context.logger
     llm = runtime.context.llm
 
-    logger.info(f"Conversation continued: state='{print_state(state)}'")
+    logger.debug(f"Conversation continued: state='{print_state(state)}'")
 
     messages = state["messages"]
 

@@ -35,7 +35,6 @@ class ConversationState(TypedDict):
 def print_state(state: ConversationState, full: bool = False) -> str:
     print_data = {
         **state,
-        # "messages": messages_to_dict(state["messages"])
-        "messages": []
+        "messages": messages_to_dict(state["messages"])
     }
     return json.dumps(print_data, indent=2)
