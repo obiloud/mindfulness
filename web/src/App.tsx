@@ -113,48 +113,6 @@ export default function App() {
     }
   }, [messages]);
 
-  useEffect(() => {
-    console.log('Effect triggered - isStreaming:', isStreaming, 'transcript:', transcript);
-
-    if (!isStreaming || !transcript) return;
-
-    console.log('Starting audio streaming with transcript:', transcript.length, 'characters');
-
-    // Pause and reset audio if needed
-    if (audioRef.current) {
-      audioRef.current.pause();
-      audioRef.current.currentTime = 0;
-    }
-
-    const playAudioInChunks = async () => {
-      const audio = audioRef.current;
-      if (!audio || !transcript) return;
-
-      console.log('Making POST request to /v1/mindfulness/audio with transcript length:', transcript.length);
-
-      try {
-        // Make the POST request to get the audio stream
-
-        cartesiaTTSClient.sendTranscript(transcript)
-
-        // Play the stream in chunks
-        const playStream = async () => {
-          if (audioRef.current) {
-            audioRef.current.play().catch((err) => {
-              console.error('Error playing audio:', err);
-            });
-          }
-        };
-
-        playStream();
-      } catch (error) {
-        console.error('Error during audio streaming:', error);
-      }
-    };
-
-    playAudioInChunks();
-  }, [isStreaming, transcript]);
-
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Enter") {
       e.preventDefault();
@@ -164,86 +122,175 @@ export default function App() {
 
   return (
     <div className="min-h-screen flex items-center justify-center px-4">
-      <div className="w-full max-w-3xl bg-mind-surface/80 backdrop-blur-md rounded-2xl shadow-xl border border-slate-700/60 p-6 flex flex-col gap-4">
-        <header className="flex items-center justify-between mb-2">
-          <div>
-            <h1 className="text-xl font-semibold text-sky-300">
-              Mindfulness AI
-            </h1>
-            <p className="text-sm text-slate-300">
-              Share how you feel, and receive a gentle, guided response.
-            </p>
-          </div>
-        </header>
+      {/* Conditional Rendering: Chat or Transcript View */}
+      {transcript ? (
+        <TranscriptView
+          transcript={transcript}
+          onBackToChat={() => {
+            setTranscript(null);
+            setIsStreaming(false);
+          }}
+          onNewChat={() => {
+            setTranscript(null);
+            setIsStreaming(false);
+            setMessages([]);
+            setInput("");
+            setSessionId(undefined);
+          }}
+          messages={messages}
+          audioRef={audioRef}
+        />
+      ) : (
+        <div className="w-full max-w-3xl bg-mind-surface/80 backdrop-blur-md rounded-2xl shadow-xl border border-slate-700/60 p-6 flex flex-col gap-4">
+          <header className="flex items-center justify-between mb-2">
+            <div>
+              <h1 className="text-xl font-semibold text-sky-300">
+                Mindfulness AI
+              </h1>
+              <p className="text-sm text-slate-300">
+                Share how you feel, and receive a gentle, guided response.
+              </p>
+            </div>
+          </header>
 
-        <div className="flex-1 min-h-[320px] max-h-[420px] overflow-y-auto space-y-3 pr-1" ref={messagesContainerRef}>
-          {messages.length === 0 && (
-            <p className="text-slate-400 text-sm">
-              Start by telling the guide what you are going through, for example:
-              “I feel anxious about work and cannot relax.”
-            </p>
-          )}
+          <div className="flex-1 min-h-[320px] max-h-[420px] overflow-y-auto space-y-3 pr-1" ref={messagesContainerRef}>
+            {messages.length === 0 && (
+              <p className="text-slate-400 text-sm">
+                Start by telling the guide what you are going through, for example:
+                “I feel anxious about work and cannot relax.”
+              </p>
+            )}
 
-          {messages.map((m, idx) => (
-            <div
-              key={idx}
-              className={`flex ${m.role === "user" ? "justify-end" : "justify-start"
-                }`}
-            >
+            {messages.map((m, idx) => (
               <div
-                className={`max-w-[80%] rounded-2xl px-3 py-2 text-sm leading-relaxed whitespace-pre-wrap ${m.role === "user"
-                  ? "bg-mind-accent/90 text-slate-950"
-                  : "bg-slate-800/80 text-slate-100 border border-slate-700/70"
+                key={idx}
+                className={`flex ${m.role === "user" ? "justify-end" : "justify-start"
                   }`}
               >
-                {m.content}
+                <div
+                  className={`max-w-[80%] rounded-2xl px-3 py-2 text-sm leading-relaxed whitespace-pre-wrap ${m.role === "user"
+                    ? "bg-mind-accent/90 text-slate-950"
+                    : "bg-slate-800/80 text-slate-100 border border-slate-700/70"
+                    }`}
+                >
+                  {m.content}
+                </div>
               </div>
-            </div>
-          ))}
+            ))}
 
-          {/* Loading animation */}
-          {loading && (
-            <div className="flex justify-center items-center py-2">
-              <div className="flex items-center space-x-2">
-                <div className="w-2 h-2 bg-sky-400 rounded-full animate-pulse"></div>
-                <div className="w-2 h-2 bg-sky-400 rounded-full animate-pulse delay-100"></div>
-                <div className="w-2 h-2 bg-sky-400 rounded-full animate-pulse delay-200"></div>
+            {loading && (
+              <div className="flex justify-center items-center py-2">
+                <div className="flex items-center space-x-2">
+                  <div className="w-2 h-2 bg-sky-400 rounded-full animate-pulse"></div>
+                  <div className="w-2 h-2 bg-sky-400 rounded-full animate-pulse delay-100"></div>
+                  <div className="w-2 h-2 bg-sky-400 rounded-full animate-pulse delay-200"></div>
+                </div>
               </div>
-            </div>
-          )}
+            )}
+          </div>
+
+          <div className="mt-2 flex gap-2">
+            <input
+              type="text"
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={handleKeyDown}
+              placeholder="How are you feeling?"
+              className="flex-1 rounded-xl bg-slate-900/60 border border-slate-700/70 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-mind-accent focus:border-transparent"
+            />
+            <button
+              onClick={handleSend}
+              disabled={loading}
+              className="px-4 py-2 rounded-xl bg-mind-accent text-slate-950 text-sm font-medium hover:bg-sky-400 disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
+            >
+              {loading ? "Sending..." : "Send"}
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+const TranscriptView = ({
+  transcript,
+  onBackToChat,
+  onNewChat,
+  messages,
+  audioRef
+}: {
+  transcript: string;
+  onBackToChat: () => void;
+  onNewChat: () => void;
+  messages: MessageWithTranscript[];
+  audioRef: React.RefObject<HTMLAudioElement>;
+}) => {
+  const playAudio = async () => {
+    if (!transcript || !audioRef.current) return;
+
+    try {
+      // Make the POST request to get the audio stream
+      cartesiaTTSClient.sendTranscript(transcript);
+
+      // Play the audio
+      await audioRef.current.play();
+    } catch (error) {
+      console.error('Error playing audio:', error);
+    }
+  };
+
+  return (
+    <div className="min-h-screen flex flex-col items-center justify-center px-4 bg-mind-surface/80 backdrop-blur-md">
+      <button
+        onClick={onBackToChat}
+        className="absolute top-6 left-6 text-slate-300 hover:text-white transition-colors"
+        aria-label="Back to chat"
+      >
+        <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+        </svg>
+      </button>
+
+      <button
+        onClick={playAudio}
+        className="absolute top-6 right-6 text-slate-300 hover:text-white transition-colors"
+        aria-label="Start audio playback"
+      >
+        <span className="text-sm font-medium">Play Audio</span>
+      </button>
+
+      <div className="w-full max-w-3xl mt-10 mb-8 text-center">
+        <h2 className="text-2xl font-bold text-slate-100 mb-4">
+          Your Mindfulness Response
+        </h2>
+        <p className="text-lg text-slate-300 mb-6 leading-relaxed">
+          {messages.length > 0 ? messages[messages.length - 1]?.content : 'No message yet.'}
+        </p>
+
+        <div className="mb-6">
+          <button
+            onClick={playAudio}
+            className="bg-mind-accent text-slate-950 px-10 py-4 rounded-full text-xl font-semibold hover:bg-sky-400 transition-colors shadow-lg"
+          >
+            Play Audio
+          </button>
         </div>
 
-        <div className="mt-2 flex gap-2">
-          <input
-            type="text"
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={handleKeyDown}
-            placeholder="How are you feeling?"
-            className="flex-1 rounded-xl bg-slate-900/60 border border-slate-700/70 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-mind-accent focus:border-transparent"
-          />
-          <button
-            onClick={handleSend}
-            disabled={loading}
-            className="px-4 py-2 rounded-xl bg-mind-accent text-slate-950 text-sm font-medium hover:bg-sky-400 disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
-          >
-            {loading ? "Sending..." : "Send"}
-          </button>
+        <p className="text-sm text-slate-400">
+          For the best experience, use headphones.
+        </p>
 
-          {/* Audio playback indicator */}
-          {transcript && (
-            <div className="flex justify-center mt-2">
-              <audio
-                ref={audioRef}
-                className="hidden" // Hidden by default, but accessible
-                style={{ display: 'none' }}
-                onCanPlay={() => console.log('Audio can play')}
-                onEnded={() => console.log('Audio ended')}
-              />
-            </div>
-          )}
+        <div className="flex justify-center mt-2">
+          <audio
+            ref={audioRef}
+            className="hidden" // Hidden by default, but accessible
+            style={{ display: 'none' }}
+            onCanPlay={() => console.log('Audio can play')}
+            onEnded={() => console.log('Audio ended')}
+          />
         </div>
       </div>
     </div>
   );
-}
+};
+

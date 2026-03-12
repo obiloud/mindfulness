@@ -32,7 +32,7 @@ def node_conversation(state: ConversationState, runtime: Runtime[GraphContext]) 
     logger = runtime.context.logger
     llm = runtime.context.llm
 
-    logger.debug(f"Conversation continued: state='{print_state(state)}'")
+    logger.info(f"Conversation continued: state='{print_state(state)}'")
 
     messages = state["messages"]
 
@@ -90,7 +90,7 @@ def node_conversation(state: ConversationState, runtime: Runtime[GraphContext]) 
 
     conversation_history = format_conversation_history(messages)
 
-    logger.info(f"Conversation history: {conversation_history}")
+    logger.debug(f"Conversation history: {conversation_history}")
 
     maturity_message = maturity_prompt.format(
         conversation_history=conversation_history)
