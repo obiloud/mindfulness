@@ -50,8 +50,6 @@ export default function App() {
   const [loading, setLoading] = useState(false);
   const [transcript, setTranscript] = useState<string | null>(null);
   const [session_id, setSessionId] = useState<string | undefined>(undefined)
-  const [isStreaming, setIsStreaming] = useState(false);
-  const audioRef = useRef<HTMLAudioElement | null>(null);
   const messagesContainerRef = useRef<HTMLDivElement | null>(null);
 
   const handleSend = async () => {
@@ -67,7 +65,6 @@ export default function App() {
     setMessages(newHistory);
     setInput("");
     setLoading(true);
-    setIsStreaming(false);
     setTranscript(null);
 
     try {
@@ -78,10 +75,6 @@ export default function App() {
 
       if (reply.transcript) {
         setTranscript(reply.transcript);
-        setIsStreaming(true);
-
-        // Debug: Log when streaming is activated
-        console.log('Streaming activated with transcript length:', reply.transcript.length);
       }
 
       setSessionId(reply.session_id)
@@ -128,17 +121,14 @@ export default function App() {
           transcript={transcript}
           onBackToChat={() => {
             setTranscript(null);
-            setIsStreaming(false);
           }}
           onNewChat={() => {
             setTranscript(null);
-            setIsStreaming(false);
             setMessages([]);
             setInput("");
             setSessionId(undefined);
           }}
           messages={messages}
-          audioRef={audioRef}
         />
       ) : (
         <div className="w-full max-w-3xl bg-mind-surface/80 backdrop-blur-md rounded-2xl shadow-xl border border-slate-700/60 p-6 flex flex-col gap-4">
@@ -215,28 +205,42 @@ export default function App() {
 const TranscriptView = ({
   transcript,
   onBackToChat,
-  onNewChat,
-  messages,
-  audioRef
+  messages
 }: {
   transcript: string;
   onBackToChat: () => void;
   onNewChat: () => void;
   messages: MessageWithTranscript[];
-  audioRef: React.RefObject<HTMLAudioElement>;
 }) => {
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [transcriptSent, setTranscriptSent] = useState(false); // Track if transcript has been sent
+
   const playAudio = async () => {
     if (!transcript || !audioRef.current) return;
 
-    try {
-      // Make the POST request to get the audio stream
-      cartesiaTTSClient.sendTranscript(transcript);
+    // Only send transcript once when the user first clicks the button
+    if (!transcriptSent) {
+      try {
+        // Send transcript to Cartesia TTS only once
+        cartesiaTTSClient.sendTranscript(transcript);
+        setTranscriptSent(true);
+      } catch (error) {
+        console.error('Error sending transcript to Cartesia TTS:', error);
+      }
+    }
 
+    // Toggle play/pause state
+    if (isPlaying) {
+      // Pause the audio
+      audioRef.current.pause();
+    } else {
       // Play the audio
       await audioRef.current.play();
-    } catch (error) {
-      console.error('Error playing audio:', error);
     }
+
+    // Update the state to reflect the current playback state
+    setIsPlaying(!isPlaying);
   };
 
   return (
@@ -245,18 +249,11 @@ const TranscriptView = ({
         onClick={onBackToChat}
         className="absolute top-6 left-6 text-slate-300 hover:text-white transition-colors"
         aria-label="Back to chat"
+        disabled={isPlaying}
       >
         <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
         </svg>
-      </button>
-
-      <button
-        onClick={playAudio}
-        className="absolute top-6 right-6 text-slate-300 hover:text-white transition-colors"
-        aria-label="Start audio playback"
-      >
-        <span className="text-sm font-medium">Play Audio</span>
       </button>
 
       <div className="w-full max-w-3xl mt-10 mb-8 text-center">
@@ -270,9 +267,10 @@ const TranscriptView = ({
         <div className="mb-6">
           <button
             onClick={playAudio}
-            className="bg-mind-accent text-slate-950 px-10 py-4 rounded-full text-xl font-semibold hover:bg-sky-400 transition-colors shadow-lg"
+            className={`bg-mind-accent text-slate-950 px-10 py-4 rounded-full text-xl font-semibold hover:bg-sky-400 transition-colors shadow-lg ${isPlaying ? 'bg-mind-accent/80' : 'bg-mind-accent'
+              }`}
           >
-            Play Audio
+            {isPlaying ? 'Pause Audio' : 'Play Audio'}
           </button>
         </div>
 
@@ -293,4 +291,3 @@ const TranscriptView = ({
     </div>
   );
 };
-
