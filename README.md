@@ -41,7 +41,7 @@ The `settings.py` module centralizes configuration and reads from `.env`.
 Install Python dependencies (example, adjust to your environment):
 
 ```bash
-pip install fastapi uvicorn langgraph langchain langchain-huggingface cartesia python-dotenv pydantic
+pip install fastapi uvicorn "psycopg[binary,pool]" langgraph langgraph-checkpoint-postgres langchain langchain-huggingface python-dotenv pydantic
 ```
 
 Run the server:
