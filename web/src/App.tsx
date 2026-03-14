@@ -14,7 +14,7 @@ interface AgentResponse {
 }
 
 // Define a more specific interface for the message type to include transcript
-interface MessageWithTranscript extends Message {
+export interface MessageWithTranscript extends Message {
   session_id?: string;
   transcript?: string;
 }
@@ -44,12 +44,23 @@ async function sendMessage(query: string, session_id?: string): Promise<MessageW
   };
 }
 
-export default function App() {
-  const [messages, setMessages] = useState<MessageWithTranscript[]>([]);
-  const [input, setInput] = useState("");
+export default function App({
+  initialMessages = [],
+  initialInput = "",
+  initialTranscript = null,
+  initialSessionId = undefined,
+}: {
+  initialMessages?: MessageWithTranscript[];
+  initialInput?: string;
+  initialTranscript?: string | null;
+  initialSessionId?: string | undefined;
+}) {
+  const [messages, setMessages] = useState<MessageWithTranscript[]>(initialMessages);
+  const [input, setInput] = useState(initialInput);
   const [loading, setLoading] = useState(false);
-  const [transcript, setTranscript] = useState<string | null>(null);
-  const [session_id, setSessionId] = useState<string | undefined>(undefined)
+  const [transcript, setTranscript] = useState<string | null>(initialTranscript || null);
+  const [session_id, setSessionId] = useState<string | undefined>(initialSessionId);
+
   const messagesContainerRef = useRef<HTMLDivElement | null>(null);
 
   const handleSend = async () => {
@@ -70,14 +81,13 @@ export default function App() {
     try {
       const reply = await sendMessage(userMsg.content, session_id);
 
-      // Debug: Log when transcript is received
       console.log('Received transcript from assistant:', reply.transcript ? reply.transcript.length : 'null');
 
       if (reply.transcript) {
         setTranscript(reply.transcript);
       }
 
-      setSessionId(reply.session_id)
+      setSessionId(reply.session_id);
       setMessages((prev) => [...prev, reply]);
     } catch (e) {
       setMessages((prev) => [
@@ -97,7 +107,6 @@ export default function App() {
   useEffect(() => {
     if (messagesContainerRef.current) {
       messagesContainerRef.current.scrollTop = messagesContainerRef.current.scrollHeight;
-      // Optional: Add a small delay to avoid jank
       const delay = setTimeout(() => {
         messagesContainerRef.current?.scrollTo(0, messagesContainerRef.current.scrollHeight);
       }, 50);
@@ -121,12 +130,6 @@ export default function App() {
           transcript={transcript}
           onBackToChat={() => {
             setTranscript(null);
-          }}
-          onNewChat={() => {
-            setTranscript(null);
-            setMessages([]);
-            setInput("");
-            setSessionId(undefined);
           }}
           messages={messages}
         />
@@ -202,28 +205,37 @@ export default function App() {
   );
 }
 
-const TranscriptView = ({
+export const TranscriptView = ({
   transcript,
   onBackToChat,
-  messages
+  messages,
+  initialIsPlaying = false,
+  initialTranscriptSent = false,
 }: {
   transcript: string;
   onBackToChat: () => void;
-  onNewChat: () => void;
   messages: MessageWithTranscript[];
+  initialIsPlaying?: boolean;
+  initialTranscriptSent?: boolean;
 }) => {
   const audioRef = useRef<HTMLAudioElement | null>(null);
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [transcriptSent, setTranscriptSent] = useState(false); // Track if transcript has been sent
+  const [isPlaying, setIsPlaying] = useState(initialIsPlaying);
+  const [transcriptSent, setTranscriptSent] = useState(initialTranscriptSent);
 
   const playAudio = async () => {
-    if (!transcript || !audioRef.current) return;
+    if (!transcript || !audioRef.current) {
+      console.log('Transcript is null or audio ref is null');
+      return;
+    }
+
+    // Log state before sending transcript
+    console.log('Transcript sent state:', transcriptSent);
 
     // Only send transcript once when the user first clicks the button
     if (!transcriptSent) {
       try {
-        // Send transcript to Cartesia TTS only once
         cartesiaTTSClient.sendTranscript(transcript);
+        console.log('Transcript sent to Cartesia TTS successfully');
         setTranscriptSent(true);
       } catch (error) {
         console.error('Error sending transcript to Cartesia TTS:', error);
@@ -232,14 +244,13 @@ const TranscriptView = ({
 
     // Toggle play/pause state
     if (isPlaying) {
-      // Pause the audio
       audioRef.current.pause();
+      console.log('Audio paused');
     } else {
-      // Play the audio
       await audioRef.current.play();
+      console.log('Audio started playing');
     }
 
-    // Update the state to reflect the current playback state
     setIsPlaying(!isPlaying);
   };
 
@@ -257,7 +268,8 @@ const TranscriptView = ({
       </button>
 
       <div className="w-full max-w-3xl mt-10 mb-8 text-center">
-        <h2 className="text-2xl font-bold text-slate-100 mb-4">
+        <h2 data-testid="mindfulness-response-header"
+          className="text-2xl font-bold text-slate-100 mb-4">
           Your Mindfulness Response
         </h2>
         <p className="text-lg text-slate-300 mb-6 leading-relaxed">
@@ -266,6 +278,7 @@ const TranscriptView = ({
 
         <div className="mb-6">
           <button
+            data-testid="play-audio-button"
             onClick={playAudio}
             className={`bg-mind-accent text-slate-950 px-10 py-4 rounded-full text-xl font-semibold hover:bg-sky-400 transition-colors shadow-lg ${isPlaying ? 'bg-mind-accent/80' : 'bg-mind-accent'
               }`}
@@ -281,7 +294,7 @@ const TranscriptView = ({
         <div className="flex justify-center mt-2">
           <audio
             ref={audioRef}
-            className="hidden" // Hidden by default, but accessible
+            className="hidden"
             style={{ display: 'none' }}
             onCanPlay={() => console.log('Audio can play')}
             onEnded={() => console.log('Audio ended')}

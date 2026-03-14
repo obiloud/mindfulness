@@ -23,12 +23,16 @@
             "@/*": [
                 "src/*"
             ]
-        }
+        },
+        "types": [
+            "@testing-library/jest-dom/vitest"
+        ]
     },
     "include": [
         "src/**/*",
         "vite.config.ts",
-        "vite-env.d.ts"
+        "vite-env.d.ts",
+        "tests"
     ],
     "exclude": [
         "node_modules"
