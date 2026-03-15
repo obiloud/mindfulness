@@ -1,102 +1,132 @@
-# Mindfulness AI Agent
+# Mindfulness AI - Full-Stack Mindfulness Application
 
-## Overview
+A modern, cross-platform mindfulness application built with a clean separation of concerns between backend and frontend services.
 
-This project provides a mindfulness coaching agent that:
+## Project Overview
 
-- **Uses LangGraph** to orchestrate a reflection-capable agent.
-- **Generates guided meditation scripts** via Hugging Face models.
-- **Generates speech with Cartesia.ai** for natural-sounding audio sessions.
-- **Exposes a FastAPI backend** for HTTP access.
-- **Includes a React + Tailwind web UI**.
-- **Provides a SwiftUI iOS client skeleton**.
+Mindfulness AI is a full-stack application designed to provide users with guided meditation, breathing exercises, and mindfulness practices. The architecture leverages modern technologies to ensure scalability, maintainability, and performance across platforms.
 
-## Backend (FastAPI + LangGraph)
+## Project Structure
 
-- Entrypoint module: `api.py` (FastAPI app with:
-  - `POST /v1/mindfulness/session` – conversational endpoint.
-  - `POST /v1/mindfulness/audio` – Cartesia TTS streaming endpoint.
-  - `GET /health` – health check.
-- Agent orchestration:
-  - `meditation_graph.py` – LangGraph-based reflection agent.
-  - `meditation_agent.py` – LangChain tools and legacy agent wiring.
-  - `story_generator_pipeline.py` – meditation script generator.
-  - `cartesia_tts_client.py` – Cartesia.ai TTS wrapper.
-
-### Environment and configuration
-
-Create a `.env` file at the project root:
-
-```env
-HF_TOKEN=your_huggingface_token
-CARTESIA_API_KEY=your_cartesia_api_key
-API_HOST=0.0.0.0
-API_PORT=8000
 ```
+mindfulness-ai/
+├── backend/            # FastAPI project
+│   ├── app/            # Python logic for API endpoints, data processing, and business rules
+│   ├── state.py        # Core state management for meditation sessions and user data
+│   ├── workflow.py     # Workflow definitions for meditation sequences and transitions
+│   ├── prompts/        # Prompt templates for AI-generated meditation content
+│   │   ├── base.py     # Base prompt templates
+│   │   └── meditation.py # Meditation-specific prompt templates
+│   ├── node_evaluator.py # Node evaluation logic for processing meditation workflows
+│   ├── workflow_mermaid.png # Visual representation of workflow diagrams
+│   └── pytest.ini      # Configuration for Pytest testing framework
+│
+├── client/             # Gleam/Lustre project (frontend)
+│   ├── src/            # Gleam source files containing UI components and state logic
+│   │   ├── api.gleam   # API interaction layer for frontend
+│   │   ├── audio_ffi.mjs # JavaScript bridge for audio processing and playback
+│   │   ├── client.gleam # Main application entry point and state management
+│   │
+│   ├── ffi/            # JavaScript bridge files for audio processing and device interactions
+│   │   └── audio_bridge.js (mocks)
+│   │
+│   ├── ios/            # Capacitor iOS platform folder for native iOS integration
+│   │
+│   ├── gleam.toml      # Configuration for Gleam compiler and build settings
+│   ├── manifest.toml   # Application manifest and metadata
+│   ├── static/         # Static assets (CSS, JS, HTML)
+│   │   ├── index.css
+│   │   ├── index.js
+│   │   └── index.html
+│   │
+│   └── build/          # Build artifacts (compiled output)
+│       ├── gleam-prod-erlang.lock
+│       ├── gleam-dev-javascript.lock
+│       ├── gleam-dev-erlang.lock
+│       ├── gleam-prod-javascript.lock
+│       └── gleam-lsp-javascript.lock
+│
+└── docker-compose.yml # Defines the service orchestration for backend and frontend
+````
 
-The `settings.py` module centralizes configuration and reads from `.env`.
+## Technology Stack
 
-### Run the API
+### Backend (Python)
+- **Framework**: FastAPI (for RESTful APIs with async support)
+- **Features**: 
+  - Real-time meditation session tracking
+  - User authentication and session management
+  - Audio streaming and playback
+  - Data persistence and analytics
+  - Workflow-based meditation sequences with AI prompt generation
 
-Install Python dependencies (example, adjust to your environment):
+### Frontend (Gleam/Lustre)
+- **Language**: Gleam (functional, type-safe language with strong compile-time guarantees)
+- **Framework**: Lustre (Elm-like architecture with immutable state and reactive UI)
+- **Features**:
+  - Reactive UI components with automatic re-rendering
+  - Type-safe state management
+  - Seamless integration with audio processing via FFI
+  - Cross-platform support (iOS via Capacitor)
+  - Responsive design with static assets
 
-```bash
-pip install fastapi uvicorn "psycopg[binary,pool]" langgraph langgraph-checkpoint-postgres langchain langchain-huggingface python-dotenv pydantic pydantic_settings
-```
+### Cross-Platform Integration
+- **Audio Bridge**: JavaScript FFI layer enables the frontend to interact with audio processing libraries
+- **Platform Support**: iOS via Capacitor, with future expansion to Android
+- **State Management**: Centralized, immutable state model following The Elm Architecture (TEA)
 
-Run the server:
+## Development Setup
 
-```bash
-uvicorn api:app --host 0.0.0.0 --port 8000
-```
+### Prerequisites
+- Python 3.10+
+- Node.js 18+
+- Gleam compiler (v0.20+)
+- Docker (for local development and testing)
 
-## Web UI (React + Tailwind)
+### Getting Started
 
-The web client lives in `web/` and is a Vite + React + Tailwind SPA.
+1. **Clone the repository**
+   ```bash
+   git clone https://github.com/your-username/mindfulness-ai.git
+   cd mindfulness-ai
+   ```
 
-### Setup
+2. **Set up backend**
+   ```bash
+   cd backend
+   pip install -r requirements.txt
+   ```
 
-```bash
-cd web
-npm install
-```
+3. **Set up frontend**
+   ```bash
+   cd ../client
+   gleam build
+   ```
 
-Optionally configure the backend base URL via `VITE_API_BASE_URL`:
+4. **Start services**
+   ```bash
+   docker-compose up --build
+   ```
 
-```bash
-echo 'VITE_API_BASE_URL="http://localhost:8000"' > .env.local
-```
+## Key Features
 
-### Run the dev server
+- Guided meditation sessions with customizable duration and focus
+- Breathing exercises with real-time feedback
+- Progress tracking and analytics
+- Offline mode with local storage
+- Device-specific audio playback via FFI integration
+- AI-generated meditation content based on user preferences
 
-```bash
-npm run dev
-```
+## Future Roadmap
 
-Then open the printed URL (default `http://localhost:5173`) in your browser.
+- Android platform support via Capacitor
+- Voice-based meditation guidance
+- AI-powered personalization of mindfulness content
+- Community sharing and meditation challenges
+- Wearable device integration (smartwatches)
 
-## iOS Client (SwiftUI)
+## Contributing
 
-The iOS skeleton lives in `ios/`:
+Contributions are welcome! Please follow the standard contribution guidelines and ensure all changes adhere to the project's code style and architecture principles.
 
-- `MindfulnessApp.swift` – app entry point.
-- `ChatViewModel.swift` – networking and state.
-- `ChatView.swift` – simple chat-style UI.
-
-The view model reads the backend URL from the `API_BASE_URL` environment variable,
-defaulting to `http://localhost:8000`.
-
-Integrate these files into an Xcode SwiftUI project and ensure the app can
-reach your FastAPI instance (e.g. via local network / simulator configuration).
-
-## Architecture Summary
-
-- **LLM + tools**:
-  - Hugging Face endpoints (via `langchain-huggingface`) for meditation script generation.
-  - A LangGraph graph (`meditation_graph.py`) that can clarify user intent, reflect on its answers, and generate a final transcript.
-- **TTS**:
-  - Cartesia.ai via `cartesia_tts_client.py` and the `/v1/mindfulness/audio` endpoint.
-- **Clients**:
-  - SPA web client in `web/`.
-  - iOS SwiftUI client in `ios/`.
-
+For more information on the technology stack and architecture, see the official documentation for FastAPI and Gleam.

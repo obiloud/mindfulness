@@ -1,8 +1,0 @@
-Update client to use API message sending functionality
-
-- Added imports for api.{type AgentResponse, send_message}
-- Removed redundant AgentResponse type definition
-- Updated update function to use send_message API call with proper error handling
-- Added input field value binding in view function
-
-This change integrates the client with the API for message sending, replacing the previous local message handling with a proper API call that sends messages to the server.
