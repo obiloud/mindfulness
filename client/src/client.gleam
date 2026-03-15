@@ -1,4 +1,5 @@
 import api.{type AgentResponse, send_message}
+import gleam/dynamic/decode
 import gleam/list
 import gleam/option.{type Option, None, Some}
 import lustre
@@ -26,6 +27,7 @@ pub type Model {
 }
 
 pub type Msg {
+  Noop
   UserTyped(String)
   UserRequestedAudio
   AudioStarted
@@ -59,6 +61,8 @@ fn init(_flags) -> #(Model, Effect(Msg)) {
 
 fn update(model: Model, msg: Msg) -> #(Model, Effect(Msg)) {
   case msg {
+    Noop -> #(model, effect.none())
+
     UserTyped(val) -> #(Model(..model, input_text: val), effect.none())
 
     UserRequestedAudio -> #(
@@ -84,22 +88,26 @@ fn update(model: Model, msg: Msg) -> #(Model, Effect(Msg)) {
       effect.none(),
     )
 
-    SendMessage -> #(
-      Model(
-        ..model,
-        chat_history: [
-          Message(role: "user", content: model.input_text),
-          ..model.chat_history
-        ],
-        is_streaming: False,
-        input_text: "",
-        loading: True,
-      ),
-      effect.map(send_message(model.input_text, model.session_id), fn(res) {
-        let assert Ok(ar) = res
-        ReceiveChatResponse(ar)
-      }),
-    )
+    SendMessage ->
+      case model.loading {
+        True -> #(model, effect.none())
+        False -> #(
+          Model(
+            ..model,
+            chat_history: [
+              Message(role: "user", content: model.input_text),
+              ..model.chat_history
+            ],
+            is_streaming: False,
+            input_text: "",
+            loading: True,
+          ),
+          effect.map(send_message(model.input_text, model.session_id), fn(res) {
+            let assert Ok(ar) = res
+            ReceiveChatResponse(ar)
+          }),
+        )
+      }
   }
 }
 
@@ -222,7 +230,21 @@ fn view(model: Model) -> Element(Msg) {
             html.input([
               attribute.type_("text"),
               event.on_change(UserTyped),
-              // event.on_keydown(fn(_) { SendMessage }),
+              event.advanced("keydown", {
+                use key <- decode.field("key", decode.string)
+
+                let handler =
+                  event.handler(
+                    dispatch: SendMessage,
+                    prevent_default: True,
+                    stop_propagation: False,
+                  )
+
+                case key {
+                  "Enter" -> decode.success(handler)
+                  _ -> decode.failure(handler, "SendMessage")
+                }
+              }),
               attribute.value(model.input_text),
               attribute.placeholder("How are you feeling?"),
               attribute.class(
