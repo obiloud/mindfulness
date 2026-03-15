@@ -1,0 +1,7 @@
+@import "tailwindcss";
+
+@theme {
+    --color-mind-bg: #050816;
+    --color-mind-surface: #0f172a;
+    --color-mind-accent: #38bdf8;
+}

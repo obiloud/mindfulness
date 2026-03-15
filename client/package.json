@@ -1,0 +1,19 @@
+{
+  "name": "mindfulnes-client",
+  "version": "1.0.0",
+  "description": "Mindfulne AI client",
+  "author": "Bojan Ristic",
+  "license": "MIT",
+  "scripts": {
+    "gleam": "watchexec --exts gleam -- gleam build --target javascript",
+    "dev": "parcel serve -p 8084 static/index.html"
+  },
+  "devDependencies": {
+    "parcel": "^2.16.4",
+    "parcel-transformer-gleam": "^1.0.0"
+  },
+  "dependencies": {
+    "@tailwindcss/postcss": "^4.2.1",
+    "tailwindcss": "^4.2.1"
+  }
+}
