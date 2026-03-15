@@ -1,7 +1,61 @@
 @import "tailwindcss";
 
 @theme {
-    --color-mind-bg: #050816;
-    --color-mind-surface: #0f172a;
-    --color-mind-accent: #38bdf8;
+  /* Core Colors */
+  --color-lavender: #A89ACD;
+  --color-off-white: #F7F1E3;
+  --color-neo-mint: #A8E6CF;
+  --color-deep-moss: #1A4D2E;
+  --color-charcoal: #2D3436;
+  
+  /* Final Touch Accents */
+  --color-gold-leaf: #D4AF37;
+  --color-sandalwood: #8B5A2B; /* Earthy Brown for the knob */
+
+  /* Functional Theme Mapping */
+  --color-bg-main: light-dark(var(--color-off-white), var(--color-charcoal));
+  --color-bg-header: light-dark(#FFFFFF, #1F2526);
+  --color-text-base: light-dark(var(--color-charcoal), var(--color-off-white));
+  --color-brand-primary: var(--color-deep-moss);
+  
+  /* Typography */
+  --font-header: "Manrope", sans-serif;
+  --font-body: "Satoshi", sans-serif;
+
+  /* Custom Textures */
+  --background-image-paper: url('/static/assets/textures/006-Paper-Kraft.png');
+
+}
+
+@layer base {
+  body {
+    @apply bg-bg-main text-text-base font-body antialiased transition-colors duration-500;
+    /* Apply base paper texture */
+    background-image: var(--background-image-paper);
+    background-blend-mode: multiply;
+  }
+
+  h1, h2, h3 {
+    @apply font-header font-extralight tracking-tight;
+  }
+}
+
+
+
+.pulse-lotus {
+  clip-path: url(#figma-clip);
+  width: 120px;
+  height: 78px;
+  margin: 10px;
+}
+
+.gold-linear {
+  background: linear-gradient(
+    55deg,
+    #997115 0%,      /* Deep shadow */
+    #d4a237 35%,     /* Your base gold */
+    #e8d49a 65%,     /* Bright light reflection */
+    #d4b237 85%,     /* Back to base */
+    #B58D22 100%     /* Soft edge shadow */
+  );
 }
