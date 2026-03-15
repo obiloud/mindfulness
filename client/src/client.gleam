@@ -8,7 +8,7 @@ import lustre/effect.{type Effect}
 import lustre/element.{type Element}
 import lustre/element/html
 import lustre/event
-import theme.{type Theme, Dark, Light, System, view_theme_toggle}
+import theme.{type Theme, Dark, System, view_theme_toggle}
 
 // --- TYPES ---
 
@@ -116,44 +116,130 @@ fn update(model: Model, msg: Msg) -> #(Model, Effect(Msg)) {
 
 // --- VIEW ---
 
+fn view_loading_indicator() -> Element(Msg) {
+  // Loading Animation (Pulsing Dots)
+
+  html.div([attribute.class("flex justify-start gap-2 py-2")], [
+    html.div(
+      [
+        attribute.class("w-8 h-8 rounded-full bg-neo-mint/20 flex-shrink-0"),
+      ],
+      [],
+    ),
+    html.div(
+      [
+        attribute.class(
+          "flex items-center space-x-1.5 bg-bg-main border border-deep-moss/10 px-4 py-3 rounded-2xl rounded-bl-sm",
+        ),
+      ],
+      [
+        html.div(
+          [
+            attribute.class(
+              "w-1.5 h-1.5 bg-deep-moss/40 rounded-full animate-bounce",
+            ),
+          ],
+          [],
+        ),
+        html.div(
+          [
+            attribute.class(
+              "w-1.5 h-1.5 bg-deep-moss/40 rounded-full animate-bounce delay-100",
+            ),
+          ],
+          [],
+        ),
+        html.div(
+          [
+            attribute.class(
+              "w-1.5 h-1.5 bg-deep-moss/40 rounded-full animate-bounce delay-200",
+            ),
+          ],
+          [],
+        ),
+      ],
+    ),
+  ])
+}
+
+fn view_message(m: Message) -> Element(Msg) {
+  let is_user = case m.role {
+    "user" -> True
+    _ -> False
+  }
+
+  let wrapper_class = case is_user {
+    True -> "flex justify-end"
+    False -> "flex justify-start gap-2"
+  }
+
+  let bubble_class = case is_user {
+    True ->
+      "max-w-[85%] px-4 py-3 text-sm leading-relaxed whitespace-pre-wrap bg-neo-mint text-deep-moss rounded-2xl rounded-br-sm shadow-sm"
+    False ->
+      "max-w-[85%] px-4 py-3 text-sm leading-relaxed whitespace-pre-wrap bg-bg-main border border-deep-moss/10 text-charcoal rounded-2xl rounded-bl-sm shadow-sm"
+  }
+
+  html.div([attribute.class(wrapper_class)], [
+    // Agent Avatar Icon
+    case is_user {
+      False ->
+        html.div(
+          [
+            attribute.class(
+              "w-8 h-8 rounded-full bg-neo-mint/20 flex-shrink-0 flex items-center justify-center text-deep-moss border border-neo-mint/50",
+            ),
+          ],
+          [element.text("🌿")],
+        )
+      True -> html.text("")
+    },
+    html.div([attribute.class(bubble_class)], [
+      element.text(m.content),
+    ]),
+  ])
+}
+
 fn view(model: Model) -> Element(Msg) {
-  // Determine if the dark class should be applied
   let theme_class = case model.theme {
     Dark -> "dark "
-    Light -> ""
-    System -> ""
+    _ -> ""
   }
 
   html.div(
-    // Applying the main background and base text colors from our Tailwind theme
     [
       attribute.class(
         theme_class
-        <> "min-h-screen flex items-center justify-center p-4 bg-bg-main font-body text-text-base",
+        <> "min-h-screen bg-bg-main font-body text-text-base transition-colors duration-500 "
+        <> "lg:flex lg:items-center lg:justify-center lg:p-4",
+        // Centering only on large screens
       ),
     ],
     [
       html.div(
         [
           attribute.class(
-            "w-full max-w-md bg-bg-header/90 backdrop-blur-md rounded-[2.5rem] shadow-2xl border border-deep-moss/10 p-6 flex flex-col gap-4 relative",
+            // MOBILE: Full width/height, no corners, no border
+            "flex flex-col w-full h-svh bg-bg-header/90 backdrop-blur-md shadow-2xl "
+            // DESKTOP (lg): Fixed size, rounded corners, border
+            <> "lg:h-[850px] lg:max-w-md lg:rounded-[3rem] lg:border lg:border-deep-moss/10 lg:relative",
           ),
         ],
         [
-          // view_theme_toggle(model.theme, fn(theme) { SetTheme(theme) }),
-          // Header Section
+          // 1. FIXED HEADER: Pinned to top
           html.header(
             [
               attribute.class(
-                "flex flex-col items-center justify-center mb-4 mt-2 text-center",
+                "flex flex-col items-center justify-center pt-8 pb-4 px-6 text-center border-b border-deep-moss/5 bg-bg-header/50",
               ),
             ],
             [
+              view_theme_toggle(model.theme, fn(theme) { SetTheme(theme) }),
               html.div([attribute.class("pulse-lotus gold-linear")], []),
               html.p(
                 [
                   attribute.class(
-                    "text-xs font-semibold tracking-widest text-gold-leaf mb-2",
+                    "text-[10px] font-semibold tracking-[0.2em] text-gold-leaf mb-1",
                   ),
                 ],
                 [
@@ -164,7 +250,7 @@ fn view(model: Model) -> Element(Msg) {
               html.h1(
                 [
                   attribute.class(
-                    "text-2xl font-header font-extralight text-deep-moss tracking-tight",
+                    "text-xl font-header font-extralight text-deep-moss tracking-tight",
                   ),
                 ],
                 [element.text("TAILOR YOUR SESSION")],
@@ -172,11 +258,12 @@ fn view(model: Model) -> Element(Msg) {
             ],
           ),
 
-          // Chat History Area
+          // 2. SCROLLABLE MESSAGES: Fills all remaining space
           html.div(
             [
               attribute.class(
-                "flex-1 min-h-[400px] max-h-[500px] overflow-y-auto space-y-4 pr-2 scrollbar-thin",
+                "flex-1 overflow-y-auto p-6 space-y-6 scrollbar-hide",
+                // Fills gap between header and footer
               ),
             ],
             [
@@ -185,161 +272,79 @@ fn view(model: Model) -> Element(Msg) {
                   html.p(
                     [
                       attribute.class(
-                        "text-charcoal/50 text-sm text-center italic mt-10",
+                        "text-charcoal/40 text-sm text-center italic mt-20",
                       ),
                     ],
                     [
-                      element.text(
-                        "Welcome. Start by sharing a bit about how you're feeling today.",
-                      ),
+                      element.text("How are you feeling in this moment?"),
                     ],
                   )
                 _ -> html.text("")
               },
 
               html.div(
-                [attribute.class("space-y-4")],
-                model.chat_history
-                  |> list.map(fn(m) {
-                    let is_user = case m.role {
-                      "user" -> True
-                      _ -> False
-                    }
-
-                    let wrapper_class = case is_user {
-                      True -> "flex justify-end"
-                      False -> "flex justify-start gap-2"
-                    }
-
-                    let bubble_class = case is_user {
-                      True ->
-                        "max-w-[85%] px-4 py-3 text-sm leading-relaxed whitespace-pre-wrap bg-neo-mint text-deep-moss rounded-2xl rounded-br-sm shadow-sm"
-                      False ->
-                        "max-w-[85%] px-4 py-3 text-sm leading-relaxed whitespace-pre-wrap bg-bg-main border border-deep-moss/10 text-charcoal rounded-2xl rounded-bl-sm shadow-sm"
-                    }
-
-                    html.div([attribute.class(wrapper_class)], [
-                      // Agent Avatar Icon
-                      case is_user {
-                        False ->
-                          html.div(
-                            [
-                              attribute.class(
-                                "w-8 h-8 rounded-full bg-neo-mint/20 flex-shrink-0 flex items-center justify-center text-deep-moss border border-neo-mint/50",
-                              ),
-                            ],
-                            [element.text("🌿")],
-                          )
-                        True -> html.text("")
-                      },
-                      html.div([attribute.class(bubble_class)], [
-                        element.text(m.content),
-                      ]),
-                    ])
-                  }),
+                [attribute.class("space-y-6")],
+                model.chat_history |> list.map(view_message),
               ),
 
-              // Loading Animation (Pulsing Dots)
               case model.loading {
-                True ->
-                  html.div([attribute.class("flex justify-start gap-2 py-2")], [
-                    html.div(
-                      [
-                        attribute.class(
-                          "w-8 h-8 rounded-full bg-neo-mint/20 flex-shrink-0",
-                        ),
-                      ],
-                      [],
-                    ),
-                    html.div(
-                      [
-                        attribute.class(
-                          "flex items-center space-x-1.5 bg-bg-main border border-deep-moss/10 px-4 py-3 rounded-2xl rounded-bl-sm",
-                        ),
-                      ],
-                      [
-                        html.div(
-                          [
-                            attribute.class(
-                              "w-1.5 h-1.5 bg-deep-moss/40 rounded-full animate-bounce",
-                            ),
-                          ],
-                          [],
-                        ),
-                        html.div(
-                          [
-                            attribute.class(
-                              "w-1.5 h-1.5 bg-deep-moss/40 rounded-full animate-bounce delay-100",
-                            ),
-                          ],
-                          [],
-                        ),
-                        html.div(
-                          [
-                            attribute.class(
-                              "w-1.5 h-1.5 bg-deep-moss/40 rounded-full animate-bounce delay-200",
-                            ),
-                          ],
-                          [],
-                        ),
-                      ],
-                    ),
-                  ])
+                True -> view_loading_indicator()
                 False -> html.text("")
               },
             ],
           ),
 
-          // Input Area (Pill-shaped as per mock)
-          html.div([attribute.class("mt-2")], [
-            html.div(
-              [
-                attribute.class(
-                  "flex gap-2 bg-bg-header backdrop-blur-md border border-gold-leaf/30 p-1.5 rounded-full shadow-inner",
-                ),
-              ],
-              [
-                html.input([
-                  attribute.type_("text"),
-                  event.on_input(UserTyped),
-                  event.advanced("keydown", {
-                    use key <- decode.field("key", decode.string)
-                    let handler =
-                      event.handler(
-                        dispatch: SendMessage,
-                        prevent_default: True,
-                        stop_propagation: False,
-                      )
-                    case key {
-                      "Enter" -> decode.success(handler)
-                      _ -> decode.failure(handler, "SendMessage")
-                    }
-                  }),
-                  attribute.value(model.input_text),
-                  attribute.placeholder("Tell me more about your feelings..."),
+          // 3. FIXED FOOTER (INPUT): Pinned to bottom
+          html.footer(
+            [
+              attribute.class(
+                "p-4 pb-8 lg:pb-6 bg-bg-header/80 backdrop-blur-lg border-t border-deep-moss/5",
+              ),
+            ],
+            [
+              html.div(
+                [
                   attribute.class(
-                    "flex-1 bg-transparent px-4 py-2 text-sm text-text-base placeholder:text-charcoal/40 focus:outline-none",
+                    "flex gap-2 bg-bg-main border border-gold-leaf/20 p-1.5 rounded-full shadow-inner focus-within:border-gold-leaf/50 transition-colors",
                   ),
-                ]),
-
-                html.button(
-                  [
-                    event.on_click(SendMessage),
-                    attribute.disabled(model.loading),
+                ],
+                [
+                  html.input([
+                    attribute.type_("text"),
+                    attribute.value(model.input_text),
+                    attribute.placeholder("Tell me more about your feelings..."),
                     attribute.class(
-                      "px-6 py-2 rounded-full bg-neo-mint text-deep-moss text-sm font-medium hover:bg-deep-moss hover:text-off-white disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300",
+                      "flex-1 bg-transparent px-5 py-3 text-sm outline-none",
                     ),
-                  ],
-                  [
-                    element.text(case model.loading {
-                      True -> "..."
-                      False -> "send"
+                    event.on_input(UserTyped),
+                    event.advanced("keydown", {
+                      use key <- decode.field("key", decode.string)
+                      let handler =
+                        event.handler(
+                          dispatch: SendMessage,
+                          prevent_default: True,
+                          stop_propagation: False,
+                        )
+                      case key {
+                        "Enter" -> decode.success(handler)
+                        _ -> decode.failure(handler, "SendMessage")
+                      }
                     }),
-                  ],
-                ),
-              ],
-            ),
-          ]),
+                  ]),
+                  html.button(
+                    [
+                      event.on_click(SendMessage),
+                      attribute.disabled(model.loading),
+                      attribute.class(
+                        "px-6 py-2 rounded-full bg-neo-mint text-deep-moss text-sm font-medium hover:bg-deep-moss hover:text-off-white transition-all",
+                      ),
+                    ],
+                    [element.text("send")],
+                  ),
+                ],
+              ),
+            ],
+          ),
         ],
       ),
     ],
