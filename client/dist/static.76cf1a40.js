@@ -727,15 +727,6 @@ parcelHelpers.export(exports, "Message$Message$role", ()=>Message$Message$role);
 parcelHelpers.export(exports, "Message$Message$0", ()=>Message$Message$0);
 parcelHelpers.export(exports, "Message$Message$content", ()=>Message$Message$content);
 parcelHelpers.export(exports, "Message$Message$1", ()=>Message$Message$1);
-parcelHelpers.export(exports, "AgentResponse", ()=>AgentResponse);
-parcelHelpers.export(exports, "AgentResponse$AgentResponse", ()=>AgentResponse$AgentResponse);
-parcelHelpers.export(exports, "AgentResponse$isAgentResponse", ()=>AgentResponse$isAgentResponse);
-parcelHelpers.export(exports, "AgentResponse$AgentResponse$session_id", ()=>AgentResponse$AgentResponse$session_id);
-parcelHelpers.export(exports, "AgentResponse$AgentResponse$0", ()=>AgentResponse$AgentResponse$0);
-parcelHelpers.export(exports, "AgentResponse$AgentResponse$message", ()=>AgentResponse$AgentResponse$message);
-parcelHelpers.export(exports, "AgentResponse$AgentResponse$1", ()=>AgentResponse$AgentResponse$1);
-parcelHelpers.export(exports, "AgentResponse$AgentResponse$transcript", ()=>AgentResponse$AgentResponse$transcript);
-parcelHelpers.export(exports, "AgentResponse$AgentResponse$2", ()=>AgentResponse$AgentResponse$2);
 parcelHelpers.export(exports, "Model", ()=>Model);
 parcelHelpers.export(exports, "Model$Model", ()=>Model$Model);
 parcelHelpers.export(exports, "Model$isModel", ()=>Model$isModel);
@@ -780,6 +771,7 @@ var _effectMjs = require("../lustre/lustre/effect.mjs");
 var _elementMjs = require("../lustre/lustre/element.mjs");
 var _htmlMjs = require("../lustre/lustre/element/html.mjs");
 var _eventMjs = require("../lustre/lustre/event.mjs");
+var _apiMjs = require("./api.mjs");
 var _audioFfiMjs = require("./audio_ffi.mjs");
 var _gleamMjs = require("./gleam.mjs");
 const FILEPATH = "src/client.gleam";
@@ -796,22 +788,6 @@ const Message$Message$role = (value)=>value.role;
 const Message$Message$0 = (value)=>value.role;
 const Message$Message$content = (value)=>value.content;
 const Message$Message$1 = (value)=>value.content;
-class AgentResponse extends (0, _gleamMjs.CustomType) {
-    constructor(session_id, message, transcript){
-        super();
-        this.session_id = session_id;
-        this.message = message;
-        this.transcript = transcript;
-    }
-}
-const AgentResponse$AgentResponse = (session_id, message, transcript)=>new AgentResponse(session_id, message, transcript);
-const AgentResponse$isAgentResponse = (value)=>value instanceof AgentResponse;
-const AgentResponse$AgentResponse$session_id = (value)=>value.session_id;
-const AgentResponse$AgentResponse$0 = (value)=>value.session_id;
-const AgentResponse$AgentResponse$message = (value)=>value.message;
-const AgentResponse$AgentResponse$1 = (value)=>value.message;
-const AgentResponse$AgentResponse$transcript = (value)=>value.transcript;
-const AgentResponse$AgentResponse$2 = (value)=>value.transcript;
 class Model extends (0, _gleamMjs.CustomType) {
     constructor(chat_history, is_streaming, input_text, loading, transcript, session_id){
         super();
@@ -901,13 +877,24 @@ function update(model, msg) {
     else if (msg instanceof ReceiveChatResponse) {
         let msg$1 = msg[0];
         return [
-            new Model((0, _gleamMjs.prepend)(new Message("assistant", msg$1.message), model.chat_history), model.is_streaming, model.input_text, false, msg$1.transcript, new (0, _optionMjs.Some)(msg$1.session_id)),
+            new Model(_listMjs.append(model.chat_history, (0, _gleamMjs.toList)([
+                new Message("assistant", msg$1.message)
+            ])), model.is_streaming, model.input_text, false, msg$1.transcript, new (0, _optionMjs.Some)(msg$1.session_id)),
             _effectMjs.none()
         ];
     } else return [
         new Model((0, _gleamMjs.prepend)(new Message("user", model.input_text), model.chat_history), false, "", true, model.transcript, model.session_id),
-        _effectMjs.from((_)=>{
-            return (0, _audioFfiMjs.init_cartesia_stream)();
+        _effectMjs.map((0, _apiMjs.send_message)(model.input_text, model.session_id), (res)=>{
+            let ar;
+            if (res instanceof (0, _gleamMjs.Ok)) ar = res[0];
+            else throw (0, _gleamMjs.makeError)("let_assert", FILEPATH, "client", 99, "update", "Pattern match failed, no pattern matched the value.", {
+                value: res,
+                start: 2316,
+                end: 2339,
+                pattern_start: 2327,
+                pattern_end: 2333
+            });
+            return new ReceiveChatResponse(ar);
         })
     ];
 }
@@ -1000,6 +987,7 @@ function view(model) {
                     _eventMjs.on_change((var0)=>{
                         return new UserTyped(var0);
                     }),
+                    _attributeMjs.value(model.input_text),
                     _attributeMjs.placeholder("How are you feeling?"),
                     _attributeMjs.class$("flex-1 rounded-xl bg-slate-900/60 border border-slate-700/70 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-mind-accent focus:border-transparent")
                 ])),
@@ -1021,17 +1009,17 @@ function view(model) {
 function main() {
     let app = _lustreMjs.application(init, update, view);
     let $ = _lustreMjs.start(app, "#app", undefined);
-    if (!($ instanceof (0, _gleamMjs.Ok))) throw (0, _gleamMjs.makeError)("let_assert", FILEPATH, "client", 276, "main", "Pattern match failed, no pattern matched the value.", {
+    if (!($ instanceof (0, _gleamMjs.Ok))) throw (0, _gleamMjs.makeError)("let_assert", FILEPATH, "client", 271, "main", "Pattern match failed, no pattern matched the value.", {
         value: $,
-        start: 8454,
-        end: 8503,
-        pattern_start: 8465,
-        pattern_end: 8470
+        start: 8309,
+        end: 8358,
+        pattern_start: 8320,
+        pattern_end: 8325
     });
     return $;
 }
 
-},{"../gleam_stdlib/gleam/list.mjs":"8dUwY","../lustre/lustre.mjs":"9FST8","../lustre/lustre/attribute.mjs":"faRXj","../lustre/lustre/effect.mjs":"iAEPi","../lustre/lustre/element.mjs":"2XxJ4","../lustre/lustre/element/html.mjs":"eLT3l","../lustre/lustre/event.mjs":"29g6I","./audio_ffi.mjs":"eHhmy","./gleam.mjs":"aBxRS","@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT","../gleam_stdlib/gleam/option.mjs":"aWtoH"}],"8dUwY":[function(require,module,exports,__globalThis) {
+},{"../gleam_stdlib/gleam/list.mjs":"8dUwY","../lustre/lustre.mjs":"9FST8","../lustre/lustre/attribute.mjs":"faRXj","../lustre/lustre/effect.mjs":"iAEPi","../lustre/lustre/element.mjs":"2XxJ4","../lustre/lustre/element/html.mjs":"eLT3l","../lustre/lustre/event.mjs":"29g6I","./audio_ffi.mjs":"eHhmy","./gleam.mjs":"aBxRS","@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT","../gleam_stdlib/gleam/option.mjs":"aWtoH","./api.mjs":"i6ogH"}],"8dUwY":[function(require,module,exports,__globalThis) {
 var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
 parcelHelpers.defineInteropFlag(exports);
 parcelHelpers.export(exports, "Continue", ()=>Continue);
@@ -23159,6 +23147,5355 @@ parcelHelpers.defineInteropFlag(exports);
 var _preludeMjs = require("../prelude.mjs");
 parcelHelpers.exportAll(_preludeMjs, exports);
 
-},{"../prelude.mjs":"ib0cp","@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT"}]},["aZbtf","9GtLI"], "9GtLI", "parcelRequireb87e", {})
+},{"../prelude.mjs":"ib0cp","@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT"}],"i6ogH":[function(require,module,exports,__globalThis) {
+var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
+parcelHelpers.defineInteropFlag(exports);
+parcelHelpers.export(exports, "AgentResponse", ()=>AgentResponse);
+parcelHelpers.export(exports, "AgentResponse$AgentResponse", ()=>AgentResponse$AgentResponse);
+parcelHelpers.export(exports, "AgentResponse$isAgentResponse", ()=>AgentResponse$isAgentResponse);
+parcelHelpers.export(exports, "AgentResponse$AgentResponse$session_id", ()=>AgentResponse$AgentResponse$session_id);
+parcelHelpers.export(exports, "AgentResponse$AgentResponse$0", ()=>AgentResponse$AgentResponse$0);
+parcelHelpers.export(exports, "AgentResponse$AgentResponse$message", ()=>AgentResponse$AgentResponse$message);
+parcelHelpers.export(exports, "AgentResponse$AgentResponse$1", ()=>AgentResponse$AgentResponse$1);
+parcelHelpers.export(exports, "AgentResponse$AgentResponse$transcript", ()=>AgentResponse$AgentResponse$transcript);
+parcelHelpers.export(exports, "AgentResponse$AgentResponse$2", ()=>AgentResponse$AgentResponse$2);
+parcelHelpers.export(exports, "send_message", ()=>send_message);
+var _jsonMjs = require("../gleam_json/gleam/json.mjs");
+var _decodeMjs = require("../gleam_stdlib/gleam/dynamic/decode.mjs");
+var _functionMjs = require("../gleam_stdlib/gleam/function.mjs");
+var _optionMjs = require("../gleam_stdlib/gleam/option.mjs");
+var _effectMjs = require("../lustre/lustre/effect.mjs");
+var _rsvpMjs = require("../rsvp/rsvp.mjs");
+var _gleamMjs = require("./gleam.mjs");
+class AgentResponse extends (0, _gleamMjs.CustomType) {
+    constructor(session_id, message, transcript){
+        super();
+        this.session_id = session_id;
+        this.message = message;
+        this.transcript = transcript;
+    }
+}
+const AgentResponse$AgentResponse = (session_id, message, transcript)=>new AgentResponse(session_id, message, transcript);
+const AgentResponse$isAgentResponse = (value)=>value instanceof AgentResponse;
+const AgentResponse$AgentResponse$session_id = (value)=>value.session_id;
+const AgentResponse$AgentResponse$0 = (value)=>value.session_id;
+const AgentResponse$AgentResponse$message = (value)=>value.message;
+const AgentResponse$AgentResponse$1 = (value)=>value.message;
+const AgentResponse$AgentResponse$transcript = (value)=>value.transcript;
+const AgentResponse$AgentResponse$2 = (value)=>value.transcript;
+function decode_agent_response() {
+    return _decodeMjs.field("session_id", _decodeMjs.string, (session_id)=>{
+        return _decodeMjs.field("message", _decodeMjs.string, (message)=>{
+            return _decodeMjs.field("transcript", _decodeMjs.optional(_decodeMjs.string), (transcript)=>{
+                return _decodeMjs.success(new AgentResponse(session_id, message, transcript));
+            });
+        });
+    });
+}
+function send_message(content, session_id) {
+    let _block;
+    if (session_id instanceof (0, _optionMjs.Some)) {
+        let sid = session_id[0];
+        _block = _jsonMjs.object((0, _gleamMjs.toList)([
+            [
+                "query",
+                _jsonMjs.string(content)
+            ],
+            [
+                "session_id",
+                _jsonMjs.string(sid)
+            ]
+        ]));
+    } else _block = _jsonMjs.object((0, _gleamMjs.toList)([
+        [
+            "query",
+            _jsonMjs.string(content)
+        ]
+    ]));
+    let payload = _block;
+    let url = "http://localhost:8000/v1/mindfulness/session";
+    let handler = _rsvpMjs.expect_json(decode_agent_response(), _functionMjs.identity);
+    return _rsvpMjs.post(url, payload, handler);
+}
+
+},{"../gleam_json/gleam/json.mjs":"8Pq32","../gleam_stdlib/gleam/dynamic/decode.mjs":"gmHd7","../gleam_stdlib/gleam/function.mjs":"2jh6y","../gleam_stdlib/gleam/option.mjs":"aWtoH","../lustre/lustre/effect.mjs":"iAEPi","../rsvp/rsvp.mjs":"ffq38","./gleam.mjs":"aBxRS","@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT"}],"ffq38":[function(require,module,exports,__globalThis) {
+var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
+parcelHelpers.defineInteropFlag(exports);
+parcelHelpers.export(exports, "parse_relative_uri", ()=>(0, _rsvpFfiMjs.from_relative_url));
+parcelHelpers.export(exports, "BadBody", ()=>BadBody);
+parcelHelpers.export(exports, "Error$BadBody", ()=>Error$BadBody);
+parcelHelpers.export(exports, "Error$isBadBody", ()=>Error$isBadBody);
+/**
+ * This error can happen when the URL string provided to the [`get`](#get) or
+ * [`post`](#post) helpers is not well-formed.
+ */ parcelHelpers.export(exports, "BadUrl", ()=>BadUrl);
+parcelHelpers.export(exports, "Error$BadUrl", ()=>Error$BadUrl);
+parcelHelpers.export(exports, "Error$isBadUrl", ()=>Error$isBadUrl);
+parcelHelpers.export(exports, "Error$BadUrl$0", ()=>Error$BadUrl$0);
+/**
+ * This error can happen when the HTTP response status code is not in the `2xx`
+ * range but a handler expected it to be.
+ */ parcelHelpers.export(exports, "HttpError", ()=>HttpError);
+parcelHelpers.export(exports, "Error$HttpError", ()=>Error$HttpError);
+parcelHelpers.export(exports, "Error$isHttpError", ()=>Error$isHttpError);
+parcelHelpers.export(exports, "Error$HttpError$0", ()=>Error$HttpError$0);
+/**
+ * This error is returned when decoding a JSON response body fails.
+ */ parcelHelpers.export(exports, "JsonError", ()=>JsonError);
+parcelHelpers.export(exports, "Error$JsonError", ()=>Error$JsonError);
+parcelHelpers.export(exports, "Error$isJsonError", ()=>Error$isJsonError);
+parcelHelpers.export(exports, "Error$JsonError$0", ()=>Error$JsonError$0);
+parcelHelpers.export(exports, "NetworkError", ()=>NetworkError);
+parcelHelpers.export(exports, "Error$NetworkError", ()=>Error$NetworkError);
+parcelHelpers.export(exports, "Error$isNetworkError", ()=>Error$isNetworkError);
+/**
+ * This error can be returned by a handler when it does not know how to handle
+ * a response. For example, the [`expect_json`](#expect_json) handler will return
+ * this error if the response content-type is not `"application/json"`.
+ */ parcelHelpers.export(exports, "UnhandledResponse", ()=>UnhandledResponse);
+parcelHelpers.export(exports, "Error$UnhandledResponse", ()=>Error$UnhandledResponse);
+parcelHelpers.export(exports, "Error$isUnhandledResponse", ()=>Error$isUnhandledResponse);
+parcelHelpers.export(exports, "Error$UnhandledResponse$0", ()=>Error$UnhandledResponse$0);
+/**
+ * Handle any response with a `2xx` status code. This handler will return an
+ * `Error` if the response status code is not in the `2xx` range. The specific
+ * error will depend on the status code:
+ *
+ * - `4xx` and `5xx` status codes will return `HttpError`
+ *
+ * - Other non `2xx` status codes will return `UnhandledResponse`
+ *
+ * **Note**: if you need to handle HTTP responses with different status codes,
+ * you should use the more-general [`expect_any_response`](#expect_any_response)
+ * handler.
+ */ parcelHelpers.export(exports, "expect_ok_response", ()=>expect_ok_response);
+/**
+ * Handle the body of a plain text response. This handler will check the
+ * following conditions:
+ *
+ * - The response status code is `2xx`.
+ *
+ * - The response content-type specifies `"text/"` such as `"text/plain"` or
+ *   `"text/html"`.
+ *
+ * If any of these conditions are not met, an `Error` will be returned instead.
+ * The specific error will depend on which condition failed:
+ *
+ * - `4xx` and `5xx` status codes will return `HttpError`
+ *
+ * - Other non `2xx` status codes will return `UnhandledResponse`
+ *
+ * - A missing or incorrect `content-type` header will return `UnhandledResponse`
+ *
+ * **Note**: if you need more advanced handling of the request body directly, you
+ * should use the more-general [`expect_ok_response`](#expect_ok_response) or
+ * [`expect_any_response`](#expect_any_response) handlers.
+ */ parcelHelpers.export(exports, "expect_text", ()=>expect_text);
+/**
+ * Handle any HTTP response, regardless of status code. Your custom handler will
+ * still have to handle potential errors such as network errors or malformed
+ * responses.
+ *
+ * It is uncommon to need a handler this low-level, instead you can consider the
+ * following more-specific handlers:
+ *
+ * - [`expect_ok_response`](#expect_ok_response) to handle any response with a
+ *   `2xx` status code.
+ *
+ * - [`expect_json`](#expect_json) to handle responses from JSON apis
+ */ parcelHelpers.export(exports, "expect_any_response", ()=>expect_any_response);
+/**
+ * Send a [`Request`](https://hexdocs.pm/gleam_http/gleam/http/request.html#Request)
+ * and dispatch a message back to your `update` function when the response is
+ * handled.
+ *
+ * For simple requests, you can use the more-convenient [`get`](#get) and
+ * [`post`](#post) functions instead.
+ *
+ * **Note**: On the **JavaScript** target this will use the `fetch` API. Make
+ * sure you have a polyfill for it if you need to support older browsers or
+ * server-side runtimes that don't have it.
+ *
+ * **Note**: On the **Erlang** target this will use the `httpc` module. Each
+ * request will start a new linked process to make and handle the request.
+ */ parcelHelpers.export(exports, "send", ()=>send);
+/**
+ * Send a [`Request`](https://hexdocs.pm/gleam_http/gleam/http/request.html#Request)
+ * with a `BitArray` body and dispatch a message back to your `update` function
+ * when the response is handled.
+ *
+ * Rsvp requires all responses to be UTF-8 encoded strings, and `BitArray`
+ * responses that cannot be decoded as UTF-8 will return a `BadBody` error.
+ */ parcelHelpers.export(exports, "send_bits", ()=>send_bits);
+/**
+ * Simulate a response in a simulated application. This runs the provided handler
+ * against the response and dispatches the message to your simulated application.
+ */ parcelHelpers.export(exports, "simulate", ()=>simulate);
+/**
+ * A handler that runs a JSON decoder on a response body and returns the result
+ * as a message. This handler will check the following conditions:
+ *
+ * - The response status code is `2xx`.
+ *
+ * - The response content-type is `"application/json"`
+ *
+ * - The response body can be decoded using the provided JSON decoder
+ *
+ * If any of these conditions are not met, an `Error` will be returned instead.
+ * The specific error will depend on which condition failed:
+ *
+ * - `4xx` and `5xx` status codes will return `HttpError`
+ *
+ * - Other non `2xx` status codes will return `UnhandledResponse`
+ *
+ * - A missing or incorrect `content-type` header will return `UnhandledResponse`
+ *
+ * - A JSON decoding error will return `JsonError`
+ *
+ * **Note**: if you need more advanced handling of the request body directly, you
+ * should use the more-general [`expect_ok_response`](#expect_ok_response) or
+ * [`expect_any_response`](#expect_any_response) handlers.
+ */ parcelHelpers.export(exports, "expect_json", ()=>expect_json);
+/**
+ * A convenience function to send a `GET` request to a URL and handle the response
+ * using a [`Handler`](#Handler).
+ *
+ * **Note**: if you need more control over the kind of request being sent, for
+ * example to set additional headers or use a different HTTP method, you should
+ * use the more-general [`send`](#send) function instead.
+ *
+ * **Note**: On the **JavaScript** target this will use the `fetch` API. Make
+ * sure you have a polyfill for it if you need to support older browsers or
+ * server-side runtimes that don't have it.
+ *
+ * **Note**: On the **Erlang** target this will use the `httpc` module. Each
+ * request will start a new linked process to make and handle the request.
+ */ parcelHelpers.export(exports, "get", ()=>get);
+/**
+ * A convenience function for sending a POST request with a JSON body and handle
+ * the response with a handler function. This will automatically set the
+ * `content-type` header to `application/json` and handle requests to relative
+ * URLs if this effect is running in a browser.
+ *
+ * **Note**: if you need more control over the kind of request being sent, for
+ * example to set additional headers or use a different HTTP method, you should
+ * use the more-general [`send`](#send) function instead.
+ *
+ * **Note**: On the **JavaScript** target this will use the `fetch` API. Make
+ * sure you have a polyfill for it if you need to support older browsers or
+ * server-side runtimes that don't have it.
+ *
+ * **Note**: On the **Erlang** target this will use the `httpc` module. Each
+ * request will start a new linked process to make and handle the request.
+ */ parcelHelpers.export(exports, "post", ()=>post);
+/**
+ * A convenience function for sending a PUT request with a JSON body and handle
+ * the response with a handler function. This will automatically set the
+ * `content-type` header to `application/json` and handle requests to relative
+ * URLs if this effect is running in a browser.
+ *
+ * **Note**: if you need more control over the kind of request being sent, for
+ * example to set additional headers or use a different HTTP method, you should
+ * use the more-general [`send`](#send) function instead.
+ *
+ * **Note**: On the **JavaScript** target this will use the `fetch` API. Make
+ * sure you have a polyfill for it if you need to support older browsers or
+ * server-side runtimes that don't have it.
+ *
+ * **Note**: On the **Erlang** target this will use the `httpc` module. Each
+ * request will start a new linked process to make and handle the request.
+ */ parcelHelpers.export(exports, "put", ()=>put);
+/**
+ * A convenience function for sending a PATCH request with a JSON body and handle
+ * the response with a handler function. This will automatically set the
+ * `content-type` header to `application/json` and handle requests to relative
+ * URLs if this effect is running in a browser.
+ *
+ * **Note**: if you need more control over the kind of request being sent, for
+ * example to set additional headers or use a different HTTP method, you should
+ * use the more-general [`send`](#send) function instead.
+ *
+ * **Note**: On the **JavaScript** target this will use the `fetch` API. Make
+ * sure you have a polyfill for it if you need to support older browsers or
+ * server-side runtimes that don't have it.
+ *
+ * **Note**: On the **Erlang** target this will use the `httpc` module. Each
+ * request will start a new linked process to make and handle the request.
+ */ parcelHelpers.export(exports, "patch", ()=>patch);
+/**
+ * A convenience function for sending a DELETE request with a JSON body and handle
+ * the response with a handler function. This will automatically set the
+ * `content-type` header to `application/json` and handle requests to relative
+ * URLs if this effect is running in a browser.
+ *
+ * **Note**: if you need more control over the kind of request being sent, for
+ * example to set additional headers or use a different HTTP method, you should
+ * use the more-general [`send`](#send) function instead.
+ *
+ * **Note**: On the **JavaScript** target this will use the `fetch` API. Make
+ * sure you have a polyfill for it if you need to support older browsers or
+ * server-side runtimes that don't have it.
+ *
+ * **Note**: On the **Erlang** target this will use the `httpc` module. Each
+ * request will start a new linked process to make and handle the request.
+ */ parcelHelpers.export(exports, "delete$", ()=>delete$);
+var _fetchMjs = require("../gleam_fetch/gleam/fetch.mjs");
+var _httpMjs = require("../gleam_http/gleam/http.mjs");
+var _requestMjs = require("../gleam_http/gleam/http/request.mjs");
+var _responseMjs = require("../gleam_http/gleam/http/response.mjs");
+var _promiseMjs = require("../gleam_javascript/gleam/javascript/promise.mjs");
+var _jsonMjs = require("../gleam_json/gleam/json.mjs");
+var _decodeMjs = require("../gleam_stdlib/gleam/dynamic/decode.mjs");
+var _resultMjs = require("../gleam_stdlib/gleam/result.mjs");
+var _uriMjs = require("../gleam_stdlib/gleam/uri.mjs");
+var _simulateMjs = require("../lustre/lustre/dev/simulate.mjs");
+var _effectMjs = require("../lustre/lustre/effect.mjs");
+var _gleamMjs = require("./gleam.mjs");
+var _rsvpFfiMjs = require("./rsvp.ffi.mjs");
+class BadBody extends (0, _gleamMjs.CustomType) {
+}
+const Error$BadBody = ()=>new BadBody();
+const Error$isBadBody = (value)=>value instanceof BadBody;
+class BadUrl extends (0, _gleamMjs.CustomType) {
+    constructor($0){
+        super();
+        this[0] = $0;
+    }
+}
+const Error$BadUrl = ($0)=>new BadUrl($0);
+const Error$isBadUrl = (value)=>value instanceof BadUrl;
+const Error$BadUrl$0 = (value)=>value[0];
+class HttpError extends (0, _gleamMjs.CustomType) {
+    constructor($0){
+        super();
+        this[0] = $0;
+    }
+}
+const Error$HttpError = ($0)=>new HttpError($0);
+const Error$isHttpError = (value)=>value instanceof HttpError;
+const Error$HttpError$0 = (value)=>value[0];
+class JsonError extends (0, _gleamMjs.CustomType) {
+    constructor($0){
+        super();
+        this[0] = $0;
+    }
+}
+const Error$JsonError = ($0)=>new JsonError($0);
+const Error$isJsonError = (value)=>value instanceof JsonError;
+const Error$JsonError$0 = (value)=>value[0];
+class NetworkError extends (0, _gleamMjs.CustomType) {
+}
+const Error$NetworkError = ()=>new NetworkError();
+const Error$isNetworkError = (value)=>value instanceof NetworkError;
+class UnhandledResponse extends (0, _gleamMjs.CustomType) {
+    constructor($0){
+        super();
+        this[0] = $0;
+    }
+}
+const Error$UnhandledResponse = ($0)=>new UnhandledResponse($0);
+const Error$isUnhandledResponse = (value)=>value instanceof UnhandledResponse;
+const Error$UnhandledResponse$0 = (value)=>value[0];
+class Handler extends (0, _gleamMjs.CustomType) {
+    constructor(run){
+        super();
+        this.run = run;
+    }
+}
+function expect_ok_response(handler) {
+    return new Handler((result)=>{
+        return handler(_resultMjs.try$(result, (response)=>{
+            let $ = response.status;
+            let code = $;
+            if (code >= 200 && code < 300) return new (0, _gleamMjs.Ok)(response);
+            else {
+                let code = $;
+                if (code >= 400 && code < 600) return new (0, _gleamMjs.Error)(new HttpError(response));
+                else return new (0, _gleamMjs.Error)(new UnhandledResponse(response));
+            }
+        }));
+    });
+}
+function expect_json_response(handler) {
+    return expect_ok_response((result)=>{
+        return handler(_resultMjs.try$(result, (response)=>{
+            let $ = _responseMjs.get_header(response, "content-type");
+            if ($ instanceof (0, _gleamMjs.Ok)) {
+                let $1 = $[0];
+                if ($1 === "application/json") return new (0, _gleamMjs.Ok)(response);
+                else if ($1.startsWith("application/json;")) return new (0, _gleamMjs.Ok)(response);
+                else return new (0, _gleamMjs.Error)(new UnhandledResponse(response));
+            } else return new (0, _gleamMjs.Error)(new UnhandledResponse(response));
+        }));
+    });
+}
+function expect_text_response(handler) {
+    return expect_ok_response((result)=>{
+        return handler(_resultMjs.try$(result, (response)=>{
+            let $ = _responseMjs.get_header(response, "content-type");
+            if ($ instanceof (0, _gleamMjs.Ok)) {
+                let $1 = $[0];
+                if ($1.startsWith("text/")) return new (0, _gleamMjs.Ok)(response);
+                else return new (0, _gleamMjs.Error)(new UnhandledResponse(response));
+            } else return new (0, _gleamMjs.Error)(new UnhandledResponse(response));
+        }));
+    });
+}
+function expect_text(handler) {
+    return expect_text_response((result)=>{
+        let _pipe = result;
+        let _pipe$1 = _resultMjs.map(_pipe, (response)=>{
+            return response.body;
+        });
+        return handler(_pipe$1);
+    });
+}
+function expect_any_response(handler) {
+    return new Handler(handler);
+}
+function do_send(request, handler) {
+    return _effectMjs.from((dispatch)=>{
+        let _pipe = _fetchMjs.send(request);
+        let _pipe$1 = _promiseMjs.try_await(_pipe, _fetchMjs.read_text_body);
+        let _pipe$2 = _promiseMjs.map(_pipe$1, (_capture)=>{
+            return _resultMjs.map_error(_capture, (error)=>{
+                if (error instanceof _fetchMjs.NetworkError) return new NetworkError();
+                else if (error instanceof _fetchMjs.UnableToReadBody) return new BadBody();
+                else return new BadBody();
+            });
+        });
+        let _pipe$3 = _promiseMjs.map(_pipe$2, handler.run);
+        _promiseMjs.tap(_pipe$3, dispatch);
+        return undefined;
+    });
+}
+function send(request, handler) {
+    return do_send(request, handler);
+}
+function do_send_bits(request, handler) {
+    return _effectMjs.from((dispatch)=>{
+        let _pipe = _fetchMjs.send_bits(request);
+        let _pipe$1 = _promiseMjs.try_await(_pipe, _fetchMjs.read_text_body);
+        let _pipe$2 = _promiseMjs.map(_pipe$1, (_capture)=>{
+            return _resultMjs.map_error(_capture, (error)=>{
+                if (error instanceof _fetchMjs.NetworkError) return new NetworkError();
+                else if (error instanceof _fetchMjs.UnableToReadBody) return new BadBody();
+                else return new BadBody();
+            });
+        });
+        let _pipe$3 = _promiseMjs.map(_pipe$2, handler.run);
+        _promiseMjs.tap(_pipe$3, dispatch);
+        return undefined;
+    });
+}
+function send_bits(request, handler) {
+    return do_send_bits(request, handler);
+}
+function simulate(simulation, response, handler) {
+    return _simulateMjs.message(simulation, handler.run(new (0, _gleamMjs.Ok)(response)));
+}
+function reject(err, handler) {
+    return _effectMjs.from((dispatch)=>{
+        let _pipe = new (0, _gleamMjs.Error)(err);
+        let _pipe$1 = handler.run(_pipe);
+        return dispatch(_pipe$1);
+    });
+}
+function decode_json_body(response, decoder) {
+    let _pipe = response.body;
+    let _pipe$1 = _jsonMjs.parse(_pipe, decoder);
+    return _resultMjs.map_error(_pipe$1, (var0)=>{
+        return new JsonError(var0);
+    });
+}
+function expect_json(decoder, handler) {
+    return expect_json_response((result)=>{
+        let _pipe = result;
+        let _pipe$1 = _resultMjs.try$(_pipe, (_capture)=>{
+            return decode_json_body(_capture, decoder);
+        });
+        return handler(_pipe$1);
+    });
+}
+function to_uri(uri_string) {
+    let _block;
+    if (uri_string.startsWith("./")) _block = (0, _rsvpFfiMjs.from_relative_url)(uri_string);
+    else if (uri_string.startsWith("/")) _block = (0, _rsvpFfiMjs.from_relative_url)(uri_string);
+    else _block = _uriMjs.parse(uri_string);
+    let _pipe = _block;
+    return _resultMjs.replace_error(_pipe, new BadUrl(uri_string));
+}
+function get(url, handler) {
+    let $ = to_uri(url);
+    if ($ instanceof (0, _gleamMjs.Ok)) {
+        let uri = $[0];
+        let $1 = _requestMjs.from_uri(uri);
+        if ($1 instanceof (0, _gleamMjs.Ok)) {
+            let request = $1[0];
+            return send(request, handler);
+        } else return reject(new BadUrl(url), handler);
+    } else {
+        let err = $[0];
+        return reject(err, handler);
+    }
+}
+function post(url, body, handler) {
+    let $ = to_uri(url);
+    if ($ instanceof (0, _gleamMjs.Ok)) {
+        let uri = $[0];
+        let $1 = _requestMjs.from_uri(uri);
+        if ($1 instanceof (0, _gleamMjs.Ok)) {
+            let request = $1[0];
+            let _pipe = request;
+            let _pipe$1 = _requestMjs.set_method(_pipe, new _httpMjs.Post());
+            let _pipe$2 = _requestMjs.set_header(_pipe$1, "content-type", "application/json");
+            let _pipe$3 = _requestMjs.set_body(_pipe$2, _jsonMjs.to_string(body));
+            return send(_pipe$3, handler);
+        } else return reject(new BadUrl(url), handler);
+    } else {
+        let err = $[0];
+        return reject(err, handler);
+    }
+}
+function put(url, body, handler) {
+    let $ = to_uri(url);
+    if ($ instanceof (0, _gleamMjs.Ok)) {
+        let uri = $[0];
+        let $1 = _requestMjs.from_uri(uri);
+        if ($1 instanceof (0, _gleamMjs.Ok)) {
+            let request = $1[0];
+            let _pipe = request;
+            let _pipe$1 = _requestMjs.set_method(_pipe, new _httpMjs.Put());
+            let _pipe$2 = _requestMjs.set_header(_pipe$1, "content-type", "application/json");
+            let _pipe$3 = _requestMjs.set_body(_pipe$2, _jsonMjs.to_string(body));
+            return send(_pipe$3, handler);
+        } else return reject(new BadUrl(url), handler);
+    } else {
+        let err = $[0];
+        return reject(err, handler);
+    }
+}
+function patch(url, body, handler) {
+    let $ = to_uri(url);
+    if ($ instanceof (0, _gleamMjs.Ok)) {
+        let uri = $[0];
+        let $1 = _requestMjs.from_uri(uri);
+        if ($1 instanceof (0, _gleamMjs.Ok)) {
+            let request = $1[0];
+            let _pipe = request;
+            let _pipe$1 = _requestMjs.set_method(_pipe, new _httpMjs.Patch());
+            let _pipe$2 = _requestMjs.set_header(_pipe$1, "content-type", "application/json");
+            let _pipe$3 = _requestMjs.set_body(_pipe$2, _jsonMjs.to_string(body));
+            return send(_pipe$3, handler);
+        } else return reject(new BadUrl(url), handler);
+    } else {
+        let err = $[0];
+        return reject(err, handler);
+    }
+}
+function delete$(url, body, handler) {
+    let $ = to_uri(url);
+    if ($ instanceof (0, _gleamMjs.Ok)) {
+        let uri = $[0];
+        let $1 = _requestMjs.from_uri(uri);
+        if ($1 instanceof (0, _gleamMjs.Ok)) {
+            let request = $1[0];
+            let _pipe = request;
+            let _pipe$1 = _requestMjs.set_method(_pipe, new _httpMjs.Delete());
+            let _pipe$2 = _requestMjs.set_header(_pipe$1, "content-type", "application/json");
+            let _pipe$3 = _requestMjs.set_body(_pipe$2, _jsonMjs.to_string(body));
+            return send(_pipe$3, handler);
+        } else return reject(new BadUrl(url), handler);
+    } else {
+        let err = $[0];
+        return reject(err, handler);
+    }
+}
+
+},{"../gleam_fetch/gleam/fetch.mjs":"2hKhN","../gleam_http/gleam/http.mjs":"f1b8L","../gleam_http/gleam/http/request.mjs":"houAH","../gleam_http/gleam/http/response.mjs":"f3v5I","../gleam_javascript/gleam/javascript/promise.mjs":"cIhTb","../gleam_json/gleam/json.mjs":"8Pq32","../gleam_stdlib/gleam/dynamic/decode.mjs":"gmHd7","../gleam_stdlib/gleam/result.mjs":"oBmFG","../gleam_stdlib/gleam/uri.mjs":"k5lAJ","../lustre/lustre/dev/simulate.mjs":"9HuiW","../lustre/lustre/effect.mjs":"iAEPi","./gleam.mjs":"7R2Lw","./rsvp.ffi.mjs":"cQRY5","@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT"}],"2hKhN":[function(require,module,exports,__globalThis) {
+var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
+parcelHelpers.defineInteropFlag(exports);
+parcelHelpers.export(exports, "bitarray_request_to_fetch_request", ()=>(0, _gleamFetchFfiMjs.bitarray_request_to_fetch_request));
+parcelHelpers.export(exports, "form_data_to_fetch_request", ()=>(0, _gleamFetchFfiMjs.form_data_to_fetch_request));
+parcelHelpers.export(exports, "from_fetch_response", ()=>(0, _gleamFetchFfiMjs.from_fetch_response));
+parcelHelpers.export(exports, "raw_send", ()=>(0, _gleamFetchFfiMjs.raw_send));
+parcelHelpers.export(exports, "read_bytes_body", ()=>(0, _gleamFetchFfiMjs.read_bytes_body));
+parcelHelpers.export(exports, "read_json_body", ()=>(0, _gleamFetchFfiMjs.read_json_body));
+parcelHelpers.export(exports, "read_text_body", ()=>(0, _gleamFetchFfiMjs.read_text_body));
+parcelHelpers.export(exports, "to_fetch_request", ()=>(0, _gleamFetchFfiMjs.to_fetch_request));
+/**
+ * A network error occured, maybe because user lost network connection,
+ * because the network took to long to answer, or because the
+ * server timed out.
+ */ parcelHelpers.export(exports, "NetworkError", ()=>NetworkError);
+parcelHelpers.export(exports, "FetchError$NetworkError", ()=>FetchError$NetworkError);
+parcelHelpers.export(exports, "FetchError$isNetworkError", ()=>FetchError$isNetworkError);
+parcelHelpers.export(exports, "FetchError$NetworkError$0", ()=>FetchError$NetworkError$0);
+parcelHelpers.export(exports, "UnableToReadBody", ()=>UnableToReadBody);
+parcelHelpers.export(exports, "FetchError$UnableToReadBody", ()=>FetchError$UnableToReadBody);
+parcelHelpers.export(exports, "FetchError$isUnableToReadBody", ()=>FetchError$isUnableToReadBody);
+parcelHelpers.export(exports, "InvalidJsonBody", ()=>InvalidJsonBody);
+parcelHelpers.export(exports, "FetchError$InvalidJsonBody", ()=>FetchError$InvalidJsonBody);
+parcelHelpers.export(exports, "FetchError$isInvalidJsonBody", ()=>FetchError$isInvalidJsonBody);
+/**
+ * Call `fetch` with a Gleam `Request(String)`, and convert the result back
+ * to Gleam. Use it to send strings or JSON stringified.
+ *
+ * If you're looking for something more low-level, take a look at
+ * [`raw_send`](#raw_send).
+ *
+ * ```gleam
+ * let my_data = json.object([#("field", "value")])
+ * request.new()
+ * |> request.set_host("example.com")
+ * |> request.set_path("/example")
+ * |> request.set_body(json.to_string(my_data))
+ * |> request.set_header("content-type", "application/json")
+ * |> fetch.send
+ * ```
+ */ parcelHelpers.export(exports, "send", ()=>send);
+/**
+ * Call `fetch` with a Gleam `Request(FormData)`, and convert the result back
+ * to Gleam. Request will be sent as a `multipart/form-data`, and should be
+ * decoded as-is on servers.
+ *
+ * If you're looking for something more low-level, take a look at
+ * [`raw_send`](#raw_send).
+ *
+ * ```gleam
+ * request.new()
+ * |> request.set_host("example.com")
+ * |> request.set_path("/example")
+ * |> request.set_body({
+ *   form_data.new()
+ *   |> form_data.append("key", "value")
+ * })
+ * |> fetch.send_form_data
+ * ```
+ */ parcelHelpers.export(exports, "send_form_data", ()=>send_form_data);
+/**
+ * Call `fetch` with a Gleam `Request(FormData)`, and convert the result back
+ * to Gleam. Binary will be sent as-is, and you probably want a proper
+ * content-type added.
+ *
+ * If you're looking for something more low-level, take a look at
+ * [`raw_send`](#raw_send).
+ *
+ * ```gleam
+ * request.new()
+ * |> request.set_host("example.com")
+ * |> request.set_path("/example")
+ * |> request.set_body(<<"data">>)
+ * |> request.set_header("content-type", "application/octet-stream")
+ * |> fetch.send_form_data
+ * ```
+ */ parcelHelpers.export(exports, "send_bits", ()=>send_bits);
+var _requestMjs = require("../../gleam_http/gleam/http/request.mjs");
+var _responseMjs = require("../../gleam_http/gleam/http/response.mjs");
+var _promiseMjs = require("../../gleam_javascript/gleam/javascript/promise.mjs");
+var _dynamicMjs = require("../../gleam_stdlib/gleam/dynamic.mjs");
+var _gleamMjs = require("../gleam.mjs");
+var _formDataMjs = require("../gleam/fetch/form_data.mjs");
+var _gleamFetchFfiMjs = require("../gleam_fetch_ffi.mjs");
+class NetworkError extends (0, _gleamMjs.CustomType) {
+    constructor($0){
+        super();
+        this[0] = $0;
+    }
+}
+const FetchError$NetworkError = ($0)=>new NetworkError($0);
+const FetchError$isNetworkError = (value)=>value instanceof NetworkError;
+const FetchError$NetworkError$0 = (value)=>value[0];
+class UnableToReadBody extends (0, _gleamMjs.CustomType) {
+}
+const FetchError$UnableToReadBody = ()=>new UnableToReadBody();
+const FetchError$isUnableToReadBody = (value)=>value instanceof UnableToReadBody;
+class InvalidJsonBody extends (0, _gleamMjs.CustomType) {
+}
+const FetchError$InvalidJsonBody = ()=>new InvalidJsonBody();
+const FetchError$isInvalidJsonBody = (value)=>value instanceof InvalidJsonBody;
+function send(request) {
+    let _pipe = request;
+    let _pipe$1 = (0, _gleamFetchFfiMjs.to_fetch_request)(_pipe);
+    let _pipe$2 = (0, _gleamFetchFfiMjs.raw_send)(_pipe$1);
+    return _promiseMjs.try_await(_pipe$2, (resp)=>{
+        return _promiseMjs.resolve(new (0, _gleamMjs.Ok)((0, _gleamFetchFfiMjs.from_fetch_response)(resp)));
+    });
+}
+function send_form_data(request) {
+    let _pipe = request;
+    let _pipe$1 = (0, _gleamFetchFfiMjs.form_data_to_fetch_request)(_pipe);
+    let _pipe$2 = (0, _gleamFetchFfiMjs.raw_send)(_pipe$1);
+    return _promiseMjs.try_await(_pipe$2, (resp)=>{
+        return _promiseMjs.resolve(new (0, _gleamMjs.Ok)((0, _gleamFetchFfiMjs.from_fetch_response)(resp)));
+    });
+}
+function send_bits(request) {
+    let _pipe = request;
+    let _pipe$1 = (0, _gleamFetchFfiMjs.bitarray_request_to_fetch_request)(_pipe);
+    let _pipe$2 = (0, _gleamFetchFfiMjs.raw_send)(_pipe$1);
+    return _promiseMjs.try_await(_pipe$2, (resp)=>{
+        return _promiseMjs.resolve(new (0, _gleamMjs.Ok)((0, _gleamFetchFfiMjs.from_fetch_response)(resp)));
+    });
+}
+
+},{"../../gleam_http/gleam/http/request.mjs":"houAH","../../gleam_http/gleam/http/response.mjs":"f3v5I","../../gleam_javascript/gleam/javascript/promise.mjs":"cIhTb","../../gleam_stdlib/gleam/dynamic.mjs":"iAWCk","../gleam.mjs":"6yTRE","../gleam/fetch/form_data.mjs":"2Yy2B","../gleam_fetch_ffi.mjs":"KMyAS","@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT"}],"houAH":[function(require,module,exports,__globalThis) {
+var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
+parcelHelpers.defineInteropFlag(exports);
+parcelHelpers.export(exports, "Request", ()=>Request);
+parcelHelpers.export(exports, "Request$Request", ()=>Request$Request);
+parcelHelpers.export(exports, "Request$isRequest", ()=>Request$isRequest);
+parcelHelpers.export(exports, "Request$Request$method", ()=>Request$Request$method);
+parcelHelpers.export(exports, "Request$Request$0", ()=>Request$Request$0);
+parcelHelpers.export(exports, "Request$Request$headers", ()=>Request$Request$headers);
+parcelHelpers.export(exports, "Request$Request$1", ()=>Request$Request$1);
+parcelHelpers.export(exports, "Request$Request$body", ()=>Request$Request$body);
+parcelHelpers.export(exports, "Request$Request$2", ()=>Request$Request$2);
+parcelHelpers.export(exports, "Request$Request$scheme", ()=>Request$Request$scheme);
+parcelHelpers.export(exports, "Request$Request$3", ()=>Request$Request$3);
+parcelHelpers.export(exports, "Request$Request$host", ()=>Request$Request$host);
+parcelHelpers.export(exports, "Request$Request$4", ()=>Request$Request$4);
+parcelHelpers.export(exports, "Request$Request$port", ()=>Request$Request$port);
+parcelHelpers.export(exports, "Request$Request$5", ()=>Request$Request$5);
+parcelHelpers.export(exports, "Request$Request$path", ()=>Request$Request$path);
+parcelHelpers.export(exports, "Request$Request$6", ()=>Request$Request$6);
+parcelHelpers.export(exports, "Request$Request$query", ()=>Request$Request$query);
+parcelHelpers.export(exports, "Request$Request$7", ()=>Request$Request$7);
+/**
+ * Return the uri that a request was sent to.
+ */ parcelHelpers.export(exports, "to_uri", ()=>to_uri);
+/**
+ * Construct a request from a URI.
+ */ parcelHelpers.export(exports, "from_uri", ()=>from_uri);
+/**
+ * Get the value for a given header.
+ *
+ * If the request does not have that header then `Error(Nil)` is returned.
+ *
+ * Header keys are always lowercase in `gleam_http`. To use any uppercase
+ * letter is invalid.
+ */ parcelHelpers.export(exports, "get_header", ()=>get_header);
+/**
+ * Set the header with the given value under the given header key.
+ *
+ * If already present, it is replaced.
+ *
+ * Header keys are always lowercase in `gleam_http`. To use any uppercase
+ * letter is invalid.
+ */ parcelHelpers.export(exports, "set_header", ()=>set_header);
+/**
+ * Prepend the header with the given value under the given header key.
+ *
+ * Similar to `set_header` except if the header already exists it prepends
+ * another header with the same key.
+ *
+ * Header keys are always lowercase in `gleam_http`. To use any uppercase
+ * letter is invalid.
+ */ parcelHelpers.export(exports, "prepend_header", ()=>prepend_header);
+/**
+ * Set the body of the request, overwriting any existing body.
+ */ parcelHelpers.export(exports, "set_body", ()=>set_body);
+/**
+ * Update the body of a request using a given function.
+ */ parcelHelpers.export(exports, "map", ()=>map);
+/**
+ * Return the non-empty segments of a request path.
+ *
+ * # Examples
+ *
+ * ```gleam
+ * > new()
+ * > |> set_path("/one/two/three")
+ * > |> path_segments
+ * ["one", "two", "three"]
+ * ```
+ */ parcelHelpers.export(exports, "path_segments", ()=>path_segments);
+/**
+ * Decode the query of a request.
+ */ parcelHelpers.export(exports, "get_query", ()=>get_query);
+/**
+ * Set the query of the request.
+ * Query params will be percent encoded before being added to the Request.
+ */ parcelHelpers.export(exports, "set_query", ()=>set_query);
+/**
+ * Set the method of the request.
+ */ parcelHelpers.export(exports, "set_method", ()=>set_method);
+/**
+ * A request with commonly used default values. This request can be used as
+ * an initial value and then update to create the desired request.
+ */ parcelHelpers.export(exports, "new$", ()=>new$);
+/**
+ * Construct a request from a URL string
+ */ parcelHelpers.export(exports, "to", ()=>to);
+/**
+ * Set the scheme (protocol) of the request.
+ */ parcelHelpers.export(exports, "set_scheme", ()=>set_scheme);
+/**
+ * Set the host of the request.
+ */ parcelHelpers.export(exports, "set_host", ()=>set_host);
+/**
+ * Set the port of the request.
+ */ parcelHelpers.export(exports, "set_port", ()=>set_port);
+/**
+ * Set the path of the request.
+ */ parcelHelpers.export(exports, "set_path", ()=>set_path);
+/**
+ * Set a cookie on a request, replacing any previous cookie with that name.
+ *
+ * All cookies should be stored in a single header named `cookie`.
+ * There should be at most one header with the name `cookie`, otherwise this
+ * function cannot guarentee that previous cookies with the same name are
+ * replaced.
+ */ parcelHelpers.export(exports, "set_cookie", ()=>set_cookie);
+/**
+ * Fetch the cookies sent in a request.
+ *
+ * Note badly formed cookie pairs will be ignored.
+ * RFC6265 specifies that invalid cookie names/attributes should be ignored.
+ */ parcelHelpers.export(exports, "get_cookies", ()=>get_cookies);
+/**
+ * Remove a cookie from a request
+ *
+ * Remove a cookie from the request. If no cookie is found return the request
+ * unchanged. This will not remove the cookie from the client.
+ */ parcelHelpers.export(exports, "remove_cookie", ()=>remove_cookie);
+var _listMjs = require("../../../gleam_stdlib/gleam/list.mjs");
+var _optionMjs = require("../../../gleam_stdlib/gleam/option.mjs");
+var _resultMjs = require("../../../gleam_stdlib/gleam/result.mjs");
+var _stringMjs = require("../../../gleam_stdlib/gleam/string.mjs");
+var _uriMjs = require("../../../gleam_stdlib/gleam/uri.mjs");
+var _gleamMjs = require("../../gleam.mjs");
+var _httpMjs = require("../../gleam/http.mjs");
+var _cookieMjs = require("../../gleam/http/cookie.mjs");
+class Request extends (0, _gleamMjs.CustomType) {
+    constructor(method, headers, body, scheme, host, port, path, query){
+        super();
+        this.method = method;
+        this.headers = headers;
+        this.body = body;
+        this.scheme = scheme;
+        this.host = host;
+        this.port = port;
+        this.path = path;
+        this.query = query;
+    }
+}
+const Request$Request = (method, headers, body, scheme, host, port, path, query)=>new Request(method, headers, body, scheme, host, port, path, query);
+const Request$isRequest = (value)=>value instanceof Request;
+const Request$Request$method = (value)=>value.method;
+const Request$Request$0 = (value)=>value.method;
+const Request$Request$headers = (value)=>value.headers;
+const Request$Request$1 = (value)=>value.headers;
+const Request$Request$body = (value)=>value.body;
+const Request$Request$2 = (value)=>value.body;
+const Request$Request$scheme = (value)=>value.scheme;
+const Request$Request$3 = (value)=>value.scheme;
+const Request$Request$host = (value)=>value.host;
+const Request$Request$4 = (value)=>value.host;
+const Request$Request$port = (value)=>value.port;
+const Request$Request$5 = (value)=>value.port;
+const Request$Request$path = (value)=>value.path;
+const Request$Request$6 = (value)=>value.path;
+const Request$Request$query = (value)=>value.query;
+const Request$Request$7 = (value)=>value.query;
+function to_uri(request) {
+    return new (0, _uriMjs.Uri)(new _optionMjs.Some(_httpMjs.scheme_to_string(request.scheme)), new _optionMjs.None(), new _optionMjs.Some(request.host), request.port, request.path, request.query, new _optionMjs.None());
+}
+function from_uri(uri) {
+    return _resultMjs.try$((()=>{
+        let _pipe = uri.scheme;
+        let _pipe$1 = _optionMjs.unwrap(_pipe, "");
+        return _httpMjs.scheme_from_string(_pipe$1);
+    })(), (scheme)=>{
+        return _resultMjs.try$((()=>{
+            let _pipe = uri.host;
+            return _optionMjs.to_result(_pipe, undefined);
+        })(), (host)=>{
+            let req = new Request(new (0, _httpMjs.Get)(), (0, _gleamMjs.toList)([]), "", scheme, host, uri.port, uri.path, uri.query);
+            return new (0, _gleamMjs.Ok)(req);
+        });
+    });
+}
+function get_header(request, key) {
+    return _listMjs.key_find(request.headers, _stringMjs.lowercase(key));
+}
+function set_header(request, key, value) {
+    let headers = _listMjs.key_set(request.headers, _stringMjs.lowercase(key), value);
+    return new Request(request.method, headers, request.body, request.scheme, request.host, request.port, request.path, request.query);
+}
+function prepend_header(request, key, value) {
+    let headers = (0, _gleamMjs.prepend)([
+        _stringMjs.lowercase(key),
+        value
+    ], request.headers);
+    return new Request(request.method, headers, request.body, request.scheme, request.host, request.port, request.path, request.query);
+}
+function set_body(req, body) {
+    return new Request(req.method, req.headers, body, req.scheme, req.host, req.port, req.path, req.query);
+}
+function map(request, transform) {
+    let _pipe = request.body;
+    let _pipe$1 = transform(_pipe);
+    return ((_capture)=>{
+        return set_body(request, _capture);
+    })(_pipe$1);
+}
+function path_segments(request) {
+    let _pipe = request.path;
+    return _uriMjs.path_segments(_pipe);
+}
+function get_query(request) {
+    let $ = request.query;
+    if ($ instanceof _optionMjs.Some) {
+        let query_string = $[0];
+        return _uriMjs.parse_query(query_string);
+    } else return new (0, _gleamMjs.Ok)((0, _gleamMjs.toList)([]));
+}
+function set_query(req, query) {
+    let _block;
+    let _pipe = _listMjs.map(query, (pair)=>{
+        let key;
+        let value;
+        key = pair[0];
+        value = pair[1];
+        return _uriMjs.percent_encode(key) + "=" + _uriMjs.percent_encode(value);
+    });
+    let _pipe$1 = _stringMjs.join(_pipe, "&");
+    _block = new _optionMjs.Some(_pipe$1);
+    let query$1 = _block;
+    return new Request(req.method, req.headers, req.body, req.scheme, req.host, req.port, req.path, query$1);
+}
+function set_method(req, method) {
+    return new Request(method, req.headers, req.body, req.scheme, req.host, req.port, req.path, req.query);
+}
+function new$() {
+    return new Request(new (0, _httpMjs.Get)(), (0, _gleamMjs.toList)([]), "", new _httpMjs.Https(), "localhost", new _optionMjs.None(), "", new _optionMjs.None());
+}
+function to(url) {
+    let _pipe = url;
+    let _pipe$1 = _uriMjs.parse(_pipe);
+    return _resultMjs.try$(_pipe$1, from_uri);
+}
+function set_scheme(req, scheme) {
+    return new Request(req.method, req.headers, req.body, scheme, req.host, req.port, req.path, req.query);
+}
+function set_host(req, host) {
+    return new Request(req.method, req.headers, req.body, req.scheme, host, req.port, req.path, req.query);
+}
+function set_port(req, port) {
+    return new Request(req.method, req.headers, req.body, req.scheme, req.host, new _optionMjs.Some(port), req.path, req.query);
+}
+function set_path(req, path) {
+    return new Request(req.method, req.headers, req.body, req.scheme, req.host, req.port, path, req.query);
+}
+function set_cookie(req, name, value) {
+    let _block;
+    let _pipe = _listMjs.key_pop(req.headers, "cookie");
+    _block = _resultMjs.unwrap(_pipe, [
+        "",
+        req.headers
+    ]);
+    let $ = _block;
+    let cookies;
+    let headers;
+    cookies = $[0];
+    headers = $[1];
+    let _block$1;
+    let _pipe$1 = _cookieMjs.parse(cookies);
+    let _pipe$2 = _listMjs.key_set(_pipe$1, name, value);
+    let _pipe$3 = _listMjs.map(_pipe$2, (pair)=>{
+        return pair[0] + "=" + pair[1];
+    });
+    _block$1 = _stringMjs.join(_pipe$3, "; ");
+    let cookies$1 = _block$1;
+    return new Request(req.method, (0, _gleamMjs.prepend)([
+        "cookie",
+        cookies$1
+    ], headers), req.body, req.scheme, req.host, req.port, req.path, req.query);
+}
+function get_cookies(req) {
+    let headers;
+    headers = req.headers;
+    return _listMjs.flat_map(headers, (header)=>{
+        let $ = header[0];
+        if ($ === "cookie") {
+            let value = header[1];
+            return _cookieMjs.parse(value);
+        } else return (0, _gleamMjs.toList)([]);
+    });
+}
+function remove_cookie(req, name) {
+    let $ = _listMjs.key_pop(req.headers, "cookie");
+    if ($ instanceof (0, _gleamMjs.Ok)) {
+        let cookies_string = $[0][0];
+        let headers = $[0][1];
+        let _block;
+        let _pipe = _cookieMjs.parse(cookies_string);
+        let _pipe$1 = _listMjs.filter_map(_pipe, (cookie)=>{
+            let cookie_name = cookie[0];
+            if (cookie_name === name) return new (0, _gleamMjs.Error)(undefined);
+            else {
+                let name$1 = cookie[0];
+                let value = cookie[1];
+                return new (0, _gleamMjs.Ok)(name$1 + "=" + value);
+            }
+        });
+        _block = _stringMjs.join(_pipe$1, "; ");
+        let new_cookies_string = _block;
+        return new Request(req.method, (0, _gleamMjs.prepend)([
+            "cookie",
+            new_cookies_string
+        ], headers), req.body, req.scheme, req.host, req.port, req.path, req.query);
+    } else return req;
+}
+
+},{"../../../gleam_stdlib/gleam/list.mjs":"8dUwY","../../../gleam_stdlib/gleam/option.mjs":"aWtoH","../../../gleam_stdlib/gleam/result.mjs":"oBmFG","../../../gleam_stdlib/gleam/string.mjs":"aB8qb","../../../gleam_stdlib/gleam/uri.mjs":"k5lAJ","../../gleam.mjs":"fY50s","../../gleam/http.mjs":"f1b8L","../../gleam/http/cookie.mjs":"ajWX9","@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT"}],"k5lAJ":[function(require,module,exports,__globalThis) {
+var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
+parcelHelpers.defineInteropFlag(exports);
+parcelHelpers.export(exports, "parse_query", ()=>(0, _gleamStdlibMjs.parse_query));
+parcelHelpers.export(exports, "percent_decode", ()=>(0, _gleamStdlibMjs.percent_decode));
+parcelHelpers.export(exports, "percent_encode", ()=>(0, _gleamStdlibMjs.percent_encode));
+parcelHelpers.export(exports, "Uri", ()=>Uri);
+parcelHelpers.export(exports, "Uri$Uri", ()=>Uri$Uri);
+parcelHelpers.export(exports, "Uri$isUri", ()=>Uri$isUri);
+parcelHelpers.export(exports, "Uri$Uri$scheme", ()=>Uri$Uri$scheme);
+parcelHelpers.export(exports, "Uri$Uri$0", ()=>Uri$Uri$0);
+parcelHelpers.export(exports, "Uri$Uri$userinfo", ()=>Uri$Uri$userinfo);
+parcelHelpers.export(exports, "Uri$Uri$1", ()=>Uri$Uri$1);
+parcelHelpers.export(exports, "Uri$Uri$host", ()=>Uri$Uri$host);
+parcelHelpers.export(exports, "Uri$Uri$2", ()=>Uri$Uri$2);
+parcelHelpers.export(exports, "Uri$Uri$port", ()=>Uri$Uri$port);
+parcelHelpers.export(exports, "Uri$Uri$3", ()=>Uri$Uri$3);
+parcelHelpers.export(exports, "Uri$Uri$path", ()=>Uri$Uri$path);
+parcelHelpers.export(exports, "Uri$Uri$4", ()=>Uri$Uri$4);
+parcelHelpers.export(exports, "Uri$Uri$query", ()=>Uri$Uri$query);
+parcelHelpers.export(exports, "Uri$Uri$5", ()=>Uri$Uri$5);
+parcelHelpers.export(exports, "Uri$Uri$fragment", ()=>Uri$Uri$fragment);
+parcelHelpers.export(exports, "Uri$Uri$6", ()=>Uri$Uri$6);
+parcelHelpers.export(exports, "empty", ()=>empty);
+/**
+ * Encodes a list of key value pairs as a URI query string.
+ *
+ * The opposite operation is `uri.parse_query`.
+ *
+ * ## Examples
+ *
+ * ```gleam
+ * assert query_to_string([#("a", "1"), #("b", "2")]) == "a=1&b=2"
+ * ```
+ */ parcelHelpers.export(exports, "query_to_string", ()=>query_to_string);
+/**
+ * Splits the path section of a URI into its constituent segments.
+ *
+ * Removes empty segments and resolves dot-segments as specified in
+ * [section 5.2](https://www.ietf.org/rfc/rfc3986.html#section-5.2) of the RFC.
+ *
+ * ## Examples
+ *
+ * ```gleam
+ * assert path_segments("/users/1") == ["users" ,"1"]
+ * ```
+ */ parcelHelpers.export(exports, "path_segments", ()=>path_segments);
+/**
+ * Encodes a `Uri` value as a URI string.
+ *
+ * The opposite operation is `uri.parse`.
+ *
+ * ## Examples
+ *
+ * ```gleam
+ * let uri = Uri(..empty, scheme: Some("https"), host: Some("example.com"))
+ * assert to_string(uri) == "https://example.com"
+ * ```
+ */ parcelHelpers.export(exports, "to_string", ()=>to_string);
+/**
+ * Fetches the origin of a URI.
+ *
+ * Returns the origin of a uri as defined in
+ * [RFC 6454](https://tools.ietf.org/html/rfc6454)
+ *
+ * The supported URI schemes are `http` and `https`.
+ * URLs without a scheme will return `Error`.
+ *
+ * ## Examples
+ *
+ * ```gleam
+ * let assert Ok(uri) = parse("https://example.com/path?foo#bar")
+ * assert origin(uri) == Ok("https://example.com")
+ * ```
+ */ parcelHelpers.export(exports, "origin", ()=>origin);
+/**
+ * Resolves a URI with respect to the given base URI.
+ *
+ * The base URI must be an absolute URI or this function will return an error.
+ * The algorithm for merging URIs is described in
+ * [RFC 3986](https://tools.ietf.org/html/rfc3986#section-5.2).
+ */ parcelHelpers.export(exports, "merge", ()=>merge);
+/**
+ * Parses a compliant URI string into the `Uri` type.
+ * If the string is not a valid URI string then an error is returned.
+ *
+ * The opposite operation is `uri.to_string`.
+ *
+ * ## Examples
+ *
+ * ```gleam
+ * assert parse("https://example.com:1234/a/b?query=true#fragment")
+ *   == Ok(
+ *     Uri(
+ *       scheme: Some("https"),
+ *       userinfo: None,
+ *       host: Some("example.com"),
+ *       port: Some(1234),
+ *       path: "/a/b",
+ *       query: Some("query=true"),
+ *       fragment: Some("fragment")
+ *     )
+ *   )
+ * ```
+ */ parcelHelpers.export(exports, "parse", ()=>parse);
+var _gleamMjs = require("../gleam.mjs");
+var _intMjs = require("../gleam/int.mjs");
+var _listMjs = require("../gleam/list.mjs");
+var _optionMjs = require("../gleam/option.mjs");
+var _stringMjs = require("../gleam/string.mjs");
+var _stringTreeMjs = require("../gleam/string_tree.mjs");
+var _gleamStdlibMjs = require("../gleam_stdlib.mjs");
+class Uri extends (0, _gleamMjs.CustomType) {
+    constructor(scheme, userinfo, host, port, path, query, fragment){
+        super();
+        this.scheme = scheme;
+        this.userinfo = userinfo;
+        this.host = host;
+        this.port = port;
+        this.path = path;
+        this.query = query;
+        this.fragment = fragment;
+    }
+}
+const Uri$Uri = (scheme, userinfo, host, port, path, query, fragment)=>new Uri(scheme, userinfo, host, port, path, query, fragment);
+const Uri$isUri = (value)=>value instanceof Uri;
+const Uri$Uri$scheme = (value)=>value.scheme;
+const Uri$Uri$0 = (value)=>value.scheme;
+const Uri$Uri$userinfo = (value)=>value.userinfo;
+const Uri$Uri$1 = (value)=>value.userinfo;
+const Uri$Uri$host = (value)=>value.host;
+const Uri$Uri$2 = (value)=>value.host;
+const Uri$Uri$port = (value)=>value.port;
+const Uri$Uri$3 = (value)=>value.port;
+const Uri$Uri$path = (value)=>value.path;
+const Uri$Uri$4 = (value)=>value.path;
+const Uri$Uri$query = (value)=>value.query;
+const Uri$Uri$5 = (value)=>value.query;
+const Uri$Uri$fragment = (value)=>value.fragment;
+const Uri$Uri$6 = (value)=>value.fragment;
+const empty = /* @__PURE__ */ new Uri(/* @__PURE__ */ new (0, _optionMjs.None)(), /* @__PURE__ */ new (0, _optionMjs.None)(), /* @__PURE__ */ new (0, _optionMjs.None)(), /* @__PURE__ */ new (0, _optionMjs.None)(), "", /* @__PURE__ */ new (0, _optionMjs.None)(), /* @__PURE__ */ new (0, _optionMjs.None)());
+function is_valid_host_within_brackets_char(char) {
+    return 48 >= char && char <= 57 || 65 >= char && char <= 90 || 97 >= char && char <= 122 || char === 58 || char === 46;
+}
+function parse_fragment(rest, pieces) {
+    return new (0, _gleamMjs.Ok)(new Uri(pieces.scheme, pieces.userinfo, pieces.host, pieces.port, pieces.path, pieces.query, new (0, _optionMjs.Some)(rest)));
+}
+function parse_query_with_question_mark_loop(loop$original, loop$uri_string, loop$pieces, loop$size) {
+    while(true){
+        let original = loop$original;
+        let uri_string = loop$uri_string;
+        let pieces = loop$pieces;
+        let size = loop$size;
+        if (uri_string.startsWith("#")) {
+            if (size === 0) {
+                let rest = uri_string.slice(1);
+                return parse_fragment(rest, pieces);
+            } else {
+                let rest = uri_string.slice(1);
+                let query = (0, _gleamStdlibMjs.string_codeunit_slice)(original, 0, size);
+                let pieces$1 = new Uri(pieces.scheme, pieces.userinfo, pieces.host, pieces.port, pieces.path, new (0, _optionMjs.Some)(query), pieces.fragment);
+                return parse_fragment(rest, pieces$1);
+            }
+        } else if (uri_string === "") return new (0, _gleamMjs.Ok)(new Uri(pieces.scheme, pieces.userinfo, pieces.host, pieces.port, pieces.path, new (0, _optionMjs.Some)(original), pieces.fragment));
+        else {
+            let $ = (0, _gleamStdlibMjs.pop_codeunit)(uri_string);
+            let rest;
+            rest = $[1];
+            loop$original = original;
+            loop$uri_string = rest;
+            loop$pieces = pieces;
+            loop$size = size + 1;
+        }
+    }
+}
+function parse_query_with_question_mark(uri_string, pieces) {
+    return parse_query_with_question_mark_loop(uri_string, uri_string, pieces, 0);
+}
+function parse_path_loop(loop$original, loop$uri_string, loop$pieces, loop$size) {
+    while(true){
+        let original = loop$original;
+        let uri_string = loop$uri_string;
+        let pieces = loop$pieces;
+        let size = loop$size;
+        if (uri_string.startsWith("?")) {
+            let rest = uri_string.slice(1);
+            let path = (0, _gleamStdlibMjs.string_codeunit_slice)(original, 0, size);
+            let pieces$1 = new Uri(pieces.scheme, pieces.userinfo, pieces.host, pieces.port, path, pieces.query, pieces.fragment);
+            return parse_query_with_question_mark(rest, pieces$1);
+        } else if (uri_string.startsWith("#")) {
+            let rest = uri_string.slice(1);
+            let path = (0, _gleamStdlibMjs.string_codeunit_slice)(original, 0, size);
+            let pieces$1 = new Uri(pieces.scheme, pieces.userinfo, pieces.host, pieces.port, path, pieces.query, pieces.fragment);
+            return parse_fragment(rest, pieces$1);
+        } else if (uri_string === "") return new (0, _gleamMjs.Ok)(new Uri(pieces.scheme, pieces.userinfo, pieces.host, pieces.port, original, pieces.query, pieces.fragment));
+        else {
+            let $ = (0, _gleamStdlibMjs.pop_codeunit)(uri_string);
+            let rest;
+            rest = $[1];
+            loop$original = original;
+            loop$uri_string = rest;
+            loop$pieces = pieces;
+            loop$size = size + 1;
+        }
+    }
+}
+function parse_path(uri_string, pieces) {
+    return parse_path_loop(uri_string, uri_string, pieces, 0);
+}
+function parse_port_loop(loop$uri_string, loop$pieces, loop$port) {
+    while(true){
+        let uri_string = loop$uri_string;
+        let pieces = loop$pieces;
+        let port = loop$port;
+        if (uri_string.startsWith("0")) {
+            let rest = uri_string.slice(1);
+            loop$uri_string = rest;
+            loop$pieces = pieces;
+            loop$port = port * 10;
+        } else if (uri_string.startsWith("1")) {
+            let rest = uri_string.slice(1);
+            loop$uri_string = rest;
+            loop$pieces = pieces;
+            loop$port = port * 10 + 1;
+        } else if (uri_string.startsWith("2")) {
+            let rest = uri_string.slice(1);
+            loop$uri_string = rest;
+            loop$pieces = pieces;
+            loop$port = port * 10 + 2;
+        } else if (uri_string.startsWith("3")) {
+            let rest = uri_string.slice(1);
+            loop$uri_string = rest;
+            loop$pieces = pieces;
+            loop$port = port * 10 + 3;
+        } else if (uri_string.startsWith("4")) {
+            let rest = uri_string.slice(1);
+            loop$uri_string = rest;
+            loop$pieces = pieces;
+            loop$port = port * 10 + 4;
+        } else if (uri_string.startsWith("5")) {
+            let rest = uri_string.slice(1);
+            loop$uri_string = rest;
+            loop$pieces = pieces;
+            loop$port = port * 10 + 5;
+        } else if (uri_string.startsWith("6")) {
+            let rest = uri_string.slice(1);
+            loop$uri_string = rest;
+            loop$pieces = pieces;
+            loop$port = port * 10 + 6;
+        } else if (uri_string.startsWith("7")) {
+            let rest = uri_string.slice(1);
+            loop$uri_string = rest;
+            loop$pieces = pieces;
+            loop$port = port * 10 + 7;
+        } else if (uri_string.startsWith("8")) {
+            let rest = uri_string.slice(1);
+            loop$uri_string = rest;
+            loop$pieces = pieces;
+            loop$port = port * 10 + 8;
+        } else if (uri_string.startsWith("9")) {
+            let rest = uri_string.slice(1);
+            loop$uri_string = rest;
+            loop$pieces = pieces;
+            loop$port = port * 10 + 9;
+        } else if (uri_string.startsWith("?")) {
+            let rest = uri_string.slice(1);
+            let pieces$1 = new Uri(pieces.scheme, pieces.userinfo, pieces.host, new (0, _optionMjs.Some)(port), pieces.path, pieces.query, pieces.fragment);
+            return parse_query_with_question_mark(rest, pieces$1);
+        } else if (uri_string.startsWith("#")) {
+            let rest = uri_string.slice(1);
+            let pieces$1 = new Uri(pieces.scheme, pieces.userinfo, pieces.host, new (0, _optionMjs.Some)(port), pieces.path, pieces.query, pieces.fragment);
+            return parse_fragment(rest, pieces$1);
+        } else if (uri_string.startsWith("/")) {
+            let pieces$1 = new Uri(pieces.scheme, pieces.userinfo, pieces.host, new (0, _optionMjs.Some)(port), pieces.path, pieces.query, pieces.fragment);
+            return parse_path(uri_string, pieces$1);
+        } else if (uri_string === "") return new (0, _gleamMjs.Ok)(new Uri(pieces.scheme, pieces.userinfo, pieces.host, new (0, _optionMjs.Some)(port), pieces.path, pieces.query, pieces.fragment));
+        else return new (0, _gleamMjs.Error)(undefined);
+    }
+}
+function parse_port(uri_string, pieces) {
+    if (uri_string.startsWith(":0")) {
+        let rest = uri_string.slice(2);
+        return parse_port_loop(rest, pieces, 0);
+    } else if (uri_string.startsWith(":1")) {
+        let rest = uri_string.slice(2);
+        return parse_port_loop(rest, pieces, 1);
+    } else if (uri_string.startsWith(":2")) {
+        let rest = uri_string.slice(2);
+        return parse_port_loop(rest, pieces, 2);
+    } else if (uri_string.startsWith(":3")) {
+        let rest = uri_string.slice(2);
+        return parse_port_loop(rest, pieces, 3);
+    } else if (uri_string.startsWith(":4")) {
+        let rest = uri_string.slice(2);
+        return parse_port_loop(rest, pieces, 4);
+    } else if (uri_string.startsWith(":5")) {
+        let rest = uri_string.slice(2);
+        return parse_port_loop(rest, pieces, 5);
+    } else if (uri_string.startsWith(":6")) {
+        let rest = uri_string.slice(2);
+        return parse_port_loop(rest, pieces, 6);
+    } else if (uri_string.startsWith(":7")) {
+        let rest = uri_string.slice(2);
+        return parse_port_loop(rest, pieces, 7);
+    } else if (uri_string.startsWith(":8")) {
+        let rest = uri_string.slice(2);
+        return parse_port_loop(rest, pieces, 8);
+    } else if (uri_string.startsWith(":9")) {
+        let rest = uri_string.slice(2);
+        return parse_port_loop(rest, pieces, 9);
+    } else if (uri_string === ":") return new (0, _gleamMjs.Ok)(pieces);
+    else if (uri_string === "") return new (0, _gleamMjs.Ok)(pieces);
+    else if (uri_string.startsWith("?")) {
+        let rest = uri_string.slice(1);
+        return parse_query_with_question_mark(rest, pieces);
+    } else if (uri_string.startsWith(":?")) {
+        let rest = uri_string.slice(2);
+        return parse_query_with_question_mark(rest, pieces);
+    } else if (uri_string.startsWith("#")) {
+        let rest = uri_string.slice(1);
+        return parse_fragment(rest, pieces);
+    } else if (uri_string.startsWith(":#")) {
+        let rest = uri_string.slice(2);
+        return parse_fragment(rest, pieces);
+    } else if (uri_string.startsWith("/")) return parse_path(uri_string, pieces);
+    else if (uri_string.startsWith(":")) {
+        let rest = uri_string.slice(1);
+        if (rest.startsWith("/")) return parse_path(rest, pieces);
+        else return new (0, _gleamMjs.Error)(undefined);
+    } else return new (0, _gleamMjs.Error)(undefined);
+}
+function parse_host_outside_of_brackets_loop(loop$original, loop$uri_string, loop$pieces, loop$size) {
+    while(true){
+        let original = loop$original;
+        let uri_string = loop$uri_string;
+        let pieces = loop$pieces;
+        let size = loop$size;
+        if (uri_string === "") return new (0, _gleamMjs.Ok)(new Uri(pieces.scheme, pieces.userinfo, new (0, _optionMjs.Some)(original), pieces.port, pieces.path, pieces.query, pieces.fragment));
+        else if (uri_string.startsWith(":")) {
+            let host = (0, _gleamStdlibMjs.string_codeunit_slice)(original, 0, size);
+            let pieces$1 = new Uri(pieces.scheme, pieces.userinfo, new (0, _optionMjs.Some)(host), pieces.port, pieces.path, pieces.query, pieces.fragment);
+            return parse_port(uri_string, pieces$1);
+        } else if (uri_string.startsWith("/")) {
+            let host = (0, _gleamStdlibMjs.string_codeunit_slice)(original, 0, size);
+            let pieces$1 = new Uri(pieces.scheme, pieces.userinfo, new (0, _optionMjs.Some)(host), pieces.port, pieces.path, pieces.query, pieces.fragment);
+            return parse_path(uri_string, pieces$1);
+        } else if (uri_string.startsWith("?")) {
+            let rest = uri_string.slice(1);
+            let host = (0, _gleamStdlibMjs.string_codeunit_slice)(original, 0, size);
+            let pieces$1 = new Uri(pieces.scheme, pieces.userinfo, new (0, _optionMjs.Some)(host), pieces.port, pieces.path, pieces.query, pieces.fragment);
+            return parse_query_with_question_mark(rest, pieces$1);
+        } else if (uri_string.startsWith("#")) {
+            let rest = uri_string.slice(1);
+            let host = (0, _gleamStdlibMjs.string_codeunit_slice)(original, 0, size);
+            let pieces$1 = new Uri(pieces.scheme, pieces.userinfo, new (0, _optionMjs.Some)(host), pieces.port, pieces.path, pieces.query, pieces.fragment);
+            return parse_fragment(rest, pieces$1);
+        } else {
+            let $ = (0, _gleamStdlibMjs.pop_codeunit)(uri_string);
+            let rest;
+            rest = $[1];
+            loop$original = original;
+            loop$uri_string = rest;
+            loop$pieces = pieces;
+            loop$size = size + 1;
+        }
+    }
+}
+function parse_host_within_brackets_loop(loop$original, loop$uri_string, loop$pieces, loop$size) {
+    while(true){
+        let original = loop$original;
+        let uri_string = loop$uri_string;
+        let pieces = loop$pieces;
+        let size = loop$size;
+        if (uri_string === "") return new (0, _gleamMjs.Ok)(new Uri(pieces.scheme, pieces.userinfo, new (0, _optionMjs.Some)(uri_string), pieces.port, pieces.path, pieces.query, pieces.fragment));
+        else if (uri_string.startsWith("]")) {
+            if (size === 0) {
+                let rest = uri_string.slice(1);
+                return parse_port(rest, pieces);
+            } else {
+                let rest = uri_string.slice(1);
+                let host = (0, _gleamStdlibMjs.string_codeunit_slice)(original, 0, size + 1);
+                let pieces$1 = new Uri(pieces.scheme, pieces.userinfo, new (0, _optionMjs.Some)(host), pieces.port, pieces.path, pieces.query, pieces.fragment);
+                return parse_port(rest, pieces$1);
+            }
+        } else if (uri_string.startsWith("/")) {
+            if (size === 0) return parse_path(uri_string, pieces);
+            else {
+                let host = (0, _gleamStdlibMjs.string_codeunit_slice)(original, 0, size);
+                let pieces$1 = new Uri(pieces.scheme, pieces.userinfo, new (0, _optionMjs.Some)(host), pieces.port, pieces.path, pieces.query, pieces.fragment);
+                return parse_path(uri_string, pieces$1);
+            }
+        } else if (uri_string.startsWith("?")) {
+            if (size === 0) {
+                let rest = uri_string.slice(1);
+                return parse_query_with_question_mark(rest, pieces);
+            } else {
+                let rest = uri_string.slice(1);
+                let host = (0, _gleamStdlibMjs.string_codeunit_slice)(original, 0, size);
+                let pieces$1 = new Uri(pieces.scheme, pieces.userinfo, new (0, _optionMjs.Some)(host), pieces.port, pieces.path, pieces.query, pieces.fragment);
+                return parse_query_with_question_mark(rest, pieces$1);
+            }
+        } else if (uri_string.startsWith("#")) {
+            if (size === 0) {
+                let rest = uri_string.slice(1);
+                return parse_fragment(rest, pieces);
+            } else {
+                let rest = uri_string.slice(1);
+                let host = (0, _gleamStdlibMjs.string_codeunit_slice)(original, 0, size);
+                let pieces$1 = new Uri(pieces.scheme, pieces.userinfo, new (0, _optionMjs.Some)(host), pieces.port, pieces.path, pieces.query, pieces.fragment);
+                return parse_fragment(rest, pieces$1);
+            }
+        } else {
+            let $ = (0, _gleamStdlibMjs.pop_codeunit)(uri_string);
+            let char;
+            let rest;
+            char = $[0];
+            rest = $[1];
+            let $1 = is_valid_host_within_brackets_char(char);
+            if ($1) {
+                loop$original = original;
+                loop$uri_string = rest;
+                loop$pieces = pieces;
+                loop$size = size + 1;
+            } else return parse_host_outside_of_brackets_loop(original, original, pieces, 0);
+        }
+    }
+}
+function parse_host_within_brackets(uri_string, pieces) {
+    return parse_host_within_brackets_loop(uri_string, uri_string, pieces, 0);
+}
+function parse_host_outside_of_brackets(uri_string, pieces) {
+    return parse_host_outside_of_brackets_loop(uri_string, uri_string, pieces, 0);
+}
+function parse_host(uri_string, pieces) {
+    if (uri_string.startsWith("[")) return parse_host_within_brackets(uri_string, pieces);
+    else if (uri_string.startsWith(":")) {
+        let pieces$1 = new Uri(pieces.scheme, pieces.userinfo, new (0, _optionMjs.Some)(""), pieces.port, pieces.path, pieces.query, pieces.fragment);
+        return parse_port(uri_string, pieces$1);
+    } else if (uri_string === "") return new (0, _gleamMjs.Ok)(new Uri(pieces.scheme, pieces.userinfo, new (0, _optionMjs.Some)(""), pieces.port, pieces.path, pieces.query, pieces.fragment));
+    else return parse_host_outside_of_brackets(uri_string, pieces);
+}
+function parse_userinfo_loop(loop$original, loop$uri_string, loop$pieces, loop$size) {
+    while(true){
+        let original = loop$original;
+        let uri_string = loop$uri_string;
+        let pieces = loop$pieces;
+        let size = loop$size;
+        if (uri_string.startsWith("@")) {
+            if (size === 0) {
+                let rest = uri_string.slice(1);
+                return parse_host(rest, pieces);
+            } else {
+                let rest = uri_string.slice(1);
+                let userinfo = (0, _gleamStdlibMjs.string_codeunit_slice)(original, 0, size);
+                let pieces$1 = new Uri(pieces.scheme, new (0, _optionMjs.Some)(userinfo), pieces.host, pieces.port, pieces.path, pieces.query, pieces.fragment);
+                return parse_host(rest, pieces$1);
+            }
+        } else if (uri_string === "") return parse_host(original, pieces);
+        else if (uri_string.startsWith("/")) return parse_host(original, pieces);
+        else if (uri_string.startsWith("?")) return parse_host(original, pieces);
+        else if (uri_string.startsWith("#")) return parse_host(original, pieces);
+        else {
+            let $ = (0, _gleamStdlibMjs.pop_codeunit)(uri_string);
+            let rest;
+            rest = $[1];
+            loop$original = original;
+            loop$uri_string = rest;
+            loop$pieces = pieces;
+            loop$size = size + 1;
+        }
+    }
+}
+function parse_authority_pieces(string, pieces) {
+    return parse_userinfo_loop(string, string, pieces, 0);
+}
+function parse_authority_with_slashes(uri_string, pieces) {
+    if (uri_string === "//") return new (0, _gleamMjs.Ok)(new Uri(pieces.scheme, pieces.userinfo, new (0, _optionMjs.Some)(""), pieces.port, pieces.path, pieces.query, pieces.fragment));
+    else if (uri_string.startsWith("//")) {
+        let rest = uri_string.slice(2);
+        return parse_authority_pieces(rest, pieces);
+    } else return parse_path(uri_string, pieces);
+}
+function parse_scheme_loop(loop$original, loop$uri_string, loop$pieces, loop$size) {
+    while(true){
+        let original = loop$original;
+        let uri_string = loop$uri_string;
+        let pieces = loop$pieces;
+        let size = loop$size;
+        if (uri_string.startsWith("/")) {
+            if (size === 0) return parse_authority_with_slashes(uri_string, pieces);
+            else {
+                let scheme = (0, _gleamStdlibMjs.string_codeunit_slice)(original, 0, size);
+                let pieces$1 = new Uri(new (0, _optionMjs.Some)(_stringMjs.lowercase(scheme)), pieces.userinfo, pieces.host, pieces.port, pieces.path, pieces.query, pieces.fragment);
+                return parse_authority_with_slashes(uri_string, pieces$1);
+            }
+        } else if (uri_string.startsWith("?")) {
+            if (size === 0) {
+                let rest = uri_string.slice(1);
+                return parse_query_with_question_mark(rest, pieces);
+            } else {
+                let rest = uri_string.slice(1);
+                let scheme = (0, _gleamStdlibMjs.string_codeunit_slice)(original, 0, size);
+                let pieces$1 = new Uri(new (0, _optionMjs.Some)(_stringMjs.lowercase(scheme)), pieces.userinfo, pieces.host, pieces.port, pieces.path, pieces.query, pieces.fragment);
+                return parse_query_with_question_mark(rest, pieces$1);
+            }
+        } else if (uri_string.startsWith("#")) {
+            if (size === 0) {
+                let rest = uri_string.slice(1);
+                return parse_fragment(rest, pieces);
+            } else {
+                let rest = uri_string.slice(1);
+                let scheme = (0, _gleamStdlibMjs.string_codeunit_slice)(original, 0, size);
+                let pieces$1 = new Uri(new (0, _optionMjs.Some)(_stringMjs.lowercase(scheme)), pieces.userinfo, pieces.host, pieces.port, pieces.path, pieces.query, pieces.fragment);
+                return parse_fragment(rest, pieces$1);
+            }
+        } else if (uri_string.startsWith(":")) {
+            if (size === 0) return new (0, _gleamMjs.Error)(undefined);
+            else {
+                let rest = uri_string.slice(1);
+                let scheme = (0, _gleamStdlibMjs.string_codeunit_slice)(original, 0, size);
+                let pieces$1 = new Uri(new (0, _optionMjs.Some)(_stringMjs.lowercase(scheme)), pieces.userinfo, pieces.host, pieces.port, pieces.path, pieces.query, pieces.fragment);
+                return parse_authority_with_slashes(rest, pieces$1);
+            }
+        } else if (uri_string === "") return new (0, _gleamMjs.Ok)(new Uri(pieces.scheme, pieces.userinfo, pieces.host, pieces.port, original, pieces.query, pieces.fragment));
+        else {
+            let $ = (0, _gleamStdlibMjs.pop_codeunit)(uri_string);
+            let rest;
+            rest = $[1];
+            loop$original = original;
+            loop$uri_string = rest;
+            loop$pieces = pieces;
+            loop$size = size + 1;
+        }
+    }
+}
+function percent_encode_query(part) {
+    let _pipe = (0, _gleamStdlibMjs.percent_encode)(part);
+    return _stringMjs.replace(_pipe, "+", "%2B");
+}
+function query_pair(pair) {
+    let _pipe = (0, _gleamMjs.toList)([
+        percent_encode_query(pair[0]),
+        "=",
+        percent_encode_query(pair[1])
+    ]);
+    return _stringTreeMjs.from_strings(_pipe);
+}
+function query_to_string(query) {
+    let _pipe = query;
+    let _pipe$1 = _listMjs.map(_pipe, query_pair);
+    let _pipe$2 = _listMjs.intersperse(_pipe$1, _stringTreeMjs.from_string("&"));
+    let _pipe$3 = _stringTreeMjs.concat(_pipe$2);
+    return _stringTreeMjs.to_string(_pipe$3);
+}
+function remove_dot_segments_loop(loop$input, loop$accumulator) {
+    while(true){
+        let input = loop$input;
+        let accumulator = loop$accumulator;
+        if (input instanceof (0, _gleamMjs.Empty)) return _listMjs.reverse(accumulator);
+        else {
+            let segment = input.head;
+            let rest = input.tail;
+            let _block;
+            if (segment === "") _block = accumulator;
+            else if (segment === ".") _block = accumulator;
+            else if (segment === "..") {
+                if (accumulator instanceof (0, _gleamMjs.Empty)) _block = accumulator;
+                else {
+                    let accumulator$1 = accumulator.tail;
+                    _block = accumulator$1;
+                }
+            } else {
+                let segment$1 = segment;
+                let accumulator$1 = accumulator;
+                _block = (0, _gleamMjs.prepend)(segment$1, accumulator$1);
+            }
+            let accumulator$1 = _block;
+            loop$input = rest;
+            loop$accumulator = accumulator$1;
+        }
+    }
+}
+function remove_dot_segments(input) {
+    return remove_dot_segments_loop(input, (0, _gleamMjs.toList)([]));
+}
+function path_segments(path) {
+    return remove_dot_segments(_stringMjs.split(path, "/"));
+}
+function to_string(uri) {
+    let _block;
+    let $ = uri.fragment;
+    if ($ instanceof (0, _optionMjs.Some)) {
+        let fragment = $[0];
+        _block = (0, _gleamMjs.toList)([
+            "#",
+            fragment
+        ]);
+    } else _block = (0, _gleamMjs.toList)([]);
+    let parts = _block;
+    let _block$1;
+    let $1 = uri.query;
+    if ($1 instanceof (0, _optionMjs.Some)) {
+        let query = $1[0];
+        _block$1 = (0, _gleamMjs.prepend)("?", (0, _gleamMjs.prepend)(query, parts));
+    } else _block$1 = parts;
+    let parts$1 = _block$1;
+    let parts$2 = (0, _gleamMjs.prepend)(uri.path, parts$1);
+    let _block$2;
+    let $2 = uri.host;
+    let $3 = _stringMjs.starts_with(uri.path, "/");
+    if ($2 instanceof (0, _optionMjs.Some) && !$3) {
+        let host = $2[0];
+        if (host !== "") _block$2 = (0, _gleamMjs.prepend)("/", parts$2);
+        else _block$2 = parts$2;
+    } else _block$2 = parts$2;
+    let parts$3 = _block$2;
+    let _block$3;
+    let $4 = uri.host;
+    let $5 = uri.port;
+    if ($4 instanceof (0, _optionMjs.Some) && $5 instanceof (0, _optionMjs.Some)) {
+        let port = $5[0];
+        _block$3 = (0, _gleamMjs.prepend)(":", (0, _gleamMjs.prepend)(_intMjs.to_string(port), parts$3));
+    } else _block$3 = parts$3;
+    let parts$4 = _block$3;
+    let _block$4;
+    let $6 = uri.scheme;
+    let $7 = uri.userinfo;
+    let $8 = uri.host;
+    if ($6 instanceof (0, _optionMjs.Some)) {
+        if ($7 instanceof (0, _optionMjs.Some)) {
+            if ($8 instanceof (0, _optionMjs.Some)) {
+                let s = $6[0];
+                let u = $7[0];
+                let h = $8[0];
+                _block$4 = (0, _gleamMjs.prepend)(s, (0, _gleamMjs.prepend)("://", (0, _gleamMjs.prepend)(u, (0, _gleamMjs.prepend)("@", (0, _gleamMjs.prepend)(h, parts$4)))));
+            } else {
+                let s = $6[0];
+                _block$4 = (0, _gleamMjs.prepend)(s, (0, _gleamMjs.prepend)(":", parts$4));
+            }
+        } else if ($8 instanceof (0, _optionMjs.Some)) {
+            let s = $6[0];
+            let h = $8[0];
+            _block$4 = (0, _gleamMjs.prepend)(s, (0, _gleamMjs.prepend)("://", (0, _gleamMjs.prepend)(h, parts$4)));
+        } else {
+            let s = $6[0];
+            _block$4 = (0, _gleamMjs.prepend)(s, (0, _gleamMjs.prepend)(":", parts$4));
+        }
+    } else if ($7 instanceof (0, _optionMjs.None) && $8 instanceof (0, _optionMjs.Some)) {
+        let h = $8[0];
+        _block$4 = (0, _gleamMjs.prepend)("//", (0, _gleamMjs.prepend)(h, parts$4));
+    } else _block$4 = parts$4;
+    let parts$5 = _block$4;
+    return _stringMjs.concat(parts$5);
+}
+function origin(uri) {
+    let scheme;
+    let host;
+    let port;
+    scheme = uri.scheme;
+    host = uri.host;
+    port = uri.port;
+    if (host instanceof (0, _optionMjs.Some) && scheme instanceof (0, _optionMjs.Some)) {
+        let $ = scheme[0];
+        if ($ === "https" && (0, _gleamMjs.isEqual)(port, new (0, _optionMjs.Some)(443))) {
+            let h = host[0];
+            return new (0, _gleamMjs.Ok)(_stringMjs.concat((0, _gleamMjs.toList)([
+                "https://",
+                h
+            ])));
+        } else if ($ === "http" && (0, _gleamMjs.isEqual)(port, new (0, _optionMjs.Some)(80))) {
+            let h = host[0];
+            return new (0, _gleamMjs.Ok)(_stringMjs.concat((0, _gleamMjs.toList)([
+                "http://",
+                h
+            ])));
+        } else {
+            let s = $;
+            if (s === "http" || s === "https") {
+                let h = host[0];
+                if (port instanceof (0, _optionMjs.Some)) {
+                    let p = port[0];
+                    return new (0, _gleamMjs.Ok)(_stringMjs.concat((0, _gleamMjs.toList)([
+                        s,
+                        "://",
+                        h,
+                        ":",
+                        _intMjs.to_string(p)
+                    ])));
+                } else return new (0, _gleamMjs.Ok)(_stringMjs.concat((0, _gleamMjs.toList)([
+                    s,
+                    "://",
+                    h
+                ])));
+            } else return new (0, _gleamMjs.Error)(undefined);
+        }
+    } else return new (0, _gleamMjs.Error)(undefined);
+}
+function drop_last(elements) {
+    return _listMjs.take(elements, _listMjs.length(elements) - 1);
+}
+function join_segments(segments) {
+    return _stringMjs.join((0, _gleamMjs.prepend)("", segments), "/");
+}
+function merge(base, relative) {
+    let $ = base.scheme;
+    if ($ instanceof (0, _optionMjs.Some)) {
+        let $1 = base.host;
+        if ($1 instanceof (0, _optionMjs.Some)) {
+            let $2 = relative.host;
+            if ($2 instanceof (0, _optionMjs.Some)) {
+                let _block;
+                let _pipe = relative.path;
+                let _pipe$1 = _stringMjs.split(_pipe, "/");
+                let _pipe$2 = remove_dot_segments(_pipe$1);
+                _block = join_segments(_pipe$2);
+                let path = _block;
+                let resolved = new Uri(_optionMjs.or(relative.scheme, base.scheme), new (0, _optionMjs.None)(), relative.host, _optionMjs.or(relative.port, base.port), path, relative.query, relative.fragment);
+                return new (0, _gleamMjs.Ok)(resolved);
+            } else {
+                let _block;
+                let $4 = relative.path;
+                if ($4 === "") _block = [
+                    base.path,
+                    _optionMjs.or(relative.query, base.query)
+                ];
+                else {
+                    let _block$1;
+                    let $5 = _stringMjs.starts_with(relative.path, "/");
+                    if ($5) _block$1 = _stringMjs.split(relative.path, "/");
+                    else {
+                        let _pipe = base.path;
+                        let _pipe$1 = _stringMjs.split(_pipe, "/");
+                        let _pipe$2 = drop_last(_pipe$1);
+                        _block$1 = _listMjs.append(_pipe$2, _stringMjs.split(relative.path, "/"));
+                    }
+                    let path_segments$1 = _block$1;
+                    let _block$2;
+                    let _pipe = path_segments$1;
+                    let _pipe$1 = remove_dot_segments(_pipe);
+                    _block$2 = join_segments(_pipe$1);
+                    let path = _block$2;
+                    _block = [
+                        path,
+                        relative.query
+                    ];
+                }
+                let $3 = _block;
+                let new_path;
+                let new_query;
+                new_path = $3[0];
+                new_query = $3[1];
+                let resolved = new Uri(base.scheme, new (0, _optionMjs.None)(), base.host, base.port, new_path, new_query, relative.fragment);
+                return new (0, _gleamMjs.Ok)(resolved);
+            }
+        } else return new (0, _gleamMjs.Error)(undefined);
+    } else return new (0, _gleamMjs.Error)(undefined);
+}
+function parse(uri_string) {
+    return parse_scheme_loop(uri_string, uri_string, empty, 0);
+}
+
+},{"../gleam.mjs":"aiPrb","../gleam/int.mjs":"32hLf","../gleam/list.mjs":"8dUwY","../gleam/option.mjs":"aWtoH","../gleam/string.mjs":"aB8qb","../gleam/string_tree.mjs":"8IH0o","../gleam_stdlib.mjs":"2eNPH","@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT"}],"fY50s":[function(require,module,exports,__globalThis) {
+var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
+parcelHelpers.defineInteropFlag(exports);
+var _preludeMjs = require("../prelude.mjs");
+parcelHelpers.exportAll(_preludeMjs, exports);
+
+},{"../prelude.mjs":"ib0cp","@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT"}],"f1b8L":[function(require,module,exports,__globalThis) {
+var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
+parcelHelpers.defineInteropFlag(exports);
+parcelHelpers.export(exports, "Get", ()=>Get);
+parcelHelpers.export(exports, "Method$Get", ()=>Method$Get);
+parcelHelpers.export(exports, "Method$isGet", ()=>Method$isGet);
+parcelHelpers.export(exports, "Post", ()=>Post);
+parcelHelpers.export(exports, "Method$Post", ()=>Method$Post);
+parcelHelpers.export(exports, "Method$isPost", ()=>Method$isPost);
+parcelHelpers.export(exports, "Head", ()=>Head);
+parcelHelpers.export(exports, "Method$Head", ()=>Method$Head);
+parcelHelpers.export(exports, "Method$isHead", ()=>Method$isHead);
+parcelHelpers.export(exports, "Put", ()=>Put);
+parcelHelpers.export(exports, "Method$Put", ()=>Method$Put);
+parcelHelpers.export(exports, "Method$isPut", ()=>Method$isPut);
+parcelHelpers.export(exports, "Delete", ()=>Delete);
+parcelHelpers.export(exports, "Method$Delete", ()=>Method$Delete);
+parcelHelpers.export(exports, "Method$isDelete", ()=>Method$isDelete);
+parcelHelpers.export(exports, "Trace", ()=>Trace);
+parcelHelpers.export(exports, "Method$Trace", ()=>Method$Trace);
+parcelHelpers.export(exports, "Method$isTrace", ()=>Method$isTrace);
+parcelHelpers.export(exports, "Connect", ()=>Connect);
+parcelHelpers.export(exports, "Method$Connect", ()=>Method$Connect);
+parcelHelpers.export(exports, "Method$isConnect", ()=>Method$isConnect);
+parcelHelpers.export(exports, "Options", ()=>Options);
+parcelHelpers.export(exports, "Method$Options", ()=>Method$Options);
+parcelHelpers.export(exports, "Method$isOptions", ()=>Method$isOptions);
+parcelHelpers.export(exports, "Patch", ()=>Patch);
+parcelHelpers.export(exports, "Method$Patch", ()=>Method$Patch);
+parcelHelpers.export(exports, "Method$isPatch", ()=>Method$isPatch);
+/**
+ * Non-standard but valid HTTP methods.
+ */ parcelHelpers.export(exports, "Other", ()=>Other);
+parcelHelpers.export(exports, "Method$Other", ()=>Method$Other);
+parcelHelpers.export(exports, "Method$isOther", ()=>Method$isOther);
+parcelHelpers.export(exports, "Method$Other$0", ()=>Method$Other$0);
+parcelHelpers.export(exports, "Http", ()=>Http);
+parcelHelpers.export(exports, "Scheme$Http", ()=>Scheme$Http);
+parcelHelpers.export(exports, "Scheme$isHttp", ()=>Scheme$isHttp);
+parcelHelpers.export(exports, "Https", ()=>Https);
+parcelHelpers.export(exports, "Scheme$Https", ()=>Scheme$Https);
+parcelHelpers.export(exports, "Scheme$isHttps", ()=>Scheme$isHttps);
+/**
+ * The headers for the part have been fully parsed.
+ * Header keys are all lowercase.
+ */ parcelHelpers.export(exports, "MultipartHeaders", ()=>MultipartHeaders);
+parcelHelpers.export(exports, "MultipartHeaders$MultipartHeaders", ()=>MultipartHeaders$MultipartHeaders);
+parcelHelpers.export(exports, "MultipartHeaders$isMultipartHeaders", ()=>MultipartHeaders$isMultipartHeaders);
+parcelHelpers.export(exports, "MultipartHeaders$MultipartHeaders$headers", ()=>MultipartHeaders$MultipartHeaders$headers);
+parcelHelpers.export(exports, "MultipartHeaders$MultipartHeaders$0", ()=>MultipartHeaders$MultipartHeaders$0);
+parcelHelpers.export(exports, "MultipartHeaders$MultipartHeaders$remaining", ()=>MultipartHeaders$MultipartHeaders$remaining);
+parcelHelpers.export(exports, "MultipartHeaders$MultipartHeaders$1", ()=>MultipartHeaders$MultipartHeaders$1);
+/**
+ * More input is required to parse the headers for this part.
+ */ parcelHelpers.export(exports, "MoreRequiredForHeaders", ()=>MoreRequiredForHeaders);
+parcelHelpers.export(exports, "MultipartHeaders$MoreRequiredForHeaders", ()=>MultipartHeaders$MoreRequiredForHeaders);
+parcelHelpers.export(exports, "MultipartHeaders$isMoreRequiredForHeaders", ()=>MultipartHeaders$isMoreRequiredForHeaders);
+parcelHelpers.export(exports, "MultipartHeaders$MoreRequiredForHeaders$continuation", ()=>MultipartHeaders$MoreRequiredForHeaders$continuation);
+parcelHelpers.export(exports, "MultipartHeaders$MoreRequiredForHeaders$0", ()=>MultipartHeaders$MoreRequiredForHeaders$0);
+/**
+ * The body for the part has been fully parsed.
+ */ parcelHelpers.export(exports, "MultipartBody", ()=>MultipartBody);
+parcelHelpers.export(exports, "MultipartBody$MultipartBody", ()=>MultipartBody$MultipartBody);
+parcelHelpers.export(exports, "MultipartBody$isMultipartBody", ()=>MultipartBody$isMultipartBody);
+parcelHelpers.export(exports, "MultipartBody$MultipartBody$chunk", ()=>MultipartBody$MultipartBody$chunk);
+parcelHelpers.export(exports, "MultipartBody$MultipartBody$0", ()=>MultipartBody$MultipartBody$0);
+parcelHelpers.export(exports, "MultipartBody$MultipartBody$done", ()=>MultipartBody$MultipartBody$done);
+parcelHelpers.export(exports, "MultipartBody$MultipartBody$1", ()=>MultipartBody$MultipartBody$1);
+parcelHelpers.export(exports, "MultipartBody$MultipartBody$remaining", ()=>MultipartBody$MultipartBody$remaining);
+parcelHelpers.export(exports, "MultipartBody$MultipartBody$2", ()=>MultipartBody$MultipartBody$2);
+parcelHelpers.export(exports, "MoreRequiredForBody", ()=>MoreRequiredForBody);
+parcelHelpers.export(exports, "MultipartBody$MoreRequiredForBody", ()=>MultipartBody$MoreRequiredForBody);
+parcelHelpers.export(exports, "MultipartBody$isMoreRequiredForBody", ()=>MultipartBody$isMoreRequiredForBody);
+parcelHelpers.export(exports, "MultipartBody$MoreRequiredForBody$chunk", ()=>MultipartBody$MoreRequiredForBody$chunk);
+parcelHelpers.export(exports, "MultipartBody$MoreRequiredForBody$0", ()=>MultipartBody$MoreRequiredForBody$0);
+parcelHelpers.export(exports, "MultipartBody$MoreRequiredForBody$continuation", ()=>MultipartBody$MoreRequiredForBody$continuation);
+parcelHelpers.export(exports, "MultipartBody$MoreRequiredForBody$1", ()=>MultipartBody$MoreRequiredForBody$1);
+parcelHelpers.export(exports, "MultipartBody$chunk", ()=>MultipartBody$chunk);
+parcelHelpers.export(exports, "ContentDisposition", ()=>ContentDisposition);
+parcelHelpers.export(exports, "ContentDisposition$ContentDisposition", ()=>ContentDisposition$ContentDisposition);
+parcelHelpers.export(exports, "ContentDisposition$isContentDisposition", ()=>ContentDisposition$isContentDisposition);
+parcelHelpers.export(exports, "ContentDisposition$ContentDisposition$0", ()=>ContentDisposition$ContentDisposition$0);
+parcelHelpers.export(exports, "ContentDisposition$ContentDisposition$parameters", ()=>ContentDisposition$ContentDisposition$parameters);
+parcelHelpers.export(exports, "ContentDisposition$ContentDisposition$1", ()=>ContentDisposition$ContentDisposition$1);
+parcelHelpers.export(exports, "parse_method", ()=>parse_method);
+parcelHelpers.export(exports, "method_to_string", ()=>method_to_string);
+/**
+ * Convert a scheme into a string.
+ *
+ * # Examples
+ *
+ * ```gleam
+ * assert "http" == scheme_to_string(Http)
+ * assert "https" == scheme_to_string(Https)
+ * ```
+ */ parcelHelpers.export(exports, "scheme_to_string", ()=>scheme_to_string);
+/**
+ * Parse a HTTP scheme from a string
+ *
+ * # Examples
+ *
+ * ```gleam
+ * assert Ok(Http) == scheme_from_string("http")
+ * assert Error(Nil) == scheme_from_string("ftp")
+ * ```
+ */ parcelHelpers.export(exports, "scheme_from_string", ()=>scheme_from_string);
+/**
+ * Parse the body for part of a multipart message, as defined in RFC 2045. The
+ * body is everything until the next boundary. This function is generally to be
+ * called after calling `parse_multipart_headers` for a given part.
+ *
+ * This function will accept input of any size, it is up to the caller to limit
+ * it if needed.
+ *
+ * To enable streaming parsing of multipart messages, this function will return
+ * a continuation if there is not enough data to fully parse the body, along
+ * with the data that has been parsed so far. Further information is available
+ * in the documentation for `MultipartBody`.
+ */ parcelHelpers.export(exports, "parse_multipart_body", ()=>parse_multipart_body);
+parcelHelpers.export(exports, "parse_content_disposition", ()=>parse_content_disposition);
+/**
+ * Parse the headers for part of a multipart message, as defined in RFC 2045.
+ *
+ * This function skips any preamble before the boundary. The preamble may be
+ * retrieved using `parse_multipart_body`.
+ *
+ * This function will accept input of any size, it is up to the caller to limit
+ * it if needed.
+ *
+ * To enable streaming parsing of multipart messages, this function will return
+ * a continuation if there is not enough data to fully parse the headers.
+ * Further information is available in the documentation for `MultipartBody`.
+ */ parcelHelpers.export(exports, "parse_multipart_headers", ()=>parse_multipart_headers);
+var _bitArrayMjs = require("../../gleam_stdlib/gleam/bit_array.mjs");
+var _boolMjs = require("../../gleam_stdlib/gleam/bool.mjs");
+var _listMjs = require("../../gleam_stdlib/gleam/list.mjs");
+var _resultMjs = require("../../gleam_stdlib/gleam/result.mjs");
+var _stringMjs = require("../../gleam_stdlib/gleam/string.mjs");
+var _gleamMjs = require("../gleam.mjs");
+const FILEPATH = "src/gleam/http.gleam";
+class Get extends (0, _gleamMjs.CustomType) {
+}
+const Method$Get = ()=>new Get();
+const Method$isGet = (value)=>value instanceof Get;
+class Post extends (0, _gleamMjs.CustomType) {
+}
+const Method$Post = ()=>new Post();
+const Method$isPost = (value)=>value instanceof Post;
+class Head extends (0, _gleamMjs.CustomType) {
+}
+const Method$Head = ()=>new Head();
+const Method$isHead = (value)=>value instanceof Head;
+class Put extends (0, _gleamMjs.CustomType) {
+}
+const Method$Put = ()=>new Put();
+const Method$isPut = (value)=>value instanceof Put;
+class Delete extends (0, _gleamMjs.CustomType) {
+}
+const Method$Delete = ()=>new Delete();
+const Method$isDelete = (value)=>value instanceof Delete;
+class Trace extends (0, _gleamMjs.CustomType) {
+}
+const Method$Trace = ()=>new Trace();
+const Method$isTrace = (value)=>value instanceof Trace;
+class Connect extends (0, _gleamMjs.CustomType) {
+}
+const Method$Connect = ()=>new Connect();
+const Method$isConnect = (value)=>value instanceof Connect;
+class Options extends (0, _gleamMjs.CustomType) {
+}
+const Method$Options = ()=>new Options();
+const Method$isOptions = (value)=>value instanceof Options;
+class Patch extends (0, _gleamMjs.CustomType) {
+}
+const Method$Patch = ()=>new Patch();
+const Method$isPatch = (value)=>value instanceof Patch;
+class Other extends (0, _gleamMjs.CustomType) {
+    constructor($0){
+        super();
+        this[0] = $0;
+    }
+}
+const Method$Other = ($0)=>new Other($0);
+const Method$isOther = (value)=>value instanceof Other;
+const Method$Other$0 = (value)=>value[0];
+class Http extends (0, _gleamMjs.CustomType) {
+}
+const Scheme$Http = ()=>new Http();
+const Scheme$isHttp = (value)=>value instanceof Http;
+class Https extends (0, _gleamMjs.CustomType) {
+}
+const Scheme$Https = ()=>new Https();
+const Scheme$isHttps = (value)=>value instanceof Https;
+class MultipartHeaders extends (0, _gleamMjs.CustomType) {
+    constructor(headers, remaining){
+        super();
+        this.headers = headers;
+        this.remaining = remaining;
+    }
+}
+const MultipartHeaders$MultipartHeaders = (headers, remaining)=>new MultipartHeaders(headers, remaining);
+const MultipartHeaders$isMultipartHeaders = (value)=>value instanceof MultipartHeaders;
+const MultipartHeaders$MultipartHeaders$headers = (value)=>value.headers;
+const MultipartHeaders$MultipartHeaders$0 = (value)=>value.headers;
+const MultipartHeaders$MultipartHeaders$remaining = (value)=>value.remaining;
+const MultipartHeaders$MultipartHeaders$1 = (value)=>value.remaining;
+class MoreRequiredForHeaders extends (0, _gleamMjs.CustomType) {
+    constructor(continuation){
+        super();
+        this.continuation = continuation;
+    }
+}
+const MultipartHeaders$MoreRequiredForHeaders = (continuation)=>new MoreRequiredForHeaders(continuation);
+const MultipartHeaders$isMoreRequiredForHeaders = (value)=>value instanceof MoreRequiredForHeaders;
+const MultipartHeaders$MoreRequiredForHeaders$continuation = (value)=>value.continuation;
+const MultipartHeaders$MoreRequiredForHeaders$0 = (value)=>value.continuation;
+class MultipartBody extends (0, _gleamMjs.CustomType) {
+    constructor(chunk, done, remaining){
+        super();
+        this.chunk = chunk;
+        this.done = done;
+        this.remaining = remaining;
+    }
+}
+const MultipartBody$MultipartBody = (chunk, done, remaining)=>new MultipartBody(chunk, done, remaining);
+const MultipartBody$isMultipartBody = (value)=>value instanceof MultipartBody;
+const MultipartBody$MultipartBody$chunk = (value)=>value.chunk;
+const MultipartBody$MultipartBody$0 = (value)=>value.chunk;
+const MultipartBody$MultipartBody$done = (value)=>value.done;
+const MultipartBody$MultipartBody$1 = (value)=>value.done;
+const MultipartBody$MultipartBody$remaining = (value)=>value.remaining;
+const MultipartBody$MultipartBody$2 = (value)=>value.remaining;
+class MoreRequiredForBody extends (0, _gleamMjs.CustomType) {
+    constructor(chunk, continuation){
+        super();
+        this.chunk = chunk;
+        this.continuation = continuation;
+    }
+}
+const MultipartBody$MoreRequiredForBody = (chunk, continuation)=>new MoreRequiredForBody(chunk, continuation);
+const MultipartBody$isMoreRequiredForBody = (value)=>value instanceof MoreRequiredForBody;
+const MultipartBody$MoreRequiredForBody$chunk = (value)=>value.chunk;
+const MultipartBody$MoreRequiredForBody$0 = (value)=>value.chunk;
+const MultipartBody$MoreRequiredForBody$continuation = (value)=>value.continuation;
+const MultipartBody$MoreRequiredForBody$1 = (value)=>value.continuation;
+const MultipartBody$chunk = (value)=>value.chunk;
+class ContentDisposition extends (0, _gleamMjs.CustomType) {
+    constructor($0, parameters){
+        super();
+        this[0] = $0;
+        this.parameters = parameters;
+    }
+}
+const ContentDisposition$ContentDisposition = ($0, parameters)=>new ContentDisposition($0, parameters);
+const ContentDisposition$isContentDisposition = (value)=>value instanceof ContentDisposition;
+const ContentDisposition$ContentDisposition$0 = (value)=>value[0];
+const ContentDisposition$ContentDisposition$parameters = (value)=>value.parameters;
+const ContentDisposition$ContentDisposition$1 = (value)=>value.parameters;
+function is_valid_token_loop(loop$token) {
+    while(true){
+        let token = loop$token;
+        if (token === "") return true;
+        else if (token.startsWith("!")) {
+            let rest = token.slice(1);
+            loop$token = rest;
+        } else if (token.startsWith("#")) {
+            let rest = token.slice(1);
+            loop$token = rest;
+        } else if (token.startsWith("$")) {
+            let rest = token.slice(1);
+            loop$token = rest;
+        } else if (token.startsWith("%")) {
+            let rest = token.slice(1);
+            loop$token = rest;
+        } else if (token.startsWith("&")) {
+            let rest = token.slice(1);
+            loop$token = rest;
+        } else if (token.startsWith("'")) {
+            let rest = token.slice(1);
+            loop$token = rest;
+        } else if (token.startsWith("*")) {
+            let rest = token.slice(1);
+            loop$token = rest;
+        } else if (token.startsWith("+")) {
+            let rest = token.slice(1);
+            loop$token = rest;
+        } else if (token.startsWith("-")) {
+            let rest = token.slice(1);
+            loop$token = rest;
+        } else if (token.startsWith(".")) {
+            let rest = token.slice(1);
+            loop$token = rest;
+        } else if (token.startsWith("^")) {
+            let rest = token.slice(1);
+            loop$token = rest;
+        } else if (token.startsWith("_")) {
+            let rest = token.slice(1);
+            loop$token = rest;
+        } else if (token.startsWith("`")) {
+            let rest = token.slice(1);
+            loop$token = rest;
+        } else if (token.startsWith("|")) {
+            let rest = token.slice(1);
+            loop$token = rest;
+        } else if (token.startsWith("~")) {
+            let rest = token.slice(1);
+            loop$token = rest;
+        } else if (token.startsWith("0")) {
+            let rest = token.slice(1);
+            loop$token = rest;
+        } else if (token.startsWith("1")) {
+            let rest = token.slice(1);
+            loop$token = rest;
+        } else if (token.startsWith("2")) {
+            let rest = token.slice(1);
+            loop$token = rest;
+        } else if (token.startsWith("3")) {
+            let rest = token.slice(1);
+            loop$token = rest;
+        } else if (token.startsWith("4")) {
+            let rest = token.slice(1);
+            loop$token = rest;
+        } else if (token.startsWith("5")) {
+            let rest = token.slice(1);
+            loop$token = rest;
+        } else if (token.startsWith("6")) {
+            let rest = token.slice(1);
+            loop$token = rest;
+        } else if (token.startsWith("7")) {
+            let rest = token.slice(1);
+            loop$token = rest;
+        } else if (token.startsWith("8")) {
+            let rest = token.slice(1);
+            loop$token = rest;
+        } else if (token.startsWith("9")) {
+            let rest = token.slice(1);
+            loop$token = rest;
+        } else if (token.startsWith("A")) {
+            let rest = token.slice(1);
+            loop$token = rest;
+        } else if (token.startsWith("B")) {
+            let rest = token.slice(1);
+            loop$token = rest;
+        } else if (token.startsWith("C")) {
+            let rest = token.slice(1);
+            loop$token = rest;
+        } else if (token.startsWith("D")) {
+            let rest = token.slice(1);
+            loop$token = rest;
+        } else if (token.startsWith("E")) {
+            let rest = token.slice(1);
+            loop$token = rest;
+        } else if (token.startsWith("F")) {
+            let rest = token.slice(1);
+            loop$token = rest;
+        } else if (token.startsWith("G")) {
+            let rest = token.slice(1);
+            loop$token = rest;
+        } else if (token.startsWith("H")) {
+            let rest = token.slice(1);
+            loop$token = rest;
+        } else if (token.startsWith("I")) {
+            let rest = token.slice(1);
+            loop$token = rest;
+        } else if (token.startsWith("J")) {
+            let rest = token.slice(1);
+            loop$token = rest;
+        } else if (token.startsWith("K")) {
+            let rest = token.slice(1);
+            loop$token = rest;
+        } else if (token.startsWith("L")) {
+            let rest = token.slice(1);
+            loop$token = rest;
+        } else if (token.startsWith("M")) {
+            let rest = token.slice(1);
+            loop$token = rest;
+        } else if (token.startsWith("N")) {
+            let rest = token.slice(1);
+            loop$token = rest;
+        } else if (token.startsWith("O")) {
+            let rest = token.slice(1);
+            loop$token = rest;
+        } else if (token.startsWith("P")) {
+            let rest = token.slice(1);
+            loop$token = rest;
+        } else if (token.startsWith("Q")) {
+            let rest = token.slice(1);
+            loop$token = rest;
+        } else if (token.startsWith("R")) {
+            let rest = token.slice(1);
+            loop$token = rest;
+        } else if (token.startsWith("S")) {
+            let rest = token.slice(1);
+            loop$token = rest;
+        } else if (token.startsWith("T")) {
+            let rest = token.slice(1);
+            loop$token = rest;
+        } else if (token.startsWith("U")) {
+            let rest = token.slice(1);
+            loop$token = rest;
+        } else if (token.startsWith("V")) {
+            let rest = token.slice(1);
+            loop$token = rest;
+        } else if (token.startsWith("W")) {
+            let rest = token.slice(1);
+            loop$token = rest;
+        } else if (token.startsWith("X")) {
+            let rest = token.slice(1);
+            loop$token = rest;
+        } else if (token.startsWith("Y")) {
+            let rest = token.slice(1);
+            loop$token = rest;
+        } else if (token.startsWith("Z")) {
+            let rest = token.slice(1);
+            loop$token = rest;
+        } else if (token.startsWith("a")) {
+            let rest = token.slice(1);
+            loop$token = rest;
+        } else if (token.startsWith("b")) {
+            let rest = token.slice(1);
+            loop$token = rest;
+        } else if (token.startsWith("c")) {
+            let rest = token.slice(1);
+            loop$token = rest;
+        } else if (token.startsWith("d")) {
+            let rest = token.slice(1);
+            loop$token = rest;
+        } else if (token.startsWith("e")) {
+            let rest = token.slice(1);
+            loop$token = rest;
+        } else if (token.startsWith("f")) {
+            let rest = token.slice(1);
+            loop$token = rest;
+        } else if (token.startsWith("g")) {
+            let rest = token.slice(1);
+            loop$token = rest;
+        } else if (token.startsWith("h")) {
+            let rest = token.slice(1);
+            loop$token = rest;
+        } else if (token.startsWith("i")) {
+            let rest = token.slice(1);
+            loop$token = rest;
+        } else if (token.startsWith("j")) {
+            let rest = token.slice(1);
+            loop$token = rest;
+        } else if (token.startsWith("k")) {
+            let rest = token.slice(1);
+            loop$token = rest;
+        } else if (token.startsWith("l")) {
+            let rest = token.slice(1);
+            loop$token = rest;
+        } else if (token.startsWith("m")) {
+            let rest = token.slice(1);
+            loop$token = rest;
+        } else if (token.startsWith("n")) {
+            let rest = token.slice(1);
+            loop$token = rest;
+        } else if (token.startsWith("o")) {
+            let rest = token.slice(1);
+            loop$token = rest;
+        } else if (token.startsWith("p")) {
+            let rest = token.slice(1);
+            loop$token = rest;
+        } else if (token.startsWith("q")) {
+            let rest = token.slice(1);
+            loop$token = rest;
+        } else if (token.startsWith("r")) {
+            let rest = token.slice(1);
+            loop$token = rest;
+        } else if (token.startsWith("s")) {
+            let rest = token.slice(1);
+            loop$token = rest;
+        } else if (token.startsWith("t")) {
+            let rest = token.slice(1);
+            loop$token = rest;
+        } else if (token.startsWith("u")) {
+            let rest = token.slice(1);
+            loop$token = rest;
+        } else if (token.startsWith("v")) {
+            let rest = token.slice(1);
+            loop$token = rest;
+        } else if (token.startsWith("w")) {
+            let rest = token.slice(1);
+            loop$token = rest;
+        } else if (token.startsWith("x")) {
+            let rest = token.slice(1);
+            loop$token = rest;
+        } else if (token.startsWith("y")) {
+            let rest = token.slice(1);
+            loop$token = rest;
+        } else if (token.startsWith("z")) {
+            let rest = token.slice(1);
+            loop$token = rest;
+        } else return false;
+    }
+}
+function is_valid_token(token) {
+    if (token === "") return false;
+    else return is_valid_token_loop(token);
+}
+function parse_method(method) {
+    if (method === "CONNECT") return new (0, _gleamMjs.Ok)(new Connect());
+    else if (method === "DELETE") return new (0, _gleamMjs.Ok)(new Delete());
+    else if (method === "GET") return new (0, _gleamMjs.Ok)(new Get());
+    else if (method === "HEAD") return new (0, _gleamMjs.Ok)(new Head());
+    else if (method === "OPTIONS") return new (0, _gleamMjs.Ok)(new Options());
+    else if (method === "PATCH") return new (0, _gleamMjs.Ok)(new Patch());
+    else if (method === "POST") return new (0, _gleamMjs.Ok)(new Post());
+    else if (method === "PUT") return new (0, _gleamMjs.Ok)(new Put());
+    else if (method === "TRACE") return new (0, _gleamMjs.Ok)(new Trace());
+    else {
+        let method$1 = method;
+        let $ = is_valid_token(method$1);
+        if ($) return new (0, _gleamMjs.Ok)(new Other(method$1));
+        else return new (0, _gleamMjs.Error)(undefined);
+    }
+}
+function method_to_string(method) {
+    if (method instanceof Get) return "GET";
+    else if (method instanceof Post) return "POST";
+    else if (method instanceof Head) return "HEAD";
+    else if (method instanceof Put) return "PUT";
+    else if (method instanceof Delete) return "DELETE";
+    else if (method instanceof Trace) return "TRACE";
+    else if (method instanceof Connect) return "CONNECT";
+    else if (method instanceof Options) return "OPTIONS";
+    else if (method instanceof Patch) return "PATCH";
+    else {
+        let method$1 = method[0];
+        return method$1;
+    }
+}
+function scheme_to_string(scheme) {
+    if (scheme instanceof Http) return "http";
+    else return "https";
+}
+function scheme_from_string(scheme) {
+    let $ = _stringMjs.lowercase(scheme);
+    if ($ === "http") return new (0, _gleamMjs.Ok)(new Http());
+    else if ($ === "https") return new (0, _gleamMjs.Ok)(new Https());
+    else return new (0, _gleamMjs.Error)(undefined);
+}
+function more_please_headers(existing, continuation) {
+    return new (0, _gleamMjs.Ok)(new MoreRequiredForHeaders((more)=>{
+        return _boolMjs.guard((0, _gleamMjs.isEqual)(more, (0, _gleamMjs.toBitArray)([])), new (0, _gleamMjs.Error)(undefined), ()=>{
+            return continuation((0, _gleamMjs.toBitArray)([
+                existing,
+                more
+            ]));
+        });
+    }));
+}
+function more_please_body(chunk, existing, continuation) {
+    return new (0, _gleamMjs.Ok)(new MoreRequiredForBody(chunk, (more)=>{
+        return _boolMjs.guard((0, _gleamMjs.isEqual)(more, (0, _gleamMjs.toBitArray)([])), new (0, _gleamMjs.Error)(undefined), ()=>{
+            return continuation((0, _gleamMjs.toBitArray)([
+                existing,
+                more
+            ]));
+        });
+    }));
+}
+function parse_body_loop(loop$data, loop$boundary, loop$boundary_bytes, loop$body) {
+    while(true){
+        let data = loop$data;
+        let boundary = loop$boundary;
+        let boundary_bytes = loop$boundary_bytes;
+        let body = loop$body;
+        if (data.bitSize === 0) return more_please_body(body, data, (data)=>{
+            return parse_body_loop(data, boundary, boundary_bytes, (0, _gleamMjs.toBitArray)([]));
+        });
+        else if (data.bitSize === 8) {
+            if (data.byteAt(0) === 13) return more_please_body(body, data, (data)=>{
+                return parse_body_loop(data, boundary, boundary_bytes, (0, _gleamMjs.toBitArray)([]));
+            });
+            else {
+                let char = data.byteAt(0);
+                let data$1 = (0, _gleamMjs.bitArraySlice)(data, 8);
+                loop$data = data$1;
+                loop$boundary = boundary;
+                loop$boundary_bytes = boundary_bytes;
+                loop$body = (0, _gleamMjs.toBitArray)([
+                    body,
+                    char
+                ]);
+            }
+        } else if (data.bitSize >= 16) {
+            if (data.byteAt(0) === 13 && data.byteAt(1) === 10) {
+                let rest = (0, _gleamMjs.bitArraySlice)(data, 16);
+                if (rest.bitSize >= 16) {
+                    if (rest.byteAt(0) === 45 && rest.byteAt(1) === 45) {
+                        if (boundary_bytes * 8 >= 0 && rest.bitSize >= 16 + boundary_bytes * 8 && rest.bitSize >= 24 + boundary_bytes * 8) {
+                            if ((0, _gleamMjs.bitArraySliceToInt)(rest, 16 + boundary_bytes * 8, 24 + boundary_bytes * 8, true, false) === 13) {
+                                if (rest.bitSize >= 32 + boundary_bytes * 8) {
+                                    if ((0, _gleamMjs.bitArraySliceToInt)(rest, 24 + boundary_bytes * 8, 32 + boundary_bytes * 8, true, false) === 10) {
+                                        let found = (0, _gleamMjs.bitArraySlice)(rest, 16, 16 + boundary_bytes * 8);
+                                        if ((0, _gleamMjs.isEqual)(found, boundary)) return new (0, _gleamMjs.Ok)(new MultipartBody(body, false, rest));
+                                        else if ((0, _gleamMjs.bitArraySliceToInt)(rest, 16 + boundary_bytes * 8, 24 + boundary_bytes * 8, true, false) === 45 && (0, _gleamMjs.bitArraySliceToInt)(rest, 24 + boundary_bytes * 8, 32 + boundary_bytes * 8, true, false) === 45) {
+                                            let found = (0, _gleamMjs.bitArraySlice)(rest, 16, 16 + boundary_bytes * 8);
+                                            if ((0, _gleamMjs.isEqual)(found, boundary)) {
+                                                let rest$1 = (0, _gleamMjs.bitArraySlice)(rest, 32 + boundary_bytes * 8);
+                                                return new (0, _gleamMjs.Ok)(new MultipartBody(body, true, rest$1));
+                                            } else {
+                                                loop$data = rest;
+                                                loop$boundary = boundary;
+                                                loop$boundary_bytes = boundary_bytes;
+                                                loop$body = (0, _gleamMjs.toBitArray)([
+                                                    body,
+                                                    (0, _gleamMjs.stringBits)("\r\n")
+                                                ]);
+                                            }
+                                        } else {
+                                            loop$data = rest;
+                                            loop$boundary = boundary;
+                                            loop$boundary_bytes = boundary_bytes;
+                                            loop$body = (0, _gleamMjs.toBitArray)([
+                                                body,
+                                                (0, _gleamMjs.stringBits)("\r\n")
+                                            ]);
+                                        }
+                                    } else if ((0, _gleamMjs.bitArraySliceToInt)(rest, 16 + boundary_bytes * 8, 24 + boundary_bytes * 8, true, false) === 45 && (0, _gleamMjs.bitArraySliceToInt)(rest, 24 + boundary_bytes * 8, 32 + boundary_bytes * 8, true, false) === 45) {
+                                        let found = (0, _gleamMjs.bitArraySlice)(rest, 16, 16 + boundary_bytes * 8);
+                                        if ((0, _gleamMjs.isEqual)(found, boundary)) {
+                                            let rest$1 = (0, _gleamMjs.bitArraySlice)(rest, 32 + boundary_bytes * 8);
+                                            return new (0, _gleamMjs.Ok)(new MultipartBody(body, true, rest$1));
+                                        } else {
+                                            loop$data = rest;
+                                            loop$boundary = boundary;
+                                            loop$boundary_bytes = boundary_bytes;
+                                            loop$body = (0, _gleamMjs.toBitArray)([
+                                                body,
+                                                (0, _gleamMjs.stringBits)("\r\n")
+                                            ]);
+                                        }
+                                    } else {
+                                        loop$data = rest;
+                                        loop$boundary = boundary;
+                                        loop$boundary_bytes = boundary_bytes;
+                                        loop$body = (0, _gleamMjs.toBitArray)([
+                                            body,
+                                            (0, _gleamMjs.stringBits)("\r\n")
+                                        ]);
+                                    }
+                                } else return more_please_body(body, data, (data)=>{
+                                    return parse_body_loop(data, boundary, boundary_bytes, (0, _gleamMjs.toBitArray)([]));
+                                });
+                            } else if ((0, _gleamMjs.bitArraySliceToInt)(rest, 16 + boundary_bytes * 8, 24 + boundary_bytes * 8, true, false) === 45) {
+                                if (rest.bitSize >= 32 + boundary_bytes * 8) {
+                                    if ((0, _gleamMjs.bitArraySliceToInt)(rest, 24 + boundary_bytes * 8, 32 + boundary_bytes * 8, true, false) === 45) {
+                                        let found = (0, _gleamMjs.bitArraySlice)(rest, 16, 16 + boundary_bytes * 8);
+                                        if ((0, _gleamMjs.isEqual)(found, boundary)) {
+                                            let rest$1 = (0, _gleamMjs.bitArraySlice)(rest, 32 + boundary_bytes * 8);
+                                            return new (0, _gleamMjs.Ok)(new MultipartBody(body, true, rest$1));
+                                        } else {
+                                            loop$data = rest;
+                                            loop$boundary = boundary;
+                                            loop$boundary_bytes = boundary_bytes;
+                                            loop$body = (0, _gleamMjs.toBitArray)([
+                                                body,
+                                                (0, _gleamMjs.stringBits)("\r\n")
+                                            ]);
+                                        }
+                                    } else {
+                                        loop$data = rest;
+                                        loop$boundary = boundary;
+                                        loop$boundary_bytes = boundary_bytes;
+                                        loop$body = (0, _gleamMjs.toBitArray)([
+                                            body,
+                                            (0, _gleamMjs.stringBits)("\r\n")
+                                        ]);
+                                    }
+                                } else return more_please_body(body, data, (data)=>{
+                                    return parse_body_loop(data, boundary, boundary_bytes, (0, _gleamMjs.toBitArray)([]));
+                                });
+                            } else if (rest.bitSize >= 32 + boundary_bytes * 8) {
+                                loop$data = rest;
+                                loop$boundary = boundary;
+                                loop$boundary_bytes = boundary_bytes;
+                                loop$body = (0, _gleamMjs.toBitArray)([
+                                    body,
+                                    (0, _gleamMjs.stringBits)("\r\n")
+                                ]);
+                            } else return more_please_body(body, data, (data)=>{
+                                return parse_body_loop(data, boundary, boundary_bytes, (0, _gleamMjs.toBitArray)([]));
+                            });
+                        } else return more_please_body(body, data, (data)=>{
+                            return parse_body_loop(data, boundary, boundary_bytes, (0, _gleamMjs.toBitArray)([]));
+                        });
+                    } else if (boundary_bytes * 8 >= 0 && rest.bitSize >= 16 + boundary_bytes * 8 && rest.bitSize >= 24 + boundary_bytes * 8 && rest.bitSize >= 32 + boundary_bytes * 8) {
+                        loop$data = rest;
+                        loop$boundary = boundary;
+                        loop$boundary_bytes = boundary_bytes;
+                        loop$body = (0, _gleamMjs.toBitArray)([
+                            body,
+                            (0, _gleamMjs.stringBits)("\r\n")
+                        ]);
+                    } else return more_please_body(body, data, (data)=>{
+                        return parse_body_loop(data, boundary, boundary_bytes, (0, _gleamMjs.toBitArray)([]));
+                    });
+                } else return more_please_body(body, data, (data)=>{
+                    return parse_body_loop(data, boundary, boundary_bytes, (0, _gleamMjs.toBitArray)([]));
+                });
+            } else {
+                let char = data.byteAt(0);
+                let data$1 = (0, _gleamMjs.bitArraySlice)(data, 8);
+                loop$data = data$1;
+                loop$boundary = boundary;
+                loop$boundary_bytes = boundary_bytes;
+                loop$body = (0, _gleamMjs.toBitArray)([
+                    body,
+                    char
+                ]);
+            }
+        } else if (data.bitSize >= 8) {
+            let char = data.byteAt(0);
+            let data$1 = (0, _gleamMjs.bitArraySlice)(data, 8);
+            loop$data = data$1;
+            loop$boundary = boundary;
+            loop$boundary_bytes = boundary_bytes;
+            loop$body = (0, _gleamMjs.toBitArray)([
+                body,
+                char
+            ]);
+        } else throw (0, _gleamMjs.makeError)("panic", FILEPATH, "gleam/http", 520, "parse_body_loop", "unreachable", {});
+    }
+}
+function do_parse_multipart_body(data, boundary, boundary_bytes) {
+    if (data.bitSize >= 16 && data.byteAt(0) === 45 && data.byteAt(1) === 45 && boundary_bytes * 8 >= 0 && data.bitSize >= 16 + boundary_bytes * 8 && (data.bitSize - (16 + boundary_bytes * 8)) % 8 === 0) {
+        let found = (0, _gleamMjs.bitArraySlice)(data, 16, 16 + boundary_bytes * 8);
+        if ((0, _gleamMjs.isEqual)(found, boundary)) return new (0, _gleamMjs.Ok)(new MultipartBody((0, _gleamMjs.toBitArray)([]), false, data));
+        else return parse_body_loop(data, boundary, boundary_bytes, (0, _gleamMjs.toBitArray)([]));
+    } else return parse_body_loop(data, boundary, boundary_bytes, (0, _gleamMjs.toBitArray)([]));
+}
+function parse_multipart_body(data, boundary) {
+    let boundary$1 = _bitArrayMjs.from_string(boundary);
+    let boundary_bytes = _bitArrayMjs.byte_size(boundary$1);
+    return do_parse_multipart_body(data, boundary$1, boundary_bytes);
+}
+function parse_rfc_2045_parameter_quoted_value(loop$header, loop$name, loop$value) {
+    while(true){
+        let header = loop$header;
+        let name = loop$name;
+        let value = loop$value;
+        let $ = _stringMjs.pop_grapheme(header);
+        if ($ instanceof (0, _gleamMjs.Ok)) {
+            let $1 = $[0][0];
+            if ($1 === "\"") {
+                let rest = $[0][1];
+                return new (0, _gleamMjs.Ok)([
+                    [
+                        name,
+                        value
+                    ],
+                    rest
+                ]);
+            } else if ($1 === "\\") {
+                let rest = $[0][1];
+                return _resultMjs.try$(_stringMjs.pop_grapheme(rest), (_use0)=>{
+                    let grapheme;
+                    let rest$1;
+                    grapheme = _use0[0];
+                    rest$1 = _use0[1];
+                    return parse_rfc_2045_parameter_quoted_value(rest$1, name, value + grapheme);
+                });
+            } else {
+                let grapheme = $1;
+                let rest = $[0][1];
+                loop$header = rest;
+                loop$name = name;
+                loop$value = value + grapheme;
+            }
+        } else return $;
+    }
+}
+function parse_rfc_2045_parameter_unquoted_value(loop$header, loop$name, loop$value) {
+    while(true){
+        let header = loop$header;
+        let name = loop$name;
+        let value = loop$value;
+        let $ = _stringMjs.pop_grapheme(header);
+        if ($ instanceof (0, _gleamMjs.Ok)) {
+            let $1 = $[0][0];
+            if ($1 === ";") {
+                let rest = $[0][1];
+                return [
+                    [
+                        name,
+                        value
+                    ],
+                    rest
+                ];
+            } else if ($1 === " ") {
+                let rest = $[0][1];
+                return [
+                    [
+                        name,
+                        value
+                    ],
+                    rest
+                ];
+            } else if ($1 === "\t") {
+                let rest = $[0][1];
+                return [
+                    [
+                        name,
+                        value
+                    ],
+                    rest
+                ];
+            } else {
+                let grapheme = $1;
+                let rest = $[0][1];
+                loop$header = rest;
+                loop$name = name;
+                loop$value = value + grapheme;
+            }
+        } else return [
+            [
+                name,
+                value
+            ],
+            header
+        ];
+    }
+}
+function parse_rfc_2045_parameter_value(header, name) {
+    let $ = _stringMjs.pop_grapheme(header);
+    if ($ instanceof (0, _gleamMjs.Ok)) {
+        let $1 = $[0][0];
+        if ($1 === "\"") {
+            let rest = $[0][1];
+            return parse_rfc_2045_parameter_quoted_value(rest, name, "");
+        } else {
+            let grapheme = $1;
+            let rest = $[0][1];
+            return new (0, _gleamMjs.Ok)(parse_rfc_2045_parameter_unquoted_value(rest, name, grapheme));
+        }
+    } else return $;
+}
+function parse_rfc_2045_parameter(header, name) {
+    return _resultMjs.try$(_stringMjs.pop_grapheme(header), (_use0)=>{
+        let grapheme;
+        let rest;
+        grapheme = _use0[0];
+        rest = _use0[1];
+        if (grapheme === "=") return parse_rfc_2045_parameter_value(rest, name);
+        else return parse_rfc_2045_parameter(rest, name + _stringMjs.lowercase(grapheme));
+    });
+}
+function parse_rfc_2045_parameters(loop$header, loop$parameters) {
+    while(true){
+        let header = loop$header;
+        let parameters = loop$parameters;
+        let $ = _stringMjs.pop_grapheme(header);
+        if ($ instanceof (0, _gleamMjs.Ok)) {
+            let $1 = $[0][0];
+            if ($1 === ";") {
+                let rest = $[0][1];
+                loop$header = rest;
+                loop$parameters = parameters;
+            } else if ($1 === " ") {
+                let rest = $[0][1];
+                loop$header = rest;
+                loop$parameters = parameters;
+            } else if ($1 === "\t") {
+                let rest = $[0][1];
+                loop$header = rest;
+                loop$parameters = parameters;
+            } else {
+                let grapheme = $1;
+                let rest = $[0][1];
+                let acc = _stringMjs.lowercase(grapheme);
+                return _resultMjs.try$(parse_rfc_2045_parameter(rest, acc), (_use0)=>{
+                    let parameter;
+                    let rest$1;
+                    parameter = _use0[0];
+                    rest$1 = _use0[1];
+                    return parse_rfc_2045_parameters(rest$1, (0, _gleamMjs.prepend)(parameter, parameters));
+                });
+            }
+        } else return new (0, _gleamMjs.Ok)(_listMjs.reverse(parameters));
+    }
+}
+function parse_content_disposition_type(loop$header, loop$name) {
+    while(true){
+        let header = loop$header;
+        let name = loop$name;
+        let $ = _stringMjs.pop_grapheme(header);
+        if ($ instanceof (0, _gleamMjs.Ok)) {
+            let $1 = $[0][0];
+            if ($1 === " ") {
+                let rest = $[0][1];
+                let result = parse_rfc_2045_parameters(rest, (0, _gleamMjs.toList)([]));
+                return _resultMjs.map(result, (parameters)=>{
+                    return new ContentDisposition(name, parameters);
+                });
+            } else if ($1 === "\t") {
+                let rest = $[0][1];
+                let result = parse_rfc_2045_parameters(rest, (0, _gleamMjs.toList)([]));
+                return _resultMjs.map(result, (parameters)=>{
+                    return new ContentDisposition(name, parameters);
+                });
+            } else if ($1 === ";") {
+                let rest = $[0][1];
+                let result = parse_rfc_2045_parameters(rest, (0, _gleamMjs.toList)([]));
+                return _resultMjs.map(result, (parameters)=>{
+                    return new ContentDisposition(name, parameters);
+                });
+            } else {
+                let grapheme = $1;
+                let rest = $[0][1];
+                loop$header = rest;
+                loop$name = name + _stringMjs.lowercase(grapheme);
+            }
+        } else return new (0, _gleamMjs.Ok)(new ContentDisposition(name, (0, _gleamMjs.toList)([])));
+    }
+}
+function parse_content_disposition(header) {
+    return parse_content_disposition_type(header, "");
+}
+function parse_header_value_loop(loop$data, loop$headers, loop$name, loop$value) {
+    while(true){
+        let data = loop$data;
+        let headers = loop$headers;
+        let name = loop$name;
+        let value = loop$value;
+        if (data.bitSize === 0) return more_please_headers(data, (data)=>{
+            return parse_header_value_loop(data, headers, name, value);
+        });
+        else if (data.bitSize === 8) return more_please_headers(data, (data)=>{
+            return parse_header_value_loop(data, headers, name, value);
+        });
+        else if (data.bitSize >= 8) {
+            if (data.bitSize === 16) return more_please_headers(data, (data)=>{
+                return parse_header_value_loop(data, headers, name, value);
+            });
+            else if (data.bitSize >= 16) {
+                if (data.bitSize === 24) return more_please_headers(data, (data)=>{
+                    return parse_header_value_loop(data, headers, name, value);
+                });
+                else if (data.bitSize >= 32) {
+                    if (data.byteAt(0) === 13 && data.byteAt(1) === 10 && data.byteAt(2) === 13 && data.byteAt(3) === 10) {
+                        if ((data.bitSize - 32) % 8 === 0) {
+                            let data$1 = (0, _gleamMjs.bitArraySlice)(data, 32);
+                            return _resultMjs.map(_bitArrayMjs.to_string(value), (value)=>{
+                                let headers$1 = _listMjs.reverse((0, _gleamMjs.prepend)([
+                                    _stringMjs.lowercase(name),
+                                    value
+                                ], headers));
+                                return new MultipartHeaders(headers$1, data$1);
+                            });
+                        } else if ((data.bitSize - 16) % 8 === 0) {
+                            let data$1 = (0, _gleamMjs.bitArraySlice)(data, 16);
+                            return _resultMjs.try$(_bitArrayMjs.to_string(value), (value)=>{
+                                let headers$1 = (0, _gleamMjs.prepend)([
+                                    _stringMjs.lowercase(name),
+                                    value
+                                ], headers);
+                                return parse_header_name(data$1, headers$1);
+                            });
+                        } else if ((data.bitSize - 8) % 8 === 0) {
+                            let char = data.byteAt(0);
+                            let rest = (0, _gleamMjs.bitArraySlice)(data, 8);
+                            loop$data = rest;
+                            loop$headers = headers;
+                            loop$name = name;
+                            loop$value = (0, _gleamMjs.toBitArray)([
+                                value,
+                                char
+                            ]);
+                        } else return new (0, _gleamMjs.Error)(undefined);
+                    } else if (data.byteAt(0) === 13 && data.byteAt(1) === 10 && data.byteAt(2) === 32) {
+                        if ((data.bitSize - 24) % 8 === 0) {
+                            let data$1 = (0, _gleamMjs.bitArraySlice)(data, 24);
+                            loop$data = data$1;
+                            loop$headers = headers;
+                            loop$name = name;
+                            loop$value = value;
+                        } else if ((data.bitSize - 16) % 8 === 0) {
+                            let data$1 = (0, _gleamMjs.bitArraySlice)(data, 16);
+                            return _resultMjs.try$(_bitArrayMjs.to_string(value), (value)=>{
+                                let headers$1 = (0, _gleamMjs.prepend)([
+                                    _stringMjs.lowercase(name),
+                                    value
+                                ], headers);
+                                return parse_header_name(data$1, headers$1);
+                            });
+                        } else if ((data.bitSize - 8) % 8 === 0) {
+                            let char = data.byteAt(0);
+                            let rest = (0, _gleamMjs.bitArraySlice)(data, 8);
+                            loop$data = rest;
+                            loop$headers = headers;
+                            loop$name = name;
+                            loop$value = (0, _gleamMjs.toBitArray)([
+                                value,
+                                char
+                            ]);
+                        } else return new (0, _gleamMjs.Error)(undefined);
+                    } else if (data.byteAt(0) === 13 && data.byteAt(1) === 10 && data.byteAt(2) === 9) {
+                        if ((data.bitSize - 24) % 8 === 0) {
+                            let data$1 = (0, _gleamMjs.bitArraySlice)(data, 24);
+                            loop$data = data$1;
+                            loop$headers = headers;
+                            loop$name = name;
+                            loop$value = value;
+                        } else if ((data.bitSize - 16) % 8 === 0) {
+                            let data$1 = (0, _gleamMjs.bitArraySlice)(data, 16);
+                            return _resultMjs.try$(_bitArrayMjs.to_string(value), (value)=>{
+                                let headers$1 = (0, _gleamMjs.prepend)([
+                                    _stringMjs.lowercase(name),
+                                    value
+                                ], headers);
+                                return parse_header_name(data$1, headers$1);
+                            });
+                        } else if ((data.bitSize - 8) % 8 === 0) {
+                            let char = data.byteAt(0);
+                            let rest = (0, _gleamMjs.bitArraySlice)(data, 8);
+                            loop$data = rest;
+                            loop$headers = headers;
+                            loop$name = name;
+                            loop$value = (0, _gleamMjs.toBitArray)([
+                                value,
+                                char
+                            ]);
+                        } else return new (0, _gleamMjs.Error)(undefined);
+                    } else if (data.byteAt(0) === 13 && data.byteAt(1) === 10 && (data.bitSize - 16) % 8 === 0) {
+                        let data$1 = (0, _gleamMjs.bitArraySlice)(data, 16);
+                        return _resultMjs.try$(_bitArrayMjs.to_string(value), (value)=>{
+                            let headers$1 = (0, _gleamMjs.prepend)([
+                                _stringMjs.lowercase(name),
+                                value
+                            ], headers);
+                            return parse_header_name(data$1, headers$1);
+                        });
+                    } else if ((data.bitSize - 8) % 8 === 0) {
+                        let char = data.byteAt(0);
+                        let rest = (0, _gleamMjs.bitArraySlice)(data, 8);
+                        loop$data = rest;
+                        loop$headers = headers;
+                        loop$name = name;
+                        loop$value = (0, _gleamMjs.toBitArray)([
+                            value,
+                            char
+                        ]);
+                    } else return new (0, _gleamMjs.Error)(undefined);
+                } else if (data.bitSize >= 24) {
+                    if (data.byteAt(0) === 13 && data.byteAt(1) === 10 && data.byteAt(2) === 32) {
+                        if ((data.bitSize - 24) % 8 === 0) {
+                            let data$1 = (0, _gleamMjs.bitArraySlice)(data, 24);
+                            loop$data = data$1;
+                            loop$headers = headers;
+                            loop$name = name;
+                            loop$value = value;
+                        } else if ((data.bitSize - 16) % 8 === 0) {
+                            let data$1 = (0, _gleamMjs.bitArraySlice)(data, 16);
+                            return _resultMjs.try$(_bitArrayMjs.to_string(value), (value)=>{
+                                let headers$1 = (0, _gleamMjs.prepend)([
+                                    _stringMjs.lowercase(name),
+                                    value
+                                ], headers);
+                                return parse_header_name(data$1, headers$1);
+                            });
+                        } else if ((data.bitSize - 8) % 8 === 0) {
+                            let char = data.byteAt(0);
+                            let rest = (0, _gleamMjs.bitArraySlice)(data, 8);
+                            loop$data = rest;
+                            loop$headers = headers;
+                            loop$name = name;
+                            loop$value = (0, _gleamMjs.toBitArray)([
+                                value,
+                                char
+                            ]);
+                        } else return new (0, _gleamMjs.Error)(undefined);
+                    } else if (data.byteAt(0) === 13 && data.byteAt(1) === 10 && data.byteAt(2) === 9) {
+                        if ((data.bitSize - 24) % 8 === 0) {
+                            let data$1 = (0, _gleamMjs.bitArraySlice)(data, 24);
+                            loop$data = data$1;
+                            loop$headers = headers;
+                            loop$name = name;
+                            loop$value = value;
+                        } else if ((data.bitSize - 16) % 8 === 0) {
+                            let data$1 = (0, _gleamMjs.bitArraySlice)(data, 16);
+                            return _resultMjs.try$(_bitArrayMjs.to_string(value), (value)=>{
+                                let headers$1 = (0, _gleamMjs.prepend)([
+                                    _stringMjs.lowercase(name),
+                                    value
+                                ], headers);
+                                return parse_header_name(data$1, headers$1);
+                            });
+                        } else if ((data.bitSize - 8) % 8 === 0) {
+                            let char = data.byteAt(0);
+                            let rest = (0, _gleamMjs.bitArraySlice)(data, 8);
+                            loop$data = rest;
+                            loop$headers = headers;
+                            loop$name = name;
+                            loop$value = (0, _gleamMjs.toBitArray)([
+                                value,
+                                char
+                            ]);
+                        } else return new (0, _gleamMjs.Error)(undefined);
+                    } else if (data.byteAt(0) === 13 && data.byteAt(1) === 10 && (data.bitSize - 16) % 8 === 0) {
+                        let data$1 = (0, _gleamMjs.bitArraySlice)(data, 16);
+                        return _resultMjs.try$(_bitArrayMjs.to_string(value), (value)=>{
+                            let headers$1 = (0, _gleamMjs.prepend)([
+                                _stringMjs.lowercase(name),
+                                value
+                            ], headers);
+                            return parse_header_name(data$1, headers$1);
+                        });
+                    } else if ((data.bitSize - 8) % 8 === 0) {
+                        let char = data.byteAt(0);
+                        let rest = (0, _gleamMjs.bitArraySlice)(data, 8);
+                        loop$data = rest;
+                        loop$headers = headers;
+                        loop$name = name;
+                        loop$value = (0, _gleamMjs.toBitArray)([
+                            value,
+                            char
+                        ]);
+                    } else return new (0, _gleamMjs.Error)(undefined);
+                } else if (data.byteAt(0) === 13 && data.byteAt(1) === 10 && (data.bitSize - 16) % 8 === 0) {
+                    let data$1 = (0, _gleamMjs.bitArraySlice)(data, 16);
+                    return _resultMjs.try$(_bitArrayMjs.to_string(value), (value)=>{
+                        let headers$1 = (0, _gleamMjs.prepend)([
+                            _stringMjs.lowercase(name),
+                            value
+                        ], headers);
+                        return parse_header_name(data$1, headers$1);
+                    });
+                } else if ((data.bitSize - 8) % 8 === 0) {
+                    let char = data.byteAt(0);
+                    let rest = (0, _gleamMjs.bitArraySlice)(data, 8);
+                    loop$data = rest;
+                    loop$headers = headers;
+                    loop$name = name;
+                    loop$value = (0, _gleamMjs.toBitArray)([
+                        value,
+                        char
+                    ]);
+                } else return new (0, _gleamMjs.Error)(undefined);
+            } else if ((data.bitSize - 8) % 8 === 0) {
+                let char = data.byteAt(0);
+                let rest = (0, _gleamMjs.bitArraySlice)(data, 8);
+                loop$data = rest;
+                loop$headers = headers;
+                loop$name = name;
+                loop$value = (0, _gleamMjs.toBitArray)([
+                    value,
+                    char
+                ]);
+            } else return new (0, _gleamMjs.Error)(undefined);
+        } else return new (0, _gleamMjs.Error)(undefined);
+    }
+}
+function parse_header_name(loop$data, loop$headers) {
+    while(true){
+        let data = loop$data;
+        let headers = loop$headers;
+        if (data.bitSize >= 8) {
+            if (data.byteAt(0) === 32) {
+                let rest = (0, _gleamMjs.bitArraySlice)(data, 8);
+                loop$data = rest;
+                loop$headers = headers;
+            } else if (data.byteAt(0) === 9) {
+                let rest = (0, _gleamMjs.bitArraySlice)(data, 8);
+                loop$data = rest;
+                loop$headers = headers;
+            } else return parse_header_name_loop(data, headers, (0, _gleamMjs.toBitArray)([]));
+        } else return more_please_headers(data, (_capture)=>{
+            return parse_header_name(_capture, headers);
+        });
+    }
+}
+function parse_header_name_loop(loop$data, loop$headers, loop$name) {
+    while(true){
+        let data = loop$data;
+        let headers = loop$headers;
+        let name = loop$name;
+        if (data.bitSize >= 8) {
+            if (data.byteAt(0) === 58) {
+                let data$1 = (0, _gleamMjs.bitArraySlice)(data, 8);
+                let $ = _bitArrayMjs.to_string(name);
+                if ($ instanceof (0, _gleamMjs.Ok)) {
+                    let name$1 = $[0];
+                    return parse_header_value(data$1, headers, name$1);
+                } else return $;
+            } else {
+                let char = data.byteAt(0);
+                let data$1 = (0, _gleamMjs.bitArraySlice)(data, 8);
+                loop$data = data$1;
+                loop$headers = headers;
+                loop$name = (0, _gleamMjs.toBitArray)([
+                    name,
+                    char
+                ]);
+            }
+        } else return more_please_headers(data, (_capture)=>{
+            return parse_header_name_loop(_capture, headers, name);
+        });
+    }
+}
+function parse_header_value(loop$data, loop$headers, loop$name) {
+    while(true){
+        let data = loop$data;
+        let headers = loop$headers;
+        let name = loop$name;
+        if (data.bitSize >= 8) {
+            if (data.byteAt(0) === 32) {
+                let rest = (0, _gleamMjs.bitArraySlice)(data, 8);
+                loop$data = rest;
+                loop$headers = headers;
+                loop$name = name;
+            } else if (data.byteAt(0) === 9) {
+                let rest = (0, _gleamMjs.bitArraySlice)(data, 8);
+                loop$data = rest;
+                loop$headers = headers;
+                loop$name = name;
+            } else return parse_header_value_loop(data, headers, name, (0, _gleamMjs.toBitArray)([]));
+        } else return more_please_headers(data, (_capture)=>{
+            return parse_header_value(_capture, headers, name);
+        });
+    }
+}
+function do_parse_headers(data) {
+    if (data.bitSize >= 32) {
+        if (data.byteAt(0) === 13 && data.byteAt(1) === 10 && data.byteAt(2) === 13 && data.byteAt(3) === 10) {
+            if ((data.bitSize - 32) % 8 === 0) {
+                let data$1 = (0, _gleamMjs.bitArraySlice)(data, 32);
+                return new (0, _gleamMjs.Ok)(new MultipartHeaders((0, _gleamMjs.toList)([]), data$1));
+            } else if ((data.bitSize - 16) % 8 === 0) {
+                let data$1 = (0, _gleamMjs.bitArraySlice)(data, 16);
+                return parse_header_name(data$1, (0, _gleamMjs.toList)([]));
+            } else return new (0, _gleamMjs.Error)(undefined);
+        } else if (data.byteAt(0) === 13 && data.byteAt(1) === 10 && (data.bitSize - 16) % 8 === 0) {
+            let data$1 = (0, _gleamMjs.bitArraySlice)(data, 16);
+            return parse_header_name(data$1, (0, _gleamMjs.toList)([]));
+        } else return new (0, _gleamMjs.Error)(undefined);
+    } else if (data.bitSize >= 16) {
+        if (data.byteAt(0) === 13 && data.byteAt(1) === 10 && (data.bitSize - 16) % 8 === 0) {
+            let data$1 = (0, _gleamMjs.bitArraySlice)(data, 16);
+            return parse_header_name(data$1, (0, _gleamMjs.toList)([]));
+        } else return new (0, _gleamMjs.Error)(undefined);
+    } else if (data.bitSize === 8) {
+        if (data.byteAt(0) === 13) return more_please_headers(data, do_parse_headers);
+        else return new (0, _gleamMjs.Error)(undefined);
+    } else if (data.bitSize === 0) return more_please_headers(data, do_parse_headers);
+    else return new (0, _gleamMjs.Error)(undefined);
+}
+function skip_preamble(loop$data, loop$boundary, loop$boundary_bytes) {
+    while(true){
+        let data = loop$data;
+        let boundary = loop$boundary;
+        let boundary_bytes = loop$boundary_bytes;
+        if (data.bitSize >= 32) {
+            if (data.byteAt(0) === 13 && data.byteAt(1) === 10 && data.byteAt(2) === 45 && data.byteAt(3) === 45 && (data.bitSize - 32) % 8 === 0) {
+                let rest = (0, _gleamMjs.bitArraySlice)(data, 32);
+                if (boundary_bytes * 8 >= 0 && rest.bitSize >= boundary_bytes * 8) {
+                    let found = (0, _gleamMjs.bitArraySlice)(rest, 0, boundary_bytes * 8);
+                    if ((0, _gleamMjs.isEqual)(found, boundary)) {
+                        let rest$1 = (0, _gleamMjs.bitArraySlice)(rest, boundary_bytes * 8);
+                        return do_parse_headers(rest$1);
+                    } else {
+                        loop$data = rest;
+                        loop$boundary = boundary;
+                        loop$boundary_bytes = boundary_bytes;
+                    }
+                } else return more_please_headers(data, (_capture)=>{
+                    return skip_preamble(_capture, boundary, boundary_bytes);
+                });
+            } else if ((data.bitSize - 8) % 8 === 0) {
+                let data$1 = (0, _gleamMjs.bitArraySlice)(data, 8);
+                loop$data = data$1;
+                loop$boundary = boundary;
+                loop$boundary_bytes = boundary_bytes;
+            } else throw (0, _gleamMjs.makeError)("panic", FILEPATH, "gleam/http", 341, "skip_preamble", "unreachable", {});
+        } else if (data.bitSize === 0) return more_please_headers(data, (_capture)=>{
+            return skip_preamble(_capture, boundary, boundary_bytes);
+        });
+        else if (data.bitSize === 8) {
+            if (data.byteAt(0) === 13) return more_please_headers(data, (_capture)=>{
+                return skip_preamble(_capture, boundary, boundary_bytes);
+            });
+            else if ((data.bitSize - 8) % 8 === 0) {
+                let data$1 = (0, _gleamMjs.bitArraySlice)(data, 8);
+                loop$data = data$1;
+                loop$boundary = boundary;
+                loop$boundary_bytes = boundary_bytes;
+            } else throw (0, _gleamMjs.makeError)("panic", FILEPATH, "gleam/http", 341, "skip_preamble", "unreachable", {});
+        } else if (data.bitSize === 16) {
+            if (data.byteAt(0) === 13 && data.byteAt(1) === 10) return more_please_headers(data, (_capture)=>{
+                return skip_preamble(_capture, boundary, boundary_bytes);
+            });
+            else if ((data.bitSize - 8) % 8 === 0) {
+                let data$1 = (0, _gleamMjs.bitArraySlice)(data, 8);
+                loop$data = data$1;
+                loop$boundary = boundary;
+                loop$boundary_bytes = boundary_bytes;
+            } else throw (0, _gleamMjs.makeError)("panic", FILEPATH, "gleam/http", 341, "skip_preamble", "unreachable", {});
+        } else if (data.bitSize === 24) {
+            if (data.byteAt(0) === 13 && data.byteAt(1) === 10 && data.byteAt(2) === 45) return more_please_headers(data, (_capture)=>{
+                return skip_preamble(_capture, boundary, boundary_bytes);
+            });
+            else if ((data.bitSize - 8) % 8 === 0) {
+                let data$1 = (0, _gleamMjs.bitArraySlice)(data, 8);
+                loop$data = data$1;
+                loop$boundary = boundary;
+                loop$boundary_bytes = boundary_bytes;
+            } else throw (0, _gleamMjs.makeError)("panic", FILEPATH, "gleam/http", 341, "skip_preamble", "unreachable", {});
+        } else if (data.bitSize >= 8 && (data.bitSize - 8) % 8 === 0) {
+            let data$1 = (0, _gleamMjs.bitArraySlice)(data, 8);
+            loop$data = data$1;
+            loop$boundary = boundary;
+            loop$boundary_bytes = boundary_bytes;
+        } else throw (0, _gleamMjs.makeError)("panic", FILEPATH, "gleam/http", 341, "skip_preamble", "unreachable", {});
+    }
+}
+function do_parse_multipart_headers(data, boundary, boundary_bytes) {
+    if (data.bitSize >= 16 && data.byteAt(0) === 45 && data.byteAt(1) === 45 && boundary_bytes * 8 >= 0 && data.bitSize >= 16 + boundary_bytes * 8) {
+        let found = (0, _gleamMjs.bitArraySlice)(data, 16, 16 + boundary_bytes * 8);
+        if ((0, _gleamMjs.isEqual)(found, boundary)) {
+            let rest = (0, _gleamMjs.bitArraySlice)(data, 16 + boundary_bytes * 8);
+            if (rest.bitSize >= 16) {
+                if (rest.byteAt(0) === 45 && rest.byteAt(1) === 45) {
+                    let rest$1 = (0, _gleamMjs.bitArraySlice)(rest, 16);
+                    return new (0, _gleamMjs.Ok)(new MultipartHeaders((0, _gleamMjs.toList)([]), rest$1));
+                } else return do_parse_headers(rest);
+            } else return more_please_headers(data, (data)=>{
+                return do_parse_multipart_headers(data, boundary, boundary_bytes);
+            });
+        } else return skip_preamble(data, boundary, boundary_bytes);
+    } else return skip_preamble(data, boundary, boundary_bytes);
+}
+function parse_multipart_headers(data, boundary) {
+    let boundary$1 = _bitArrayMjs.from_string(boundary);
+    let boundary_bytes = _bitArrayMjs.byte_size(boundary$1);
+    return do_parse_multipart_headers(data, boundary$1, boundary_bytes);
+}
+
+},{"../../gleam_stdlib/gleam/bit_array.mjs":"69HLR","../../gleam_stdlib/gleam/bool.mjs":"5XM1O","../../gleam_stdlib/gleam/list.mjs":"8dUwY","../../gleam_stdlib/gleam/result.mjs":"oBmFG","../../gleam_stdlib/gleam/string.mjs":"aB8qb","../gleam.mjs":"fY50s","@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT"}],"ajWX9":[function(require,module,exports,__globalThis) {
+var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
+parcelHelpers.defineInteropFlag(exports);
+parcelHelpers.export(exports, "Lax", ()=>Lax);
+parcelHelpers.export(exports, "SameSitePolicy$Lax", ()=>SameSitePolicy$Lax);
+parcelHelpers.export(exports, "SameSitePolicy$isLax", ()=>SameSitePolicy$isLax);
+parcelHelpers.export(exports, "Strict", ()=>Strict);
+parcelHelpers.export(exports, "SameSitePolicy$Strict", ()=>SameSitePolicy$Strict);
+parcelHelpers.export(exports, "SameSitePolicy$isStrict", ()=>SameSitePolicy$isStrict);
+parcelHelpers.export(exports, "None", ()=>None);
+parcelHelpers.export(exports, "SameSitePolicy$None", ()=>SameSitePolicy$None);
+parcelHelpers.export(exports, "SameSitePolicy$isNone", ()=>SameSitePolicy$isNone);
+parcelHelpers.export(exports, "Attributes", ()=>Attributes);
+parcelHelpers.export(exports, "Attributes$Attributes", ()=>Attributes$Attributes);
+parcelHelpers.export(exports, "Attributes$isAttributes", ()=>Attributes$isAttributes);
+parcelHelpers.export(exports, "Attributes$Attributes$max_age", ()=>Attributes$Attributes$max_age);
+parcelHelpers.export(exports, "Attributes$Attributes$0", ()=>Attributes$Attributes$0);
+parcelHelpers.export(exports, "Attributes$Attributes$domain", ()=>Attributes$Attributes$domain);
+parcelHelpers.export(exports, "Attributes$Attributes$1", ()=>Attributes$Attributes$1);
+parcelHelpers.export(exports, "Attributes$Attributes$path", ()=>Attributes$Attributes$path);
+parcelHelpers.export(exports, "Attributes$Attributes$2", ()=>Attributes$Attributes$2);
+parcelHelpers.export(exports, "Attributes$Attributes$secure", ()=>Attributes$Attributes$secure);
+parcelHelpers.export(exports, "Attributes$Attributes$3", ()=>Attributes$Attributes$3);
+parcelHelpers.export(exports, "Attributes$Attributes$http_only", ()=>Attributes$Attributes$http_only);
+parcelHelpers.export(exports, "Attributes$Attributes$4", ()=>Attributes$Attributes$4);
+parcelHelpers.export(exports, "Attributes$Attributes$same_site", ()=>Attributes$Attributes$same_site);
+parcelHelpers.export(exports, "Attributes$Attributes$5", ()=>Attributes$Attributes$5);
+/**
+ * Helper to create sensible default attributes for a set cookie.
+ *
+ * https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Set-Cookie#Attributes
+ */ parcelHelpers.export(exports, "defaults", ()=>defaults);
+/**
+ * Parse a list of cookies from a header string. Any malformed cookies will be
+ * discarded.
+ *
+ * ## Backwards compatibility
+ *
+ * RFC 6265 states that cookies in the cookie header should be separated by a
+ * `;`, however this function will also accept a `,` separator to remain
+ * compatible with the now-deprecated RFC 2965, and any older software
+ * following that specification.
+ */ parcelHelpers.export(exports, "parse", ()=>parse);
+parcelHelpers.export(exports, "set_header", ()=>set_header);
+var _intMjs = require("../../../gleam_stdlib/gleam/int.mjs");
+var _listMjs = require("../../../gleam_stdlib/gleam/list.mjs");
+var _optionMjs = require("../../../gleam_stdlib/gleam/option.mjs");
+var _resultMjs = require("../../../gleam_stdlib/gleam/result.mjs");
+var _stringMjs = require("../../../gleam_stdlib/gleam/string.mjs");
+var _gleamMjs = require("../../gleam.mjs");
+var _httpMjs = require("../../gleam/http.mjs");
+class Lax extends (0, _gleamMjs.CustomType) {
+}
+const SameSitePolicy$Lax = ()=>new Lax();
+const SameSitePolicy$isLax = (value)=>value instanceof Lax;
+class Strict extends (0, _gleamMjs.CustomType) {
+}
+const SameSitePolicy$Strict = ()=>new Strict();
+const SameSitePolicy$isStrict = (value)=>value instanceof Strict;
+class None extends (0, _gleamMjs.CustomType) {
+}
+const SameSitePolicy$None = ()=>new None();
+const SameSitePolicy$isNone = (value)=>value instanceof None;
+class Attributes extends (0, _gleamMjs.CustomType) {
+    constructor(max_age, domain, path, secure, http_only, same_site){
+        super();
+        this.max_age = max_age;
+        this.domain = domain;
+        this.path = path;
+        this.secure = secure;
+        this.http_only = http_only;
+        this.same_site = same_site;
+    }
+}
+const Attributes$Attributes = (max_age, domain, path, secure, http_only, same_site)=>new Attributes(max_age, domain, path, secure, http_only, same_site);
+const Attributes$isAttributes = (value)=>value instanceof Attributes;
+const Attributes$Attributes$max_age = (value)=>value.max_age;
+const Attributes$Attributes$0 = (value)=>value.max_age;
+const Attributes$Attributes$domain = (value)=>value.domain;
+const Attributes$Attributes$1 = (value)=>value.domain;
+const Attributes$Attributes$path = (value)=>value.path;
+const Attributes$Attributes$2 = (value)=>value.path;
+const Attributes$Attributes$secure = (value)=>value.secure;
+const Attributes$Attributes$3 = (value)=>value.secure;
+const Attributes$Attributes$http_only = (value)=>value.http_only;
+const Attributes$Attributes$4 = (value)=>value.http_only;
+const Attributes$Attributes$same_site = (value)=>value.same_site;
+const Attributes$Attributes$5 = (value)=>value.same_site;
+const epoch = "Expires=Thu, 01 Jan 1970 00:00:00 GMT";
+function same_site_to_string(policy) {
+    if (policy instanceof Lax) return "Lax";
+    else if (policy instanceof Strict) return "Strict";
+    else return "None";
+}
+function defaults(scheme) {
+    return new Attributes(new _optionMjs.None(), new _optionMjs.None(), new _optionMjs.Some("/"), scheme instanceof _httpMjs.Https, true, new _optionMjs.Some(new Lax()));
+}
+function check_token(token) {
+    let contains_invalid_charachter = _stringMjs.contains(token, " ") || _stringMjs.contains(token, "\t") || _stringMjs.contains(token, "\r") || _stringMjs.contains(token, "\n") || _stringMjs.contains(token, "\f");
+    if (contains_invalid_charachter) return new (0, _gleamMjs.Error)(undefined);
+    else return new (0, _gleamMjs.Ok)(undefined);
+}
+function parse(cookie_string) {
+    let _pipe = cookie_string;
+    let _pipe$1 = _stringMjs.split(_pipe, ";");
+    let _pipe$2 = _listMjs.flat_map(_pipe$1, (_capture)=>{
+        return _stringMjs.split(_capture, ",");
+    });
+    return _listMjs.filter_map(_pipe$2, (pair)=>{
+        let $ = _stringMjs.split_once(_stringMjs.trim(pair), "=");
+        if ($ instanceof (0, _gleamMjs.Ok)) {
+            let $1 = $[0][0];
+            if ($1 === "") return new (0, _gleamMjs.Error)(undefined);
+            else {
+                let key = $1;
+                let value = $[0][1];
+                let key$1 = _stringMjs.trim(key);
+                return _resultMjs.try$(check_token(key$1), (_)=>{
+                    let value$1 = _stringMjs.trim(value);
+                    return _resultMjs.try$(check_token(value$1), (_)=>{
+                        return new (0, _gleamMjs.Ok)([
+                            key$1,
+                            value$1
+                        ]);
+                    });
+                });
+            }
+        } else return $;
+    });
+}
+function cookie_attributes_to_list(attributes) {
+    let max_age;
+    let domain;
+    let path;
+    let secure;
+    let http_only;
+    let same_site;
+    max_age = attributes.max_age;
+    domain = attributes.domain;
+    path = attributes.path;
+    secure = attributes.secure;
+    http_only = attributes.http_only;
+    same_site = attributes.same_site;
+    let _pipe = (0, _gleamMjs.toList)([
+        (()=>{
+            if (max_age instanceof _optionMjs.Some) {
+                let $ = max_age[0];
+                if ($ === 0) return new _optionMjs.Some(epoch);
+                else return new _optionMjs.None();
+            } else return new _optionMjs.None();
+        })(),
+        _optionMjs.map(max_age, (max_age)=>{
+            return "Max-Age=" + _intMjs.to_string(max_age);
+        }),
+        _optionMjs.map(domain, (domain)=>{
+            return "Domain=" + domain;
+        }),
+        _optionMjs.map(path, (path)=>{
+            return "Path=" + path;
+        }),
+        (()=>{
+            if (secure) return new _optionMjs.Some("Secure");
+            else return new _optionMjs.None();
+        })(),
+        (()=>{
+            if (http_only) return new _optionMjs.Some("HttpOnly");
+            else return new _optionMjs.None();
+        })(),
+        _optionMjs.map(same_site, (same_site)=>{
+            return "SameSite=" + same_site_to_string(same_site);
+        })
+    ]);
+    return _listMjs.filter_map(_pipe, (_capture)=>{
+        return _optionMjs.to_result(_capture, undefined);
+    });
+}
+function set_header(name, value, attributes) {
+    let _pipe = (0, _gleamMjs.prepend)(name + "=" + value, cookie_attributes_to_list(attributes));
+    return _stringMjs.join(_pipe, "; ");
+}
+
+},{"../../../gleam_stdlib/gleam/int.mjs":"32hLf","../../../gleam_stdlib/gleam/list.mjs":"8dUwY","../../../gleam_stdlib/gleam/option.mjs":"aWtoH","../../../gleam_stdlib/gleam/result.mjs":"oBmFG","../../../gleam_stdlib/gleam/string.mjs":"aB8qb","../../gleam.mjs":"fY50s","../../gleam/http.mjs":"f1b8L","@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT"}],"f3v5I":[function(require,module,exports,__globalThis) {
+var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
+parcelHelpers.defineInteropFlag(exports);
+parcelHelpers.export(exports, "Response", ()=>Response);
+parcelHelpers.export(exports, "Response$Response", ()=>Response$Response);
+parcelHelpers.export(exports, "Response$isResponse", ()=>Response$isResponse);
+parcelHelpers.export(exports, "Response$Response$status", ()=>Response$Response$status);
+parcelHelpers.export(exports, "Response$Response$0", ()=>Response$Response$0);
+parcelHelpers.export(exports, "Response$Response$headers", ()=>Response$Response$headers);
+parcelHelpers.export(exports, "Response$Response$1", ()=>Response$Response$1);
+parcelHelpers.export(exports, "Response$Response$body", ()=>Response$Response$body);
+parcelHelpers.export(exports, "Response$Response$2", ()=>Response$Response$2);
+/**
+ * Construct an empty Response.
+ *
+ * The body type of the returned response is `String` and could be set with a
+ * call to `set_body`.
+ */ parcelHelpers.export(exports, "new$", ()=>new$);
+/**
+ * Get the value for a given header.
+ *
+ * If the response does not have that header then `Error(Nil)` is returned.
+ */ parcelHelpers.export(exports, "get_header", ()=>get_header);
+/**
+ * Set the header with the given value under the given header key.
+ *
+ * If the response already has that key, it is replaced.
+ *
+ * Header keys are always lowercase in `gleam_http`. To use any uppercase
+ * letter is invalid.
+ */ parcelHelpers.export(exports, "set_header", ()=>set_header);
+/**
+ * Prepend the header with the given value under the given header key.
+ *
+ * Similar to `set_header` except if the header already exists it prepends
+ * another header with the same key.
+ *
+ * Header keys are always lowercase in `gleam_http`. To use any uppercase
+ * letter is invalid.
+ */ parcelHelpers.export(exports, "prepend_header", ()=>prepend_header);
+/**
+ * Set the body of the response, overwriting any existing body.
+ */ parcelHelpers.export(exports, "set_body", ()=>set_body);
+/**
+ * Update the body of a response using a given result returning function.
+ *
+ * If the given function returns an `Ok` value the body is set, if it returns
+ * an `Error` value then the error is returned.
+ */ parcelHelpers.export(exports, "try_map", ()=>try_map);
+/**
+ * Update the body of a response using a given function.
+ */ parcelHelpers.export(exports, "map", ()=>map);
+/**
+ * Create a response that redirects to the given uri.
+ */ parcelHelpers.export(exports, "redirect", ()=>redirect);
+/**
+ * Fetch the cookies sent in a response.
+ *
+ * Badly formed cookies will be discarded.
+ */ parcelHelpers.export(exports, "get_cookies", ()=>get_cookies);
+/**
+ * Set a cookie value for a client
+ */ parcelHelpers.export(exports, "set_cookie", ()=>set_cookie);
+/**
+ * Expire a cookie value for a client
+ *
+ * Note: The attributes value should be the same as when the response cookie was set.
+ */ parcelHelpers.export(exports, "expire_cookie", ()=>expire_cookie);
+var _listMjs = require("../../../gleam_stdlib/gleam/list.mjs");
+var _optionMjs = require("../../../gleam_stdlib/gleam/option.mjs");
+var _resultMjs = require("../../../gleam_stdlib/gleam/result.mjs");
+var _stringMjs = require("../../../gleam_stdlib/gleam/string.mjs");
+var _gleamMjs = require("../../gleam.mjs");
+var _httpMjs = require("../../gleam/http.mjs");
+var _cookieMjs = require("../../gleam/http/cookie.mjs");
+class Response extends (0, _gleamMjs.CustomType) {
+    constructor(status, headers, body){
+        super();
+        this.status = status;
+        this.headers = headers;
+        this.body = body;
+    }
+}
+const Response$Response = (status, headers, body)=>new Response(status, headers, body);
+const Response$isResponse = (value)=>value instanceof Response;
+const Response$Response$status = (value)=>value.status;
+const Response$Response$0 = (value)=>value.status;
+const Response$Response$headers = (value)=>value.headers;
+const Response$Response$1 = (value)=>value.headers;
+const Response$Response$body = (value)=>value.body;
+const Response$Response$2 = (value)=>value.body;
+function new$(status) {
+    return new Response(status, (0, _gleamMjs.toList)([]), "");
+}
+function get_header(response, key) {
+    return _listMjs.key_find(response.headers, _stringMjs.lowercase(key));
+}
+function set_header(response, key, value) {
+    let headers = _listMjs.key_set(response.headers, _stringMjs.lowercase(key), value);
+    return new Response(response.status, headers, response.body);
+}
+function prepend_header(response, key, value) {
+    let headers = (0, _gleamMjs.prepend)([
+        _stringMjs.lowercase(key),
+        value
+    ], response.headers);
+    return new Response(response.status, headers, response.body);
+}
+function set_body(response, body) {
+    return new Response(response.status, response.headers, body);
+}
+function try_map(response, transform) {
+    return _resultMjs.try$(transform(response.body), (body)=>{
+        return new (0, _gleamMjs.Ok)(set_body(response, body));
+    });
+}
+function map(response, transform) {
+    let _pipe = response.body;
+    let _pipe$1 = transform(_pipe);
+    return ((_capture)=>{
+        return set_body(response, _capture);
+    })(_pipe$1);
+}
+function redirect(uri) {
+    return new Response(303, (0, _gleamMjs.toList)([
+        [
+            "location",
+            uri
+        ]
+    ]), _stringMjs.append("You are being redirected to ", uri));
+}
+function get_cookies(resp) {
+    let headers;
+    headers = resp.headers;
+    return _listMjs.flat_map(headers, (header)=>{
+        let $ = header[0];
+        if ($ === "set-cookie") {
+            let value = header[1];
+            return _cookieMjs.parse(value);
+        } else return (0, _gleamMjs.toList)([]);
+    });
+}
+function set_cookie(response, name, value, attributes) {
+    return prepend_header(response, "set-cookie", _cookieMjs.set_header(name, value, attributes));
+}
+function expire_cookie(response, name, attributes) {
+    let attrs = new _cookieMjs.Attributes(new _optionMjs.Some(0), attributes.domain, attributes.path, attributes.secure, attributes.http_only, attributes.same_site);
+    return set_cookie(response, name, "", attrs);
+}
+
+},{"../../../gleam_stdlib/gleam/list.mjs":"8dUwY","../../../gleam_stdlib/gleam/option.mjs":"aWtoH","../../../gleam_stdlib/gleam/result.mjs":"oBmFG","../../../gleam_stdlib/gleam/string.mjs":"aB8qb","../../gleam.mjs":"fY50s","../../gleam/http.mjs":"f1b8L","../../gleam/http/cookie.mjs":"ajWX9","@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT"}],"cIhTb":[function(require,module,exports,__globalThis) {
+var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
+parcelHelpers.defineInteropFlag(exports);
+parcelHelpers.export(exports, "await$", ()=>(0, _gleamJavascriptFfiMjs.then_await));
+parcelHelpers.export(exports, "await_array", ()=>(0, _gleamJavascriptFfiMjs.all_promises));
+parcelHelpers.export(exports, "map", ()=>(0, _gleamJavascriptFfiMjs.map_promise));
+parcelHelpers.export(exports, "new$", ()=>(0, _gleamJavascriptFfiMjs.newPromise));
+parcelHelpers.export(exports, "race_array", ()=>(0, _gleamJavascriptFfiMjs.race_promises));
+parcelHelpers.export(exports, "race_list", ()=>(0, _gleamJavascriptFfiMjs.race_promises));
+parcelHelpers.export(exports, "rescue", ()=>(0, _gleamJavascriptFfiMjs.rescue));
+parcelHelpers.export(exports, "resolve", ()=>(0, _gleamJavascriptFfiMjs.resolve));
+parcelHelpers.export(exports, "start", ()=>(0, _gleamJavascriptFfiMjs.start_promise));
+parcelHelpers.export(exports, "wait", ()=>(0, _gleamJavascriptFfiMjs.wait));
+/**
+ * Run a function on the value a promise resolves to, after it has resolved.
+ * The value returned is discarded.
+ */ parcelHelpers.export(exports, "tap", ()=>tap);
+/**
+ * Run a function on the value a promise resolves to, after it has resolved.
+ *
+ * The function is only called if the value is `Ok`, and the returned becomes
+ * the new value contained by the promise.
+ *
+ * This is a convenience functin that combines the `map` function with `result.try`.
+ */ parcelHelpers.export(exports, "map_try", ()=>map_try);
+/**
+ * Run a promise returning function on the value a promise resolves to, after
+ * it has resolved.
+ *
+ * The function is only called if the value is `Ok`, and the returned becomes
+ * the new value contained by the promise.
+ *
+ * This is a convenience functin that combines the `await` function with
+ * `result.try`.
+ */ parcelHelpers.export(exports, "try_await", ()=>try_await);
+/**
+ * Chain an asynchronous operation onto an list of promises, so it runs after the
+ * promises have resolved.
+ *
+ * This is the equivilent of the `Promise.all` JavaScript static method.
+ */ parcelHelpers.export(exports, "await_list", ()=>await_list);
+var _dynamicMjs = require("../../../gleam_stdlib/gleam/dynamic.mjs");
+var _gleamMjs = require("../../gleam.mjs");
+var _arrayMjs = require("../../gleam/javascript/array.mjs");
+var _gleamJavascriptFfiMjs = require("../../gleam_javascript_ffi.mjs");
+function tap(promise, callback) {
+    let _pipe = promise;
+    return (0, _gleamJavascriptFfiMjs.map_promise)(_pipe, (a)=>{
+        callback(a);
+        return a;
+    });
+}
+function map_try(promise, callback) {
+    let _pipe = promise;
+    return (0, _gleamJavascriptFfiMjs.map_promise)(_pipe, (result)=>{
+        if (result instanceof (0, _gleamMjs.Ok)) {
+            let a = result[0];
+            return callback(a);
+        } else return result;
+    });
+}
+function try_await(promise, callback) {
+    let _pipe = promise;
+    return (0, _gleamJavascriptFfiMjs.then_await)(_pipe, (result)=>{
+        if (result instanceof (0, _gleamMjs.Ok)) {
+            let a = result[0];
+            return callback(a);
+        } else {
+            let e = result[0];
+            return (0, _gleamJavascriptFfiMjs.resolve)(new (0, _gleamMjs.Error)(e));
+        }
+    });
+}
+function await_list(xs) {
+    let _pipe = xs;
+    let _pipe$1 = (0, _gleamJavascriptFfiMjs.all_promises)(_pipe);
+    return (0, _gleamJavascriptFfiMjs.map_promise)(_pipe$1, _arrayMjs.to_list);
+}
+
+},{"../../../gleam_stdlib/gleam/dynamic.mjs":"iAWCk","../../gleam.mjs":"daShs","../../gleam/javascript/array.mjs":"hd9u2","../../gleam_javascript_ffi.mjs":"gjPFX","@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT"}],"daShs":[function(require,module,exports,__globalThis) {
+var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
+parcelHelpers.defineInteropFlag(exports);
+var _preludeMjs = require("../prelude.mjs");
+parcelHelpers.exportAll(_preludeMjs, exports);
+
+},{"../prelude.mjs":"ib0cp","@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT"}],"hd9u2":[function(require,module,exports,__globalThis) {
+var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
+parcelHelpers.defineInteropFlag(exports);
+parcelHelpers.export(exports, "fold", ()=>(0, _gleamJavascriptFfiMjs.reduce));
+parcelHelpers.export(exports, "fold_right", ()=>(0, _gleamJavascriptFfiMjs.reduceRight));
+parcelHelpers.export(exports, "from_list", ()=>(0, _gleamJavascriptFfiMjs.toArray));
+parcelHelpers.export(exports, "get", ()=>(0, _gleamJavascriptFfiMjs.index));
+parcelHelpers.export(exports, "map", ()=>(0, _gleamJavascriptFfiMjs.map));
+parcelHelpers.export(exports, "size", ()=>(0, _gleamJavascriptFfiMjs.length));
+/**
+ * Convert a JavaScript array to a Gleam list.
+ *
+ * Runs in linear time.
+ */ parcelHelpers.export(exports, "to_list", ()=>to_list);
+var _gleamMjs = require("../../gleam.mjs");
+var _gleamJavascriptFfiMjs = require("../../gleam_javascript_ffi.mjs");
+function to_list(items) {
+    return (0, _gleamJavascriptFfiMjs.reduceRight)(items, (0, _gleamMjs.toList)([]), (list, item)=>{
+        return (0, _gleamMjs.prepend)(item, list);
+    });
+}
+
+},{"../../gleam.mjs":"daShs","../../gleam_javascript_ffi.mjs":"gjPFX","@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT"}],"gjPFX":[function(require,module,exports,__globalThis) {
+var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
+parcelHelpers.defineInteropFlag(exports);
+parcelHelpers.export(exports, "toArray", ()=>toArray);
+parcelHelpers.export(exports, "map", ()=>map);
+parcelHelpers.export(exports, "length", ()=>length);
+parcelHelpers.export(exports, "reduce", ()=>reduce);
+parcelHelpers.export(exports, "reduceRight", ()=>reduceRight);
+parcelHelpers.export(exports, "index", ()=>index);
+parcelHelpers.export(exports, "object_from_entries", ()=>object_from_entries);
+parcelHelpers.export(exports, "new_symbol", ()=>new_symbol);
+parcelHelpers.export(exports, "get_symbol", ()=>get_symbol);
+parcelHelpers.export(exports, "symbol_description", ()=>symbol_description);
+parcelHelpers.export(exports, "newPromise", ()=>newPromise);
+parcelHelpers.export(exports, "start_promise", ()=>start_promise);
+parcelHelpers.export(exports, "resolve", ()=>resolve);
+parcelHelpers.export(exports, "then_await", ()=>then_await);
+parcelHelpers.export(exports, "map_promise", ()=>map_promise);
+parcelHelpers.export(exports, "rescue", ()=>rescue);
+parcelHelpers.export(exports, "wait", ()=>wait);
+parcelHelpers.export(exports, "all_promises", ()=>all_promises);
+parcelHelpers.export(exports, "race_promises", ()=>race_promises);
+parcelHelpers.export(exports, "map_new", ()=>map_new);
+parcelHelpers.export(exports, "map_set", ()=>map_set);
+parcelHelpers.export(exports, "map_get", ()=>map_get);
+parcelHelpers.export(exports, "map_size", ()=>map_size);
+var _gleamMjs = require("./gleam.mjs");
+function toArray(list) {
+    return list.toArray();
+}
+function map(thing, fn) {
+    return thing.map(fn);
+}
+function length(thing) {
+    return thing.length;
+}
+function reduce(thing, acc, fn) {
+    return thing.reduce(fn, acc);
+}
+function reduceRight(thing, acc, fn) {
+    return thing.reduceRight(fn, acc);
+}
+function index(thing, index) {
+    return index in thing ? new (0, _gleamMjs.Ok)(thing[index]) : new (0, _gleamMjs.Error)(undefined);
+}
+function object_from_entries(entries) {
+    return Object.fromEntries(entries);
+}
+function new_symbol(name) {
+    return Symbol(name);
+}
+function get_symbol(name) {
+    return Symbol.for(name);
+}
+function symbol_description(symbol) {
+    const description = symbol.description;
+    if (symbol.description === undefined) return new (0, _gleamMjs.Error)(undefined);
+    return new (0, _gleamMjs.Ok)(description);
+}
+// A wrapper around a promise to prevent `Promise<Promise<T>>` collapsing into
+// `Promise<T>`.
+class PromiseLayer {
+    constructor(promise){
+        this.promise = promise;
+    }
+    static wrap(value) {
+        return value instanceof Promise ? new PromiseLayer(value) : value;
+    }
+    static unwrap(value) {
+        return value instanceof PromiseLayer ? value.promise : value;
+    }
+}
+function newPromise(executor) {
+    return new Promise((resolve)=>executor((value)=>{
+            resolve(PromiseLayer.wrap(value));
+        }));
+}
+function start_promise() {
+    let resolve;
+    const promise = new Promise((r)=>{
+        resolve = (value)=>{
+            r(PromiseLayer.wrap(value));
+        };
+    });
+    return [
+        promise,
+        resolve
+    ];
+}
+function resolve(value) {
+    return Promise.resolve(PromiseLayer.wrap(value));
+}
+function then_await(promise, fn) {
+    return promise.then((value)=>fn(PromiseLayer.unwrap(value)));
+}
+function map_promise(promise, fn) {
+    return promise.then((value)=>PromiseLayer.wrap(fn(PromiseLayer.unwrap(value))));
+}
+function rescue(promise, fn) {
+    return promise.catch((error)=>fn(error));
+}
+function wait(delay) {
+    return new Promise((resolve)=>{
+        globalThis.setTimeout(resolve, delay);
+    });
+}
+function all_promises(...promises) {
+    if (promises.length === 1) return Promise.all(promises[0]);
+    else return Promise.all(promises);
+}
+function race_promises(...promises) {
+    if (promises.length === 1) return Promise.race(promises[0]);
+    else return Promise.race(promises);
+}
+function map_new() {
+    return new Map();
+}
+function map_set(map, key, value) {
+    return map.set(key, value);
+}
+function map_get(map, key) {
+    if (map.has(key)) return new (0, _gleamMjs.Ok)(map.get(key));
+    return new (0, _gleamMjs.Error)(undefined);
+}
+function map_size(map) {
+    return map.size;
+}
+
+},{"./gleam.mjs":"daShs","@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT"}],"6yTRE":[function(require,module,exports,__globalThis) {
+var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
+parcelHelpers.defineInteropFlag(exports);
+var _preludeMjs = require("../prelude.mjs");
+parcelHelpers.exportAll(_preludeMjs, exports);
+
+},{"../prelude.mjs":"ib0cp","@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT"}],"2Yy2B":[function(require,module,exports,__globalThis) {
+var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
+parcelHelpers.defineInteropFlag(exports);
+parcelHelpers.export(exports, "append", ()=>(0, _gleamFetchFfiMjs.appendFormData));
+parcelHelpers.export(exports, "append_bits", ()=>(0, _gleamFetchFfiMjs.appendBitsFormData));
+parcelHelpers.export(exports, "contains", ()=>(0, _gleamFetchFfiMjs.hasFormData));
+parcelHelpers.export(exports, "delete$", ()=>(0, _gleamFetchFfiMjs.deleteFormData));
+parcelHelpers.export(exports, "get", ()=>(0, _gleamFetchFfiMjs.getFormData));
+parcelHelpers.export(exports, "get_bits", ()=>(0, _gleamFetchFfiMjs.getBitsFormData));
+parcelHelpers.export(exports, "keys", ()=>(0, _gleamFetchFfiMjs.keysFormData));
+parcelHelpers.export(exports, "new$", ()=>(0, _gleamFetchFfiMjs.newFormData));
+parcelHelpers.export(exports, "set", ()=>(0, _gleamFetchFfiMjs.setFormData));
+parcelHelpers.export(exports, "set_bits", ()=>(0, _gleamFetchFfiMjs.setBitsFormData));
+var _promiseMjs = require("../../../gleam_javascript/gleam/javascript/promise.mjs");
+var _gleamFetchFfiMjs = require("../../gleam_fetch_ffi.mjs");
+
+},{"../../../gleam_javascript/gleam/javascript/promise.mjs":"cIhTb","../../gleam_fetch_ffi.mjs":"KMyAS","@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT"}],"KMyAS":[function(require,module,exports,__globalThis) {
+var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
+parcelHelpers.defineInteropFlag(exports);
+parcelHelpers.export(exports, "raw_send", ()=>raw_send);
+parcelHelpers.export(exports, "from_fetch_response", ()=>from_fetch_response);
+parcelHelpers.export(exports, "to_fetch_request", ()=>to_fetch_request);
+parcelHelpers.export(exports, "form_data_to_fetch_request", ()=>form_data_to_fetch_request);
+parcelHelpers.export(exports, "bitarray_request_to_fetch_request", ()=>bitarray_request_to_fetch_request);
+parcelHelpers.export(exports, "read_bytes_body", ()=>read_bytes_body);
+parcelHelpers.export(exports, "read_text_body", ()=>read_text_body);
+parcelHelpers.export(exports, "read_json_body", ()=>read_json_body);
+// FormData functions.
+parcelHelpers.export(exports, "newFormData", ()=>newFormData);
+parcelHelpers.export(exports, "appendFormData", ()=>appendFormData);
+parcelHelpers.export(exports, "setFormData", ()=>setFormData);
+parcelHelpers.export(exports, "appendBitsFormData", ()=>appendBitsFormData);
+parcelHelpers.export(exports, "setBitsFormData", ()=>setBitsFormData);
+parcelHelpers.export(exports, "deleteFormData", ()=>deleteFormData);
+parcelHelpers.export(exports, "getFormData", ()=>getFormData);
+parcelHelpers.export(exports, "getBitsFormData", ()=>getBitsFormData);
+parcelHelpers.export(exports, "hasFormData", ()=>hasFormData);
+parcelHelpers.export(exports, "keysFormData", ()=>keysFormData);
+var _gleamMjs = require("./gleam.mjs");
+var _uriMjs = require("../gleam_stdlib/gleam/uri.mjs");
+var _httpMjs = require("../gleam_http/gleam/http.mjs");
+var _requestMjs = require("../gleam_http/gleam/http/request.mjs");
+var _responseMjs = require("../gleam_http/gleam/http/response.mjs");
+var _fetchMjs = require("../gleam_fetch/gleam/fetch.mjs");
+async function raw_send(request) {
+    try {
+        return new (0, _gleamMjs.Ok)(await fetch(request));
+    } catch (error) {
+        return new (0, _gleamMjs.Error)(new (0, _fetchMjs.NetworkError)(error.toString()));
+    }
+}
+function from_fetch_response(response) {
+    return new (0, _responseMjs.Response)(response.status, (0, _gleamMjs.List).fromArray([
+        ...response.headers
+    ]), response);
+}
+function request_common(request) {
+    let url = (0, _uriMjs.to_string)((0, _requestMjs.to_uri)(request));
+    let method = (0, _httpMjs.method_to_string)(request.method).toUpperCase();
+    let options = {
+        headers: make_headers(request.headers),
+        method
+    };
+    return [
+        url,
+        options
+    ];
+}
+function to_fetch_request(request) {
+    let [url, options] = request_common(request);
+    if (options.method !== "GET" && options.method !== "HEAD") options.body = request.body;
+    return new globalThis.Request(url, options);
+}
+function form_data_to_fetch_request(request) {
+    let [url, options] = request_common(request);
+    if (options.method !== "GET" && options.method !== "HEAD") options.body = request.body;
+    // Remove `content-type`, because the browser will add the correct header by itself.
+    delete options.headers['content-type'];
+    return new globalThis.Request(url, options);
+}
+function bitarray_request_to_fetch_request(request) {
+    let [url, options] = request_common(request);
+    if (options.method !== "GET" && options.method !== "HEAD") options.body = request.body.rawBuffer;
+    return new globalThis.Request(url, options);
+}
+function make_headers(headersList) {
+    let headers = new globalThis.Headers();
+    for (let [k, v] of headersList)headers.append(k.toLowerCase(), v);
+    return headers;
+}
+async function read_bytes_body(response) {
+    let body;
+    try {
+        body = await response.body.arrayBuffer();
+    } catch (error) {
+        return new (0, _gleamMjs.Error)(new (0, _fetchMjs.UnableToReadBody)());
+    }
+    return new (0, _gleamMjs.Ok)(response.withFields({
+        body: (0, _gleamMjs.toBitArray)(new Uint8Array(body))
+    }));
+}
+async function read_text_body(response) {
+    let body;
+    try {
+        body = await response.body.text();
+    } catch (error) {
+        return new (0, _gleamMjs.Error)(new (0, _fetchMjs.UnableToReadBody)());
+    }
+    return new (0, _gleamMjs.Ok)(response.withFields({
+        body
+    }));
+}
+async function read_json_body(response) {
+    try {
+        let body = await response.body.json();
+        return new (0, _gleamMjs.Ok)(response.withFields({
+            body
+        }));
+    } catch (error) {
+        return new (0, _gleamMjs.Error)(new (0, _fetchMjs.InvalidJsonBody)());
+    }
+}
+function newFormData() {
+    return new FormData();
+}
+function cloneFormData(formData) {
+    const f = new FormData();
+    for (const [key, value] of formData.entries())f.append(key, value);
+    return f;
+}
+function appendFormData(formData, key, value) {
+    const f = cloneFormData(formData);
+    f.append(key, value);
+    return f;
+}
+function setFormData(formData, key, value) {
+    const f = cloneFormData(formData);
+    f.set(key, value);
+    return f;
+}
+function appendBitsFormData(formData, key, value) {
+    const f = cloneFormData(formData);
+    f.append(key, new Blob([
+        value.rawBuffer
+    ]));
+    return f;
+}
+function setBitsFormData(formData, key, value) {
+    const f = cloneFormData(formData);
+    f.set(key, new Blob([
+        value.rawBuffer
+    ]));
+    return f;
+}
+function deleteFormData(formData, key) {
+    const f = cloneFormData(formData);
+    f.delete(key);
+    return f;
+}
+function getFormData(formData, key) {
+    const data = [
+        ...formData.getAll(key)
+    ];
+    return (0, _gleamMjs.toList)(data.filter((value)=>typeof value === 'string'));
+}
+async function getBitsFormData(formData, key) {
+    const data = [
+        ...formData.getAll(key)
+    ];
+    const encode = new TextEncoder();
+    const blobs = data.map(async (value)=>{
+        if (typeof value === 'string') {
+            const encoded = encode.encode(value);
+            return (0, _gleamMjs.toBitArray)(encoded);
+        } else {
+            const buffer = await value.arrayBuffer();
+            const bytes = new Uint8Array(buffer);
+            return (0, _gleamMjs.toBitArray)(bytes);
+        }
+    });
+    const bytes = await Promise.all(blobs);
+    return (0, _gleamMjs.toList)(bytes);
+}
+function hasFormData(formData, key) {
+    return formData.has(key);
+}
+function keysFormData(formData) {
+    const result = new Set();
+    for (const key of formData.keys())result.add(key);
+    return (0, _gleamMjs.toList)([
+        ...result
+    ]);
+}
+
+},{"./gleam.mjs":"6yTRE","../gleam_stdlib/gleam/uri.mjs":"k5lAJ","../gleam_http/gleam/http.mjs":"f1b8L","../gleam_http/gleam/http/request.mjs":"houAH","../gleam_http/gleam/http/response.mjs":"f3v5I","../gleam_fetch/gleam/fetch.mjs":"2hKhN","@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT"}],"9HuiW":[function(require,module,exports,__globalThis) {
+var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
+parcelHelpers.defineInteropFlag(exports);
+parcelHelpers.export(exports, "Dispatch", ()=>Dispatch);
+parcelHelpers.export(exports, "Event$Dispatch", ()=>Event$Dispatch);
+parcelHelpers.export(exports, "Event$isDispatch", ()=>Event$isDispatch);
+parcelHelpers.export(exports, "Event$Dispatch$message", ()=>Event$Dispatch$message);
+parcelHelpers.export(exports, "Event$Dispatch$0", ()=>Event$Dispatch$0);
+parcelHelpers.export(exports, "Event", ()=>Event);
+parcelHelpers.export(exports, "Event$Event", ()=>Event$Event);
+parcelHelpers.export(exports, "Event$isEvent", ()=>Event$isEvent);
+parcelHelpers.export(exports, "Event$Event$target", ()=>Event$Event$target);
+parcelHelpers.export(exports, "Event$Event$0", ()=>Event$Event$0);
+parcelHelpers.export(exports, "Event$Event$name", ()=>Event$Event$name);
+parcelHelpers.export(exports, "Event$Event$1", ()=>Event$Event$1);
+parcelHelpers.export(exports, "Event$Event$data", ()=>Event$Event$data);
+parcelHelpers.export(exports, "Event$Event$2", ()=>Event$Event$2);
+parcelHelpers.export(exports, "Problem", ()=>Problem);
+parcelHelpers.export(exports, "Event$Problem", ()=>Event$Problem);
+parcelHelpers.export(exports, "Event$isProblem", ()=>Event$isProblem);
+parcelHelpers.export(exports, "Event$Problem$name", ()=>Event$Problem$name);
+parcelHelpers.export(exports, "Event$Problem$0", ()=>Event$Problem$0);
+parcelHelpers.export(exports, "Event$Problem$message", ()=>Event$Problem$message);
+parcelHelpers.export(exports, "Event$Problem$1", ()=>Event$Problem$1);
+/**
+ * Construct a simulated simple Lustre application. The simulation can be started
+ * with the [`start`](#start) function by providing the initial arguments for
+ * your app's `init` function.
+ *
+ * DOM events and messages dispatched by effects can be simulated using the
+ * [`event`](#event) and [`messgae`](#message) functions.
+ */ parcelHelpers.export(exports, "simple", ()=>simple);
+/**
+ * Construct a simulated Lustre application. The simulation can be started
+ * with the [`start`](#start) function by providing the initial arguments for
+ * your app's `init` function.
+ *
+ * DOM events and messages dispatched by effects can be simulated using the
+ * [`event`](#event) and [`messgae`](#message) functions.
+ *
+ * > **Note**: simulated apps do not run any effects! You can simulate the result
+ * > of an effect by using the [`message`](#message) function, but to test side
+ * > effects you should test your application in a real environment.
+ */ parcelHelpers.export(exports, "application", ()=>application);
+/**
+ * Start a simulated Lustre application. Once a simulation is running you can
+ * use the [`message`](#message) and [`event`](#event) functions to simulate
+ * events
+ */ parcelHelpers.export(exports, "start", ()=>start);
+/**
+ * Simulate a message sent directly to the runtime. This is often used to mimic
+ * the result of some effect you would have run in a real environment. For example,
+ * you might simulate a click event on a login button and then simulate the
+ * successful response from the server by calling this function with the message
+ * you would dispatch from the effect:
+ *
+ * ```gleam
+ * import birdie
+ * import lustre/dev/simulate
+ * import lustre/dev/query
+ * import lustre/element
+ *
+ * pub fn login_test() {
+ *   let app = simulate.application(init:, update:, view:)
+ *   let login_button = query.element(matching: query.id("login"))
+ *   let user = User(name: "Lucy")
+ *
+ *   simulate.start(app, Nil)
+ *   |> simulate.event(on: login_button, name: "click", data: [])
+ *   // Simulate a successful response from the server
+ *   |> simulate.message(ApiReturnedUser(Ok(user)))
+ *   |> simulate.view
+ *   |> element.to_readable_string
+ *   |> birdie.snap("Successful login")
+ * }
+ * ```
+ *
+ * > **Note**: your app's `view` function will probably be rendering quite a lot
+ * > of HTML! To make your snapshots more meaningful, you might want to couple
+ * > this with the [`query`](./query.html) module to only snapshot parts of the
+ * > page that are relevant to the test.
+ */ parcelHelpers.export(exports, "message", ()=>message);
+/**
+ * Log a problem that occured during the simulation. This function is useful for
+ * external packages that want to provide functions to simulate certain effects
+ * that may fail in the real world. For example, a routing package may log a
+ * problem if a link has an invalid `href` attribute that would cause no message
+ * to be dispatched.
+ *
+ * > **Note**: logging a problem will not stop the simulation from running, just
+ * > like a real application!
+ */ parcelHelpers.export(exports, "problem", ()=>problem);
+/**
+ * Introspect the current `model` of a running simulation. This can be useful
+ * to debug why a simulation is not producing the view you expect.
+ */ parcelHelpers.export(exports, "model", ()=>model);
+/**
+ * Introspect the current `view` of a running simulation. Typically you would
+ * use this with a snapshot testing library like [`birdie`](https://hexdocs.pm/birdie/index.html)
+ * and/or with the [`query`](./query.html) api to make assertions about the state
+ * of the page.
+ */ parcelHelpers.export(exports, "view", ()=>view);
+/**
+ * Receive the current [`Event`](#Event) log of a running simulation. You can
+ * use this to produce more detailed snapshots by also rendering the sequence of
+ * events that produced the given view.
+ *
+ * In addition to simulated DOM events and message dispatch, the event log will
+ * also include entries for when the queried event target could not be found in
+ * the view and cases where an event was fired but not handled by your application.
+ */ parcelHelpers.export(exports, "history", ()=>history);
+/**
+ * Simulate a DOM event on the first element that matches the given query. The
+ * payload represents a simulated event object, and should be used to pass data
+ * you expect your event handlers to decode.
+ *
+ * If no element matches the query, an [`EventTargetNotFound`](#Event) event is
+ * logged in the simulation history. If an element is found, but the application
+ * has no handler for the event, the [`EventHandlerNotFound`](#Event) event is
+ * logged instead.
+ *
+ * > **Note**: this is not a perfect simulation of a real DOM event. There is no
+ * > capture phase of a simulated event and simulated events will not bubble up
+ * > to parent elements.
+ */ parcelHelpers.export(exports, "event", ()=>event);
+/**
+ * A convenience function that simulates a click event on the first element
+ * matching the given query. This event will have no payload and is only
+ * appropriate for event handlers that use Lustre's `on_click` handler or custom
+ * handlers that do not decode the event payload.
+ */ parcelHelpers.export(exports, "click", ()=>click);
+/**
+ * Simulate an input event on the first element matching the given query. This
+ * helper has an event payload that looks like this:
+ *
+ * ```json
+ * {
+ *   "target": {
+ *     "value": value
+ *   }
+ * }
+ * ```
+ *
+ * and is appropriate for event handlers that use Lustre's `on_input` handler
+ * or custom handlers that only decode the event target value.
+ */ parcelHelpers.export(exports, "input", ()=>input);
+/**
+ * Simulate a submit event on the first element matching the given query. The
+ * simulated event payload looks like this:
+ *
+ * ```json
+ * {
+ *   "detail": {
+ *     "formData": [
+ *       ...
+ *     ]
+ *   }
+ * }
+ * ```
+ *
+ * and is appropriate for event handlers that use Lustre's `on_submit` handler
+ * or custom handlers that only decode the non-standard `detail.formData`
+ * property.
+ */ parcelHelpers.export(exports, "submit", ()=>submit);
+var _jsonMjs = require("../../../gleam_json/gleam/json.mjs");
+var _dynamicMjs = require("../../../gleam_stdlib/gleam/dynamic.mjs");
+var _decodeMjs = require("../../../gleam_stdlib/gleam/dynamic/decode.mjs");
+var _functionMjs = require("../../../gleam_stdlib/gleam/function.mjs");
+var _listMjs = require("../../../gleam_stdlib/gleam/list.mjs");
+var _pairMjs = require("../../../gleam_stdlib/gleam/pair.mjs");
+var _resultMjs = require("../../../gleam_stdlib/gleam/result.mjs");
+var _gleamMjs = require("../../gleam.mjs");
+var _queryMjs = require("../../lustre/dev/query.mjs");
+var _effectMjs = require("../../lustre/effect.mjs");
+var _elementMjs = require("../../lustre/element.mjs");
+var _cacheMjs = require("../../lustre/vdom/cache.mjs");
+var _pathMjs = require("../../lustre/vdom/path.mjs");
+class App extends (0, _gleamMjs.CustomType) {
+    constructor(init, update, view){
+        super();
+        this.init = init;
+        this.update = update;
+        this.view = view;
+    }
+}
+class Simulation extends (0, _gleamMjs.CustomType) {
+    constructor(update, view, history, model, html){
+        super();
+        this.update = update;
+        this.view = view;
+        this.history = history;
+        this.model = model;
+        this.html = html;
+    }
+}
+class Dispatch extends (0, _gleamMjs.CustomType) {
+    constructor(message){
+        super();
+        this.message = message;
+    }
+}
+const Event$Dispatch = (message)=>new Dispatch(message);
+const Event$isDispatch = (value)=>value instanceof Dispatch;
+const Event$Dispatch$message = (value)=>value.message;
+const Event$Dispatch$0 = (value)=>value.message;
+class Event extends (0, _gleamMjs.CustomType) {
+    constructor(target, name, data){
+        super();
+        this.target = target;
+        this.name = name;
+        this.data = data;
+    }
+}
+const Event$Event = (target, name, data)=>new Event(target, name, data);
+const Event$isEvent = (value)=>value instanceof Event;
+const Event$Event$target = (value)=>value.target;
+const Event$Event$0 = (value)=>value.target;
+const Event$Event$name = (value)=>value.name;
+const Event$Event$1 = (value)=>value.name;
+const Event$Event$data = (value)=>value.data;
+const Event$Event$2 = (value)=>value.data;
+class Problem extends (0, _gleamMjs.CustomType) {
+    constructor(name, message){
+        super();
+        this.name = name;
+        this.message = message;
+    }
+}
+const Event$Problem = (name, message)=>new Problem(name, message);
+const Event$isProblem = (value)=>value instanceof Problem;
+const Event$Problem$name = (value)=>value.name;
+const Event$Problem$0 = (value)=>value.name;
+const Event$Problem$message = (value)=>value.message;
+const Event$Problem$1 = (value)=>value.message;
+function simple(init, update, view) {
+    return new App((args)=>{
+        return [
+            init(args),
+            _effectMjs.none()
+        ];
+    }, (model, msg)=>{
+        return [
+            update(model, msg),
+            _effectMjs.none()
+        ];
+    }, view);
+}
+function application(init, update, view) {
+    return new App(init, update, view);
+}
+function start(app, args) {
+    let $ = app.init(args);
+    let model$1;
+    model$1 = $[0];
+    let html = app.view(model$1);
+    return new Simulation(app.update, app.view, (0, _gleamMjs.toList)([]), model$1, html);
+}
+function message(simulation, msg) {
+    let $ = simulation.update(simulation.model, msg);
+    let model$1;
+    model$1 = $[0];
+    let html = simulation.view(model$1);
+    let history$1 = (0, _gleamMjs.prepend)(new Dispatch(msg), simulation.history);
+    return new Simulation(simulation.update, simulation.view, history$1, model$1, html);
+}
+function problem(simulation, name, message) {
+    let history$1 = (0, _gleamMjs.prepend)(new Problem(name, message), simulation.history);
+    return new Simulation(simulation.update, simulation.view, history$1, simulation.model, simulation.html);
+}
+function model(simulation) {
+    return simulation.model;
+}
+function view(simulation) {
+    return simulation.html;
+}
+function history(simulation) {
+    let _pipe = simulation.history;
+    return _listMjs.reverse(_pipe);
+}
+function event(simulation, query, event, payload) {
+    let result = _resultMjs.try$(_resultMjs.replace_error(_queryMjs.find_path(simulation.html, query, 0, _pathMjs.root), problem(simulation, "EventTargetNotFound", "No element matching " + _queryMjs.to_readable_string(query))), (_use0)=>{
+        let path;
+        path = _use0[1];
+        let events = _cacheMjs.from_node(simulation.html);
+        let data = _jsonMjs.object(payload);
+        return _resultMjs.try$(_resultMjs.replace_error(_pairMjs.second(_cacheMjs.handle(events, _pathMjs.to_string(path), event, (()=>{
+            let _pipe = data;
+            let _pipe$1 = _jsonMjs.to_string(_pipe);
+            let _pipe$2 = _jsonMjs.parse(_pipe$1, _decodeMjs.dynamic);
+            return _resultMjs.unwrap(_pipe$2, (0, _functionMjs.identity)(undefined));
+        })())), problem(simulation, "EventHandlerNotFound", "No " + event + " handler for element matching " + _queryMjs.to_readable_string(query))), (handler)=>{
+            let $ = simulation.update(simulation.model, handler.message);
+            let model$1;
+            model$1 = $[0];
+            let html = simulation.view(model$1);
+            let history$1 = (0, _gleamMjs.prepend)(new Event(query, event, data), simulation.history);
+            return new (0, _gleamMjs.Ok)(new Simulation(simulation.update, simulation.view, history$1, model$1, html));
+        });
+    });
+    if (result instanceof (0, _gleamMjs.Ok)) {
+        let simulation$1 = result[0];
+        return simulation$1;
+    } else {
+        let problem$1 = result[0];
+        return problem$1;
+    }
+}
+function click(simulation, query) {
+    return event(simulation, query, "click", (0, _gleamMjs.toList)([]));
+}
+function input(simulation, query, value) {
+    return event(simulation, query, "input", (0, _gleamMjs.toList)([
+        [
+            "target",
+            _jsonMjs.object((0, _gleamMjs.toList)([
+                [
+                    "value",
+                    _jsonMjs.string(value)
+                ]
+            ]))
+        ]
+    ]));
+}
+function submit(simulation, query, form_data) {
+    return event(simulation, query, "submit", (0, _gleamMjs.toList)([
+        [
+            "detail",
+            _jsonMjs.object((0, _gleamMjs.toList)([
+                [
+                    "formData",
+                    _jsonMjs.array(form_data, (entry)=>{
+                        return _jsonMjs.preprocessed_array((0, _gleamMjs.toList)([
+                            _jsonMjs.string(entry[0]),
+                            _jsonMjs.string(entry[1])
+                        ]));
+                    })
+                ]
+            ]))
+        ]
+    ]));
+}
+
+},{"../../../gleam_json/gleam/json.mjs":"8Pq32","../../../gleam_stdlib/gleam/dynamic.mjs":"iAWCk","../../../gleam_stdlib/gleam/dynamic/decode.mjs":"gmHd7","../../../gleam_stdlib/gleam/function.mjs":"2jh6y","../../../gleam_stdlib/gleam/list.mjs":"8dUwY","../../../gleam_stdlib/gleam/pair.mjs":"5ZTSQ","../../../gleam_stdlib/gleam/result.mjs":"oBmFG","../../gleam.mjs":"jNPQG","../../lustre/dev/query.mjs":"bsj55","../../lustre/effect.mjs":"iAEPi","../../lustre/element.mjs":"2XxJ4","../../lustre/vdom/cache.mjs":"aEh50","../../lustre/vdom/path.mjs":"351yX","@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT"}],"bsj55":[function(require,module,exports,__globalThis) {
+var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
+parcelHelpers.defineInteropFlag(exports);
+/**
+ * Find any elements in a view that match the given [`Selector`](#Selector).
+ */ parcelHelpers.export(exports, "element", ()=>element);
+/**
+ * Given a `Query` that finds an element, find any of that element's _direct_
+ * children that match the given [`Selector`](#Selector). This is similar to the
+ * CSS `>` combinator.
+ */ parcelHelpers.export(exports, "child", ()=>child);
+/**
+ * Given a `Query` that finds an element, find any of that element's _descendants_
+ * that match the given [`Selector`](#Selector). This will walk the entire tree
+ * from the matching parent.
+ */ parcelHelpers.export(exports, "descendant", ()=>descendant);
+/**
+ * Combine two selectors into one that must match both. For example, if you have
+ * a selector for div elements and a selector for elements with the class "wibble"
+ * then they can be combined into a selector that matches only div elements with
+ * the class "wibble".
+ *
+ * ```gleam
+ * import lustre/dev/query
+ *
+ * pub fn example() {
+ *   let div = query.tag("div")
+ *   let wibble = query.class("wibble")
+ *
+ *   query.element(matching: div |> query.and(wibble))
+ * }
+ * ```
+ *
+ * You can chain multiple `and` calls together to combine many selectors into
+ * something more specific.
+ *
+ * ```gleam
+ * import lustre/dev/query
+ *
+ * pub fn example() {
+ *   query.tag("div")
+ *   |> query.and(query.class("wibble"))
+ *   |> query.and(query.data("open", "true"))
+ * }
+ * ```
+ *
+ * > **Note**: if you find yourself crafting complex selectors, consider using
+ * > a test id on the element(s) you want to find instead.
+ */ parcelHelpers.export(exports, "and", ()=>and);
+/**
+ * Select elements based on their tag name, like `"div"`, `"span"`, or `"a"`.
+ * To select elements with an XML namespace - such as SVG elements - use the
+ * [`namespaced`](#namespaced) selector instead.
+ */ parcelHelpers.export(exports, "tag", ()=>tag);
+/**
+ * Select elements based on their tag name and XML namespace. This is useful
+ * for selecting SVG elements or other XML elements that have a namespace.
+ * For example, to select an SVG circle element, you would use:
+ *
+ * ```gleam
+ * import lustre/dev/query
+ *
+ * pub fn example() {
+ *   let svg = "http://www.w3.org/2000/svg"
+ *
+ *   query.element(matching: query.namespaced(svg, "circle"))
+ * }
+ * ```
+ */ parcelHelpers.export(exports, "namespaced", ()=>namespaced);
+/**
+ * Select elements that have the specified attribute with the given value. If
+ * the value is left blank, this selector will match any element that has the
+ * attribute, _regardless of its value_.
+ *
+ * For example, to select a form input with the name "username", you would
+ * use:
+ *
+ * ```gleam
+ * import lustre/dev/query
+ *
+ * pub fn example() {
+ *   query.element(matching: query.attribute("name", "username"))
+ * }
+ * ```
+ *
+ * Or to select elements with the `disabled` attribute:
+ *
+ * ```gleam
+ * import lustre/dev/query
+ *
+ * pub fn example() {
+ *   query.element(matching: query.attribute("disabled", ""))
+ * }
+ * ```
+ */ parcelHelpers.export(exports, "attribute", ()=>attribute);
+/**
+ * Select elements that include the given space-separated class name(s). For
+ * example given the element `<div class="foo bar baz">`, the following selectors
+ * would match:
+ *
+ * - `query.class("foo")`
+ *
+ * - `query.class("bar baz")`
+ *
+ * If you need to match the class attribute exactly, you can use the [`attribute`](#attribute)
+ * selector instead.
+ */ parcelHelpers.export(exports, "class$", ()=>class$);
+/**
+ * Select elements that have the specified inline style with the given value.
+ * If the value is left blank, this selector will match any element that has
+ * the given style, _regardless of its value_.
+ */ parcelHelpers.export(exports, "style", ()=>style);
+/**
+ * Select an element based on its `id` attribute. Well-formed HTML means that
+ * only one element should have a given id.
+ */ parcelHelpers.export(exports, "id", ()=>id);
+/**
+ * Select elements that have the given `data-*` attribute. For example you can
+ * select a custom disclosure element that is currently open with:
+ *
+ * ```gleam
+ * import lustre/dev/query
+ *
+ * pub fn example() {
+ *   query.element(matching: query.data("open", "true"))
+ * }
+ * ```
+ */ parcelHelpers.export(exports, "data", ()=>data);
+/**
+ * It is a common convention to use the `data-test-id` attribute to mark elements
+ * for easy selection in tests. This function is a shorthand for writing
+ * `query.data("test-id", value)`
+ */ parcelHelpers.export(exports, "test_id", ()=>test_id);
+/**
+ * Select elements that have the given `aria-*` attribute. For example you can
+ * select the trigger of a dropdown menu with:
+ *
+ * ```gleam
+ * import lustre/dev/query
+ *
+ * pub fn example() {
+ *   query.element(matching: query.aria("expanded", "true"))
+ * }
+ * ```
+ */ parcelHelpers.export(exports, "aria", ()=>aria);
+/**
+ * Select elements whose text content matches the given string exactly. This
+ * includes text from **inline** children, but not from **block** children. For
+ * example, given the following HTML:
+ *
+ * ```html
+ * <p>Hello, <span class="font-bold">Joe</span>!</p>
+ * ```
+ *
+ * The selector `query.text("Hello, Joe!")` would match the `<p>` element because
+ * the text content of the inline `<span>` element is included in the paragraph's
+ * text content.
+ *
+ * Whitespace must match exactly, so the selector `query.text("Hello, Joe!")`
+ * would not match an element like:
+ *
+ * ```gleam
+ * html.p([], [html.text("Hello,     Joe!")])
+ * ```
+ *
+ * > **Note**: while this selector makes a best-effort attempt to include the
+ * > text content of inline children, this cannot account for block elements that
+ * > are styled as inline by CSS stylesheets.
+ *
+ * > **Note**: often it is better to use more precise selectors such as
+ * > [`id`](#id), [`class`](#class), or [`test_id`](#test_id). You should reach
+ * > for this selector only when you want to assert that an element contains
+ * > some specific text, such as in a hero banner or a copyright notice.
+ */ parcelHelpers.export(exports, "text", ()=>text);
+/**
+ * Check if the given target element matches the given [`Selector`](#Selector).
+ */ parcelHelpers.export(exports, "matches", ()=>matches);
+/**
+ * Print a `Query` as a human-readable string similar to a CSS selector. This
+ * function is primarily intended for debugging and testing purposes: for example,
+ * you might use this to include the selector in a snapshot test for easier
+ * review.
+ *
+ * > **Note**: while similar, this function is not guaranteed to produce a valid
+ * > CSS selector. Specifically, queries that use the [`text`](#text) selector
+ * > will not be valid CSS selectors as they use the `:contains` pseudo-class,
+ * > which is not part of the CSS spec!
+ */ parcelHelpers.export(exports, "to_readable_string", ()=>to_readable_string);
+/**
+ * Like [`find`](#find) but returns every element in the view that matches the
+ * given query.
+ */ parcelHelpers.export(exports, "find_all", ()=>find_all);
+/**
+ *
+ * 
+ * @ignore
+ */ parcelHelpers.export(exports, "find_path", ()=>find_path);
+/**
+ * Find the first element in a view that matches the given [`Query`](#Query).
+ * This is useful for tests when combined with [`element.to_readable_string`](../element.html#to_readable_string),
+ * allowing you to render large views but take more precise snapshots.
+ */ parcelHelpers.export(exports, "find", ()=>find);
+/**
+ * Check if an element or any of its descendants match the given
+ * [`Selector`](#Selector).
+ */ parcelHelpers.export(exports, "has", ()=>has);
+var _listMjs = require("../../../gleam_stdlib/gleam/list.mjs");
+var _orderMjs = require("../../../gleam_stdlib/gleam/order.mjs");
+var _stringMjs = require("../../../gleam_stdlib/gleam/string.mjs");
+var _gleamMjs = require("../../gleam.mjs");
+var _attributeMjs = require("../../lustre/attribute.mjs");
+var _elementMjs = require("../../lustre/element.mjs");
+var _constantsMjs = require("../../lustre/internals/constants.mjs");
+var _pathMjs = require("../../lustre/vdom/path.mjs");
+var _vattrMjs = require("../../lustre/vdom/vattr.mjs");
+var _vnodeMjs = require("../../lustre/vdom/vnode.mjs");
+const FILEPATH = "src/lustre/dev/query.gleam";
+class FindElement extends (0, _gleamMjs.CustomType) {
+    constructor(matching){
+        super();
+        this.matching = matching;
+    }
+}
+class FindChild extends (0, _gleamMjs.CustomType) {
+    constructor(of, matching){
+        super();
+        this.of = of;
+        this.matching = matching;
+    }
+}
+class FindDescendant extends (0, _gleamMjs.CustomType) {
+    constructor(of, matching){
+        super();
+        this.of = of;
+        this.matching = matching;
+    }
+}
+class All extends (0, _gleamMjs.CustomType) {
+    constructor(of){
+        super();
+        this.of = of;
+    }
+}
+class Type extends (0, _gleamMjs.CustomType) {
+    constructor(namespace, tag){
+        super();
+        this.namespace = namespace;
+        this.tag = tag;
+    }
+}
+class HasAttribute extends (0, _gleamMjs.CustomType) {
+    constructor(name, value){
+        super();
+        this.name = name;
+        this.value = value;
+    }
+}
+class HasClass extends (0, _gleamMjs.CustomType) {
+    constructor(name){
+        super();
+        this.name = name;
+    }
+}
+class HasStyle extends (0, _gleamMjs.CustomType) {
+    constructor(name, value){
+        super();
+        this.name = name;
+        this.value = value;
+    }
+}
+class Contains extends (0, _gleamMjs.CustomType) {
+    constructor(content){
+        super();
+        this.content = content;
+    }
+}
+function element(selector) {
+    return new FindElement(selector);
+}
+function child(parent, selector) {
+    return new FindChild(parent, selector);
+}
+function descendant(parent, selector) {
+    return new FindDescendant(parent, selector);
+}
+function and(first, second) {
+    if (first instanceof All) {
+        let $ = first.of;
+        if ($ instanceof (0, _gleamMjs.Empty)) return new All((0, _gleamMjs.toList)([
+            second
+        ]));
+        else {
+            let others = $;
+            return new All((0, _gleamMjs.prepend)(second, others));
+        }
+    } else return new All((0, _gleamMjs.toList)([
+        first,
+        second
+    ]));
+}
+function tag(value) {
+    return new Type("", value);
+}
+function namespaced(namespace, tag) {
+    return new Type(namespace, tag);
+}
+function attribute(name, value) {
+    return new HasAttribute(name, value);
+}
+function class$(name) {
+    return new HasClass(name);
+}
+function style(name, value) {
+    return new HasStyle(name, value);
+}
+function id(name) {
+    return new HasAttribute("id", name);
+}
+function data(name, value) {
+    return new HasAttribute("data-" + name, value);
+}
+function test_id(value) {
+    return data("test-id", value);
+}
+function aria(name, value) {
+    return new HasAttribute("aria-" + name, value);
+}
+function text(content) {
+    return new Contains(content);
+}
+function text_content(loop$element, loop$inline, loop$content) {
+    while(true){
+        let element = loop$element;
+        let inline = loop$inline;
+        let content = loop$content;
+        if (element instanceof (0, _vnodeMjs.Fragment)) return _listMjs.fold(element.children, content, (content, child)=>{
+            return text_content(child, true, content);
+        });
+        else if (element instanceof (0, _vnodeMjs.Element)) {
+            if (!inline || element.namespace !== "") return _listMjs.fold(element.children, content, (content, child)=>{
+                return text_content(child, true, content);
+            });
+            else {
+                let $ = element.tag;
+                if ($ === "a") return _listMjs.fold(element.children, content, (content, child)=>{
+                    return text_content(child, true, content);
+                });
+                else if ($ === "abbr") return _listMjs.fold(element.children, content, (content, child)=>{
+                    return text_content(child, true, content);
+                });
+                else if ($ === "acronym") return _listMjs.fold(element.children, content, (content, child)=>{
+                    return text_content(child, true, content);
+                });
+                else if ($ === "b") return _listMjs.fold(element.children, content, (content, child)=>{
+                    return text_content(child, true, content);
+                });
+                else if ($ === "bdo") return _listMjs.fold(element.children, content, (content, child)=>{
+                    return text_content(child, true, content);
+                });
+                else if ($ === "big") return _listMjs.fold(element.children, content, (content, child)=>{
+                    return text_content(child, true, content);
+                });
+                else if ($ === "br") return _listMjs.fold(element.children, content, (content, child)=>{
+                    return text_content(child, true, content);
+                });
+                else if ($ === "button") return _listMjs.fold(element.children, content, (content, child)=>{
+                    return text_content(child, true, content);
+                });
+                else if ($ === "cite") return _listMjs.fold(element.children, content, (content, child)=>{
+                    return text_content(child, true, content);
+                });
+                else if ($ === "code") return _listMjs.fold(element.children, content, (content, child)=>{
+                    return text_content(child, true, content);
+                });
+                else if ($ === "dfn") return _listMjs.fold(element.children, content, (content, child)=>{
+                    return text_content(child, true, content);
+                });
+                else if ($ === "em") return _listMjs.fold(element.children, content, (content, child)=>{
+                    return text_content(child, true, content);
+                });
+                else if ($ === "i") return _listMjs.fold(element.children, content, (content, child)=>{
+                    return text_content(child, true, content);
+                });
+                else if ($ === "img") return _listMjs.fold(element.children, content, (content, child)=>{
+                    return text_content(child, true, content);
+                });
+                else if ($ === "input") return _listMjs.fold(element.children, content, (content, child)=>{
+                    return text_content(child, true, content);
+                });
+                else if ($ === "kbd") return _listMjs.fold(element.children, content, (content, child)=>{
+                    return text_content(child, true, content);
+                });
+                else if ($ === "label") return _listMjs.fold(element.children, content, (content, child)=>{
+                    return text_content(child, true, content);
+                });
+                else if ($ === "map") return _listMjs.fold(element.children, content, (content, child)=>{
+                    return text_content(child, true, content);
+                });
+                else if ($ === "object") return _listMjs.fold(element.children, content, (content, child)=>{
+                    return text_content(child, true, content);
+                });
+                else if ($ === "output") return _listMjs.fold(element.children, content, (content, child)=>{
+                    return text_content(child, true, content);
+                });
+                else if ($ === "q") return _listMjs.fold(element.children, content, (content, child)=>{
+                    return text_content(child, true, content);
+                });
+                else if ($ === "samp") return _listMjs.fold(element.children, content, (content, child)=>{
+                    return text_content(child, true, content);
+                });
+                else if ($ === "script") return _listMjs.fold(element.children, content, (content, child)=>{
+                    return text_content(child, true, content);
+                });
+                else if ($ === "select") return _listMjs.fold(element.children, content, (content, child)=>{
+                    return text_content(child, true, content);
+                });
+                else if ($ === "small") return _listMjs.fold(element.children, content, (content, child)=>{
+                    return text_content(child, true, content);
+                });
+                else if ($ === "span") return _listMjs.fold(element.children, content, (content, child)=>{
+                    return text_content(child, true, content);
+                });
+                else if ($ === "strong") return _listMjs.fold(element.children, content, (content, child)=>{
+                    return text_content(child, true, content);
+                });
+                else if ($ === "sub") return _listMjs.fold(element.children, content, (content, child)=>{
+                    return text_content(child, true, content);
+                });
+                else if ($ === "sup") return _listMjs.fold(element.children, content, (content, child)=>{
+                    return text_content(child, true, content);
+                });
+                else if ($ === "textarea") return _listMjs.fold(element.children, content, (content, child)=>{
+                    return text_content(child, true, content);
+                });
+                else if ($ === "time") return _listMjs.fold(element.children, content, (content, child)=>{
+                    return text_content(child, true, content);
+                });
+                else if ($ === "tt") return _listMjs.fold(element.children, content, (content, child)=>{
+                    return text_content(child, true, content);
+                });
+                else if ($ === "var") return _listMjs.fold(element.children, content, (content, child)=>{
+                    return text_content(child, true, content);
+                });
+                else {
+                    let rule = "display:inline";
+                    let is_inline = _listMjs.any(element.attributes, (attribute)=>{
+                        if (attribute instanceof (0, _vattrMjs.Attribute)) {
+                            let $1 = attribute.name;
+                            if ($1 === "style") {
+                                let value = attribute.value;
+                                return _stringMjs.contains(value, rule);
+                            } else return false;
+                        } else return false;
+                    });
+                    if (is_inline) return _listMjs.fold(element.children, content, (content, child)=>{
+                        return text_content(child, true, content);
+                    });
+                    else return content;
+                }
+            }
+        } else if (element instanceof (0, _vnodeMjs.Text)) return content + element.content;
+        else if (element instanceof (0, _vnodeMjs.UnsafeInnerHtml)) return content;
+        else if (element instanceof (0, _vnodeMjs.Map)) {
+            let child$1 = element.child;
+            loop$element = child$1;
+            loop$inline = inline;
+            loop$content = content;
+        } else {
+            let view = element.view;
+            loop$element = view();
+            loop$inline = inline;
+            loop$content = content;
+        }
+    }
+}
+function matches(element, selector) {
+    if (selector instanceof All) {
+        let selectors = selector.of;
+        return _listMjs.all(selectors, (_capture)=>{
+            return matches(element, _capture);
+        });
+    } else if (selector instanceof Type) {
+        if (element instanceof (0, _vnodeMjs.Element)) {
+            let namespace = element.namespace;
+            let tag$1 = element.tag;
+            return namespace === selector.namespace && tag$1 === selector.tag;
+        } else if (element instanceof (0, _vnodeMjs.UnsafeInnerHtml)) {
+            let namespace = element.namespace;
+            let tag$1 = element.tag;
+            return namespace === selector.namespace && tag$1 === selector.tag;
+        } else return false;
+    } else if (selector instanceof HasAttribute) {
+        if (element instanceof (0, _vnodeMjs.Element)) {
+            let $ = selector.value;
+            if ($ === "") {
+                let name = selector.name;
+                let attributes = element.attributes;
+                return _listMjs.any(attributes, (attribute)=>{
+                    if (attribute instanceof (0, _vattrMjs.Attribute)) return attribute.name === name;
+                    else return false;
+                });
+            } else {
+                let name = selector.name;
+                let value = $;
+                let attributes = element.attributes;
+                return _listMjs.contains(attributes, _attributeMjs.attribute(name, value));
+            }
+        } else if (element instanceof (0, _vnodeMjs.UnsafeInnerHtml)) {
+            let $ = selector.value;
+            if ($ === "") {
+                let name = selector.name;
+                let attributes = element.attributes;
+                return _listMjs.any(attributes, (attribute)=>{
+                    if (attribute instanceof (0, _vattrMjs.Attribute)) return attribute.name === name;
+                    else return false;
+                });
+            } else {
+                let name = selector.name;
+                let value = $;
+                let attributes = element.attributes;
+                return _listMjs.contains(attributes, _attributeMjs.attribute(name, value));
+            }
+        } else return false;
+    } else if (selector instanceof HasClass) {
+        if (element instanceof (0, _vnodeMjs.Element)) {
+            let name = selector.name;
+            let attributes = element.attributes;
+            return _listMjs.fold_until(_stringMjs.split(name, " "), true, (_, class$)=>{
+                let name$1 = _stringMjs.trim_end(class$);
+                let matches$1 = _listMjs.any(attributes, (attribute)=>{
+                    if (attribute instanceof (0, _vattrMjs.Attribute)) {
+                        let $ = attribute.name;
+                        if ($ === "class") {
+                            let value = attribute.value;
+                            return value === name$1 || _stringMjs.starts_with(value, name$1 + " ") || _stringMjs.ends_with(value, " " + name$1) || _stringMjs.contains(value, " " + name$1 + " ");
+                        } else return false;
+                    } else return false;
+                });
+                if (matches$1) return new _listMjs.Continue(true);
+                else return new _listMjs.Stop(false);
+            });
+        } else if (element instanceof (0, _vnodeMjs.UnsafeInnerHtml)) {
+            let name = selector.name;
+            let attributes = element.attributes;
+            return _listMjs.fold_until(_stringMjs.split(name, " "), true, (_, class$)=>{
+                let name$1 = _stringMjs.trim_end(class$);
+                let matches$1 = _listMjs.any(attributes, (attribute)=>{
+                    if (attribute instanceof (0, _vattrMjs.Attribute)) {
+                        let $ = attribute.name;
+                        if ($ === "class") {
+                            let value = attribute.value;
+                            return value === name$1 || _stringMjs.starts_with(value, name$1 + " ") || _stringMjs.ends_with(value, " " + name$1) || _stringMjs.contains(value, " " + name$1 + " ");
+                        } else return false;
+                    } else return false;
+                });
+                if (matches$1) return new _listMjs.Continue(true);
+                else return new _listMjs.Stop(false);
+            });
+        } else return false;
+    } else if (selector instanceof HasStyle) {
+        if (element instanceof (0, _vnodeMjs.Element)) {
+            let name = selector.name;
+            let value = selector.value;
+            let attributes = element.attributes;
+            let rule = name + ":" + value + ";";
+            return _listMjs.any(attributes, (attribute)=>{
+                if (attribute instanceof (0, _vattrMjs.Attribute)) {
+                    let $ = attribute.name;
+                    if ($ === "style") {
+                        let value$1 = attribute.value;
+                        return _stringMjs.contains(value$1, rule);
+                    } else return false;
+                } else return false;
+            });
+        } else if (element instanceof (0, _vnodeMjs.UnsafeInnerHtml)) {
+            let name = selector.name;
+            let value = selector.value;
+            let attributes = element.attributes;
+            let rule = name + ":" + value + ";";
+            return _listMjs.any(attributes, (attribute)=>{
+                if (attribute instanceof (0, _vattrMjs.Attribute)) {
+                    let $ = attribute.name;
+                    if ($ === "style") {
+                        let value$1 = attribute.value;
+                        return _stringMjs.contains(value$1, rule);
+                    } else return false;
+                } else return false;
+            });
+        } else return false;
+    } else if (element instanceof (0, _vnodeMjs.Element)) {
+        let content = selector.content;
+        let _pipe = element;
+        let _pipe$1 = text_content(_pipe, false, "");
+        return _stringMjs.contains(_pipe$1, content);
+    } else return false;
+}
+function find_matching_in_list(loop$elements, loop$selector, loop$path, loop$index) {
+    while(true){
+        let elements = loop$elements;
+        let selector = loop$selector;
+        let path = loop$path;
+        let index = loop$index;
+        if (elements instanceof (0, _gleamMjs.Empty)) return _constantsMjs.error_nil;
+        else {
+            let $ = elements.head;
+            if ($ instanceof (0, _vnodeMjs.Fragment)) {
+                let first = $;
+                let rest = elements.tail;
+                loop$elements = _listMjs.append(first.children, rest);
+                loop$selector = selector;
+                loop$path = _pathMjs.add(path, index, first.key);
+                loop$index = 0;
+            } else {
+                let first = $;
+                let rest = elements.tail;
+                let $1 = matches(first, selector);
+                if ($1) return new (0, _gleamMjs.Ok)([
+                    first,
+                    _pathMjs.add(path, index, first.key)
+                ]);
+                else {
+                    loop$elements = rest;
+                    loop$selector = selector;
+                    loop$path = path;
+                    loop$index = index + 1;
+                }
+            }
+        }
+    }
+}
+function find_direct_child(loop$parent, loop$selector, loop$path) {
+    while(true){
+        let parent = loop$parent;
+        let selector = loop$selector;
+        let path = loop$path;
+        if (parent instanceof (0, _vnodeMjs.Fragment)) {
+            let children = parent.children;
+            return find_matching_in_list(children, selector, path, 0);
+        } else if (parent instanceof (0, _vnodeMjs.Element)) {
+            let children = parent.children;
+            return find_matching_in_list(children, selector, path, 0);
+        } else if (parent instanceof (0, _vnodeMjs.Text)) return _constantsMjs.error_nil;
+        else if (parent instanceof (0, _vnodeMjs.UnsafeInnerHtml)) return _constantsMjs.error_nil;
+        else if (parent instanceof (0, _vnodeMjs.Map)) {
+            let child$1 = parent.child;
+            loop$parent = child$1;
+            loop$selector = selector;
+            loop$path = path;
+        } else {
+            let view = parent.view;
+            loop$parent = view();
+            loop$selector = selector;
+            loop$path = path;
+        }
+    }
+}
+function find_all_matching_in_list(loop$elements, loop$selector) {
+    while(true){
+        let elements = loop$elements;
+        let selector = loop$selector;
+        if (elements instanceof (0, _gleamMjs.Empty)) return elements;
+        else {
+            let first = elements.head;
+            let rest = elements.tail;
+            let $ = matches(first, selector);
+            if ($) return (0, _gleamMjs.prepend)(first, find_all_matching_in_list(rest, selector));
+            else {
+                loop$elements = rest;
+                loop$selector = selector;
+            }
+        }
+    }
+}
+function find_all_direct_children(loop$parent, loop$selector) {
+    while(true){
+        let parent = loop$parent;
+        let selector = loop$selector;
+        if (parent instanceof (0, _vnodeMjs.Fragment)) {
+            let children = parent.children;
+            return find_all_matching_in_list(children, selector);
+        } else if (parent instanceof (0, _vnodeMjs.Element)) {
+            let children = parent.children;
+            return find_all_matching_in_list(children, selector);
+        } else if (parent instanceof (0, _vnodeMjs.Text)) return (0, _gleamMjs.toList)([]);
+        else if (parent instanceof (0, _vnodeMjs.UnsafeInnerHtml)) return (0, _gleamMjs.toList)([]);
+        else if (parent instanceof (0, _vnodeMjs.Map)) {
+            let child$1 = parent.child;
+            loop$parent = child$1;
+            loop$selector = selector;
+        } else {
+            let view = parent.view;
+            loop$parent = view();
+            loop$selector = selector;
+        }
+    }
+}
+function sort_selectors(selectors) {
+    return _listMjs.sort(_listMjs.flat_map(selectors, (selector)=>{
+        if (selector instanceof All) {
+            let selectors$1 = selector.of;
+            return selectors$1;
+        } else return (0, _gleamMjs.toList)([
+            selector
+        ]);
+    }), (a, b)=>{
+        if (a instanceof All) throw (0, _gleamMjs.makeError)("panic", FILEPATH, "lustre/dev/query", 776, "sort_selectors", "`All` selectors should be flattened", {});
+        else if (a instanceof Type) {
+            if (b instanceof All) throw (0, _gleamMjs.makeError)("panic", FILEPATH, "lustre/dev/query", 776, "sort_selectors", "`All` selectors should be flattened", {});
+            else if (b instanceof Type) {
+                let $ = _stringMjs.compare(a.namespace, b.namespace);
+                if ($ instanceof _orderMjs.Eq) return _stringMjs.compare(a.tag, b.tag);
+                else return $;
+            } else if (b instanceof HasAttribute) return new _orderMjs.Lt();
+            else if (b instanceof HasClass) return new _orderMjs.Lt();
+            else if (b instanceof HasStyle) return new _orderMjs.Lt();
+            else return new _orderMjs.Lt();
+        } else if (a instanceof HasAttribute) {
+            if (b instanceof All) throw (0, _gleamMjs.makeError)("panic", FILEPATH, "lustre/dev/query", 776, "sort_selectors", "`All` selectors should be flattened", {});
+            else if (b instanceof Type) return new _orderMjs.Gt();
+            else if (b instanceof HasAttribute) {
+                let $ = a.name;
+                if ($ === "id") {
+                    let $1 = b.name;
+                    if ($1 === "id") return _stringMjs.compare(a.value, b.value);
+                    else return new _orderMjs.Lt();
+                } else {
+                    let $1 = b.name;
+                    if ($1 === "id") return new _orderMjs.Gt();
+                    else {
+                        let $2 = _stringMjs.compare(a.name, b.name);
+                        if ($2 instanceof _orderMjs.Eq) return _stringMjs.compare(a.value, b.value);
+                        else return $2;
+                    }
+                }
+            } else if (b instanceof HasClass) {
+                let $ = a.name;
+                if ($ === "id") return new _orderMjs.Lt();
+                else return new _orderMjs.Lt();
+            } else if (b instanceof HasStyle) {
+                let $ = a.name;
+                if ($ === "id") return new _orderMjs.Lt();
+                else return new _orderMjs.Lt();
+            } else {
+                let $ = a.name;
+                if ($ === "id") return new _orderMjs.Lt();
+                else return new _orderMjs.Lt();
+            }
+        } else if (a instanceof HasClass) {
+            if (b instanceof All) throw (0, _gleamMjs.makeError)("panic", FILEPATH, "lustre/dev/query", 776, "sort_selectors", "`All` selectors should be flattened", {});
+            else if (b instanceof Type) return new _orderMjs.Gt();
+            else if (b instanceof HasAttribute) {
+                let $ = b.name;
+                if ($ === "id") return new _orderMjs.Gt();
+                else return new _orderMjs.Gt();
+            } else if (b instanceof HasClass) return _stringMjs.compare(a.name, b.name);
+            else if (b instanceof HasStyle) return new _orderMjs.Gt();
+            else return new _orderMjs.Lt();
+        } else if (a instanceof HasStyle) {
+            if (b instanceof All) throw (0, _gleamMjs.makeError)("panic", FILEPATH, "lustre/dev/query", 776, "sort_selectors", "`All` selectors should be flattened", {});
+            else if (b instanceof Type) return new _orderMjs.Gt();
+            else if (b instanceof HasAttribute) {
+                let $ = b.name;
+                if ($ === "id") return new _orderMjs.Gt();
+                else return new _orderMjs.Gt();
+            } else if (b instanceof HasClass) return new _orderMjs.Lt();
+            else if (b instanceof HasStyle) return _stringMjs.compare(a.name, b.name);
+            else return new _orderMjs.Lt();
+        } else if (b instanceof All) throw (0, _gleamMjs.makeError)("panic", FILEPATH, "lustre/dev/query", 776, "sort_selectors", "`All` selectors should be flattened", {});
+        else if (b instanceof Type) return new _orderMjs.Gt();
+        else if (b instanceof HasAttribute) {
+            let $ = b.name;
+            if ($ === "id") return new _orderMjs.Gt();
+            else return new _orderMjs.Gt();
+        } else if (b instanceof HasClass) return new _orderMjs.Gt();
+        else if (b instanceof HasStyle) return new _orderMjs.Gt();
+        else return _stringMjs.compare(a.content, b.content);
+    });
+}
+function selector_to_readable_string(selector) {
+    if (selector instanceof All) {
+        let $ = selector.of;
+        if ($ instanceof (0, _gleamMjs.Empty)) return "";
+        else {
+            let selectors = $;
+            let _pipe = selectors;
+            let _pipe$1 = sort_selectors(_pipe);
+            let _pipe$2 = _listMjs.map(_pipe$1, selector_to_readable_string);
+            return _stringMjs.concat(_pipe$2);
+        }
+    } else if (selector instanceof Type) {
+        let $ = selector.namespace;
+        if ($ === "") {
+            let $1 = selector.tag;
+            if ($1 === "") return "";
+            else {
+                let tag$1 = $1;
+                return tag$1;
+            }
+        } else {
+            let namespace = $;
+            let tag$1 = selector.tag;
+            return namespace + ":" + tag$1;
+        }
+    } else if (selector instanceof HasAttribute) {
+        let $ = selector.name;
+        if ($ === "") return "";
+        else if ($ === "id") {
+            let value = selector.value;
+            return "#" + value;
+        } else {
+            let $1 = selector.value;
+            if ($1 === "") {
+                let name = $;
+                return "[" + name + "]";
+            } else {
+                let name = $;
+                let value = $1;
+                return "[" + name + "=\"" + value + "\"]";
+            }
+        }
+    } else if (selector instanceof HasClass) {
+        let $ = selector.name;
+        if ($ === "") return "";
+        else {
+            let name = $;
+            return "." + name;
+        }
+    } else if (selector instanceof HasStyle) {
+        let $ = selector.name;
+        if ($ === "") return "";
+        else {
+            let $1 = selector.value;
+            if ($1 === "") return "";
+            else {
+                let name = $;
+                let value = $1;
+                return "[style*=\"" + name + ":" + value + "\"]";
+            }
+        }
+    } else {
+        let $ = selector.content;
+        if ($ === "") return "";
+        else {
+            let content = $;
+            return ":contains(\"" + content + "\")";
+        }
+    }
+}
+function to_readable_string(query) {
+    if (query instanceof FindElement) {
+        let selector = query.matching;
+        return selector_to_readable_string(selector);
+    } else if (query instanceof FindChild) {
+        let parent = query.of;
+        let selector = query.matching;
+        return to_readable_string(parent) + " > " + selector_to_readable_string(selector);
+    } else {
+        let parent = query.of;
+        let selector = query.matching;
+        return to_readable_string(parent) + " " + selector_to_readable_string(selector);
+    }
+}
+function find_all_in_list(elements, query) {
+    if (elements instanceof (0, _gleamMjs.Empty)) return elements;
+    else {
+        let first = elements.head;
+        let rest = elements.tail;
+        let first_matches = find_all(first, query);
+        let rest_matches = find_all_in_list(rest, query);
+        return _listMjs.append(first_matches, rest_matches);
+    }
+}
+function find_all(root, query) {
+    if (query instanceof FindElement) {
+        let selector = query.matching;
+        let $ = matches(root, selector);
+        if ($) return (0, _gleamMjs.prepend)(root, find_all_in_children(root, query));
+        else return find_all_in_children(root, query);
+    } else if (query instanceof FindChild) {
+        let parent = query.of;
+        let selector = query.matching;
+        let _pipe = root;
+        let _pipe$1 = find_all(_pipe, parent);
+        return _listMjs.flat_map(_pipe$1, (_capture)=>{
+            return find_all_direct_children(_capture, selector);
+        });
+    } else {
+        let parent = query.of;
+        let selector = query.matching;
+        let _pipe = root;
+        let _pipe$1 = find_all(_pipe, parent);
+        return _listMjs.flat_map(_pipe$1, (_capture)=>{
+            return find_all_descendants(_capture, selector);
+        });
+    }
+}
+function find_all_in_children(loop$element, loop$query) {
+    while(true){
+        let element = loop$element;
+        let query = loop$query;
+        if (element instanceof (0, _vnodeMjs.Fragment)) {
+            let children = element.children;
+            return find_all_in_list(children, query);
+        } else if (element instanceof (0, _vnodeMjs.Element)) {
+            let children = element.children;
+            return find_all_in_list(children, query);
+        } else if (element instanceof (0, _vnodeMjs.Text)) return (0, _gleamMjs.toList)([]);
+        else if (element instanceof (0, _vnodeMjs.UnsafeInnerHtml)) return (0, _gleamMjs.toList)([]);
+        else if (element instanceof (0, _vnodeMjs.Map)) {
+            let child$1 = element.child;
+            loop$element = child$1;
+            loop$query = query;
+        } else {
+            let view = element.view;
+            loop$element = view();
+            loop$query = query;
+        }
+    }
+}
+function find_all_descendants_in_list(elements, selector) {
+    if (elements instanceof (0, _gleamMjs.Empty)) return elements;
+    else {
+        let first = elements.head;
+        let rest = elements.tail;
+        let first_matches = find_all_descendants(first, selector);
+        let rest_matches = find_all_descendants_in_list(rest, selector);
+        return _listMjs.append(first_matches, rest_matches);
+    }
+}
+function find_all_descendants(parent, selector) {
+    let direct_matches = find_all_direct_children(parent, selector);
+    let _block;
+    if (parent instanceof (0, _vnodeMjs.Fragment)) {
+        let children = parent.children;
+        _block = find_all_descendants_in_list(children, selector);
+    } else if (parent instanceof (0, _vnodeMjs.Element)) {
+        let children = parent.children;
+        _block = find_all_descendants_in_list(children, selector);
+    } else if (parent instanceof (0, _vnodeMjs.Text)) _block = (0, _gleamMjs.toList)([]);
+    else if (parent instanceof (0, _vnodeMjs.UnsafeInnerHtml)) _block = (0, _gleamMjs.toList)([]);
+    else if (parent instanceof (0, _vnodeMjs.Map)) {
+        let child$1 = parent.child;
+        _block = find_all_descendants(child$1, selector);
+    } else {
+        let view = parent.view;
+        _block = find_all_descendants(view(), selector);
+    }
+    let descendant_matches = _block;
+    return _listMjs.append(direct_matches, descendant_matches);
+}
+function find_in_list(loop$elements, loop$query, loop$path, loop$index) {
+    while(true){
+        let elements = loop$elements;
+        let query = loop$query;
+        let path = loop$path;
+        let index = loop$index;
+        if (elements instanceof (0, _gleamMjs.Empty)) return _constantsMjs.error_nil;
+        else {
+            let first = elements.head;
+            let rest = elements.tail;
+            let $ = find_path(first, query, index, path);
+            if ($ instanceof (0, _gleamMjs.Ok)) return $;
+            else {
+                loop$elements = rest;
+                loop$query = query;
+                loop$path = path;
+                loop$index = index + 1;
+            }
+        }
+    }
+}
+function find_path(root, query, index, path) {
+    if (query instanceof FindElement) {
+        let selector = query.matching;
+        let $ = matches(root, selector);
+        if ($) return new (0, _gleamMjs.Ok)([
+            root,
+            (()=>{
+                let _pipe = path;
+                return _pathMjs.add(_pipe, index, root.key);
+            })()
+        ]);
+        else return find_in_children(root, query, index, path);
+    } else if (query instanceof FindChild) {
+        let parent = query.of;
+        let selector = query.matching;
+        let $ = find_path(root, parent, index, path);
+        if ($ instanceof (0, _gleamMjs.Ok)) {
+            let element$1 = $[0][0];
+            let path$1 = $[0][1];
+            return find_direct_child(element$1, selector, path$1);
+        } else return _constantsMjs.error_nil;
+    } else {
+        let parent = query.of;
+        let selector = query.matching;
+        let $ = find_path(root, parent, index, path);
+        if ($ instanceof (0, _gleamMjs.Ok)) {
+            let element$1 = $[0][0];
+            let path$1 = $[0][1];
+            return find_descendant(element$1, selector, path$1);
+        } else return _constantsMjs.error_nil;
+    }
+}
+function find_in_children(loop$element, loop$query, loop$index, loop$path) {
+    while(true){
+        let element = loop$element;
+        let query = loop$query;
+        let index = loop$index;
+        let path = loop$path;
+        if (element instanceof (0, _vnodeMjs.Fragment)) {
+            let children = element.children;
+            return find_in_list(children, query, (()=>{
+                let _pipe = path;
+                return _pathMjs.add(_pipe, index, element.key);
+            })(), 0);
+        } else if (element instanceof (0, _vnodeMjs.Element)) {
+            let children = element.children;
+            return find_in_list(children, query, (()=>{
+                let _pipe = path;
+                return _pathMjs.add(_pipe, index, element.key);
+            })(), 0);
+        } else if (element instanceof (0, _vnodeMjs.Text)) return _constantsMjs.error_nil;
+        else if (element instanceof (0, _vnodeMjs.UnsafeInnerHtml)) return _constantsMjs.error_nil;
+        else if (element instanceof (0, _vnodeMjs.Map)) {
+            let child$1 = element.child;
+            loop$element = child$1;
+            loop$query = query;
+            loop$index = index;
+            loop$path = path;
+        } else {
+            let view = element.view;
+            loop$element = view();
+            loop$query = query;
+            loop$index = index;
+            loop$path = path;
+        }
+    }
+}
+function find(root, query) {
+    let $ = find_path(root, query, 0, _pathMjs.root);
+    if ($ instanceof (0, _gleamMjs.Ok)) {
+        let element$1 = $[0][0];
+        return new (0, _gleamMjs.Ok)(element$1);
+    } else return _constantsMjs.error_nil;
+}
+function has(element, selector) {
+    let $ = find(element, new FindElement(selector));
+    if ($ instanceof (0, _gleamMjs.Ok)) return true;
+    else return false;
+}
+function find_descendant_in_list(loop$elements, loop$selector, loop$path, loop$index) {
+    while(true){
+        let elements = loop$elements;
+        let selector = loop$selector;
+        let path = loop$path;
+        let index = loop$index;
+        if (elements instanceof (0, _gleamMjs.Empty)) return _constantsMjs.error_nil;
+        else {
+            let first = elements.head;
+            let rest = elements.tail;
+            let $ = matches(first, selector);
+            if ($) return new (0, _gleamMjs.Ok)([
+                first,
+                _pathMjs.add(path, index, first.key)
+            ]);
+            else {
+                let child$1 = _pathMjs.add(path, index, first.key);
+                let $1 = find_descendant(first, selector, child$1);
+                if ($1 instanceof (0, _gleamMjs.Ok)) return $1;
+                else {
+                    loop$elements = rest;
+                    loop$selector = selector;
+                    loop$path = path;
+                    loop$index = index + 1;
+                }
+            }
+        }
+    }
+}
+function find_descendant(loop$parent, loop$selector, loop$path) {
+    while(true){
+        let parent = loop$parent;
+        let selector = loop$selector;
+        let path = loop$path;
+        let $ = find_direct_child(parent, selector, path);
+        if ($ instanceof (0, _gleamMjs.Ok)) return $;
+        else {
+            if (parent instanceof (0, _vnodeMjs.Fragment)) {
+                let children = parent.children;
+                return find_descendant_in_list(children, selector, path, 0);
+            } else if (parent instanceof (0, _vnodeMjs.Element)) {
+                let children = parent.children;
+                return find_descendant_in_list(children, selector, path, 0);
+            } else if (parent instanceof (0, _vnodeMjs.Text)) return _constantsMjs.error_nil;
+            else if (parent instanceof (0, _vnodeMjs.UnsafeInnerHtml)) return _constantsMjs.error_nil;
+            else if (parent instanceof (0, _vnodeMjs.Map)) {
+                let child$1 = parent.child;
+                loop$parent = child$1;
+                loop$selector = selector;
+                loop$path = path;
+            } else {
+                let view = parent.view;
+                loop$parent = view();
+                loop$selector = selector;
+                loop$path = path;
+            }
+        }
+    }
+}
+
+},{"../../../gleam_stdlib/gleam/list.mjs":"8dUwY","../../../gleam_stdlib/gleam/order.mjs":"eYj92","../../../gleam_stdlib/gleam/string.mjs":"aB8qb","../../gleam.mjs":"jNPQG","../../lustre/attribute.mjs":"faRXj","../../lustre/element.mjs":"2XxJ4","../../lustre/internals/constants.mjs":"gKFR6","../../lustre/vdom/path.mjs":"351yX","../../lustre/vdom/vattr.mjs":"jrrcC","../../lustre/vdom/vnode.mjs":"j2vnp","@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT"}],"7R2Lw":[function(require,module,exports,__globalThis) {
+var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
+parcelHelpers.defineInteropFlag(exports);
+var _preludeMjs = require("../prelude.mjs");
+parcelHelpers.exportAll(_preludeMjs, exports);
+
+},{"../prelude.mjs":"ib0cp","@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT"}],"cQRY5":[function(require,module,exports,__globalThis) {
+var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
+parcelHelpers.defineInteropFlag(exports);
+parcelHelpers.export(exports, "from_relative_url", ()=>from_relative_url);
+var _gleamMjs = require("./gleam.mjs");
+var _uriMjs = require("../gleam_stdlib/gleam/uri.mjs");
+var _optionMjs = require("../gleam_stdlib/gleam/option.mjs");
+const from_relative_url = (url_string)=>{
+    if (!globalThis.location) return new (0, _gleamMjs.Error)(undefined);
+    const url = new URL(url_string, globalThis.location.href);
+    const uri = uri_from_url(url);
+    return new (0, _gleamMjs.Ok)(uri);
+};
+const uri_from_url = (url)=>{
+    const optional = (value)=>value ? new (0, _optionMjs.Some)(value) : new (0, _optionMjs.None)();
+    return new (0, _uriMjs.Uri)(/* scheme   */ optional(url.protocol?.slice(0, -1)), /* userinfo */ new (0, _optionMjs.None)(), /* host     */ optional(url.hostname), /* port     */ optional(url.port && Number(url.port)), /* path     */ url.pathname, /* query    */ optional(url.search?.slice(1)), /* fragment */ optional(url.hash?.slice(1)));
+};
+
+},{"./gleam.mjs":"7R2Lw","../gleam_stdlib/gleam/uri.mjs":"k5lAJ","../gleam_stdlib/gleam/option.mjs":"aWtoH","@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT"}]},["aZbtf","9GtLI"], "9GtLI", "parcelRequireb87e", {})
 
 //# sourceMappingURL=static.76cf1a40.js.map

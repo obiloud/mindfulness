@@ -1,3 +1,4 @@
+import api.{type AgentResponse, send_message}
 import gleam/list
 import gleam/option.{type Option, None, Some}
 import lustre
@@ -11,10 +12,6 @@ import lustre/event
 
 pub type Message {
   Message(role: String, content: String)
-}
-
-pub type AgentResponse {
-  AgentResponse(session_id: String, message: String, transcript: Option(String))
 }
 
 pub type Model {
@@ -75,10 +72,9 @@ fn update(model: Model, msg: Msg) -> #(Model, Effect(Msg)) {
 
     ReceiveChatResponse(msg) -> #(
       Model(
-        chat_history: [
+        chat_history: list.append(model.chat_history, [
           Message(role: "assistant", content: msg.message),
-          ..model.chat_history
-        ],
+        ]),
         is_streaming: model.is_streaming,
         input_text: model.input_text,
         loading: False,
@@ -99,12 +95,9 @@ fn update(model: Model, msg: Msg) -> #(Model, Effect(Msg)) {
         input_text: "",
         loading: True,
       ),
-      effect.from(fn(_) {
-        // POST request to send message to server
-        // This would be implemented in the audio_bridge.js or via a separate API call
-        // For now, we're just creating the message and updating the state
-        // The actual POST effect would be handled in the FFI layer
-        init_stream_ffi()
+      effect.map(send_message(model.input_text, model.session_id), fn(res) {
+        let assert Ok(ar) = res
+        ReceiveChatResponse(ar)
       }),
     )
   }
@@ -229,6 +222,8 @@ fn view(model: Model) -> Element(Msg) {
             html.input([
               attribute.type_("text"),
               event.on_change(UserTyped),
+              // event.on_keydown(fn(_) { SendMessage }),
+              attribute.value(model.input_text),
               attribute.placeholder("How are you feeling?"),
               attribute.class(
                 "flex-1 rounded-xl bg-slate-900/60 border border-slate-700/70 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-mind-accent focus:border-transparent",

@@ -10,6 +10,10 @@ lustre = ">= 5.6.0"          # The main web framework
 lustre_websocket = ">= 0.9.0" # For Cartesia streaming
 gleam_json = ">= 1.0.0"      # For parsing TTS messages
 effect = ">= 2.2.2 and < 3.0.0"
+gleam_fetch = ">= 1.3.0 and < 2.0.0"
+gleam_http = ">= 4.3.0 and < 5.0.0"
+gleam_javascript = ">= 1.0.0 and < 2.0.0"
+rsvp = ">= 1.2.0 and < 2.0.0"
 
 [dev-dependencies]
 gleeunit = ">= 1.0.0"        # For your isolated logic tests
