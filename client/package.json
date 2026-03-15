@@ -11,5 +11,9 @@
   "devDependencies": {
     "parcel": "^2.16.4",
     "parcel-transformer-gleam": "^1.0.0"
+  },
+  "dependencies": {
+    "@tailwindcss/postcss": "^4.2.1",
+    "tailwindcss": "^4.2.1"
   }
 }

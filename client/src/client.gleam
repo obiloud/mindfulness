@@ -60,7 +60,7 @@ fn init(_flags) -> #(Model, Effect(Msg)) {
 }
 
 fn update(model: Model, msg: Msg) -> #(Model, Effect(Msg)) {
-  case msg {
+  case echo msg {
     Noop -> #(model, effect.none())
 
     UserTyped(val) -> #(Model(..model, input_text: val), effect.none())
@@ -93,14 +93,14 @@ fn update(model: Model, msg: Msg) -> #(Model, Effect(Msg)) {
         True -> #(model, effect.none())
         False -> #(
           Model(
-            ..model,
-            chat_history: [
+            chat_history: list.append(model.chat_history, [
               Message(role: "user", content: model.input_text),
-              ..model.chat_history
-            ],
+            ]),
             is_streaming: False,
             input_text: "",
             loading: True,
+            session_id: model.session_id,
+            transcript: model.transcript,
           ),
           effect.map(send_message(model.input_text, model.session_id), fn(res) {
             let assert Ok(ar) = res
@@ -229,7 +229,7 @@ fn view(model: Model) -> Element(Msg) {
           html.div([attribute.class("mt-2 flex gap-2")], [
             html.input([
               attribute.type_("text"),
-              event.on_change(UserTyped),
+              event.on_input(UserTyped),
               event.advanced("keydown", {
                 use key <- decode.field("key", decode.string)
 
