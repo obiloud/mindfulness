@@ -45,6 +45,8 @@ body.dark {
   --color-bubble-agent-bg: light-dark(#F9F7F2, #1D2E24);
   --color-bubble-agent-text: light-dark(var(--color-charcoal), #F1F5F2);
   --color-bubble-agent-border: light-dark(rgba(26, 77, 46, 0.1), rgba(255, 255, 255, 0.05));
+
+  --color-welcome-text: light-dark( #0d15117f, #404946);
   
   /* Typography */
   --font-header: "Manrope", sans-serif;
@@ -77,8 +79,6 @@ body.dark {
   height: 78px;
   margin: 10px;
 }
-
-/* Custom Textures - Background Classes */
 
 /* Custom Textures - Background Classes */
 .bg-basic-paper {

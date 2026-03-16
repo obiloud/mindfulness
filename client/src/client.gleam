@@ -242,7 +242,7 @@ fn view(model: Model) -> Element(Msg) {
           ),
         ],
         [
-          // 1. FIXED HEADER: Pinned to top
+          // FIXED HEADER: Pinned to top
           html.header(
             [
               attribute.class(
@@ -266,7 +266,6 @@ fn view(model: Model) -> Element(Msg) {
                   ),
                 ],
                 [
-                  // element.text("ETHEREAL FLORA"),
                   element.text("PULSE LOTUS"),
                 ],
               ),
@@ -281,7 +280,7 @@ fn view(model: Model) -> Element(Msg) {
             ],
           ),
 
-          // 2. SCROLLABLE MESSAGES: Fills all remaining space
+          // SCROLLABLE MESSAGES: Fills all remaining space
           html.div(
             [
               attribute.class(
@@ -295,7 +294,7 @@ fn view(model: Model) -> Element(Msg) {
                   html.p(
                     [
                       attribute.class(
-                        "text-charcoal/40 text-sm text-center italic mt-20",
+                        "text-welcome-text text-sm text-center italic mt-20",
                       ),
                     ],
                     [
@@ -322,7 +321,7 @@ fn view(model: Model) -> Element(Msg) {
             ],
           ),
 
-          // 3. FIXED FOOTER (INPUT): Pinned to bottom
+          // FIXED FOOTER (INPUT): Pinned to bottom
           html.footer(
             [
               attribute.class(
@@ -364,7 +363,7 @@ fn view(model: Model) -> Element(Msg) {
                       event.on_click(SendMessage),
                       attribute.disabled(model.loading),
                       attribute.class(
-                        "icon-paper-plane rounded-[.7rem] bg-deep-moss cursor-pointer text-bg-main text-4xl hover:shadow-xl hover:text-off-white transition-all",
+                        "icon-paper-plane rounded-[.7rem] text-gold-leaf cursor-pointer text-4xl hover:shadow-xl hover:text-off-white transition-all bg-bubble-user-bg text-bubble-user-text",
                       ),
                     ],
                     [],
