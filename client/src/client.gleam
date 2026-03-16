@@ -10,7 +10,7 @@ import lustre/effect.{type Effect}
 import lustre/element.{type Element}
 import lustre/element/html
 import lustre/event
-import theme.{type Theme, Dark, System, view_theme_toggle}
+import theme.{type Theme, Dark, System}
 
 // --- TYPES ---
 
@@ -96,9 +96,10 @@ fn update(model: Model, msg: Msg) -> #(Model, Effect(Msg)) {
     }
 
     SendMessage ->
-      case model.loading {
-        True -> #(model, effect.none())
-        False -> {
+      case model.loading, model.input_text {
+        True, _ -> #(model, effect.none())
+        _, "" -> #(model, effect.none())
+        False, _ -> {
           #(
             Model(
               ..model,
