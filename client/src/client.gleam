@@ -1,4 +1,6 @@
 import api.{type AgentResponse, send_message}
+
+// import dom
 import gleam/dynamic/decode
 import gleam/list
 import gleam/option.{type Option, None, Some}
@@ -77,37 +79,48 @@ fn update(model: Model, msg: Msg) -> #(Model, Effect(Msg)) {
 
     AudioEnded -> #(Model(..model, is_streaming: False), effect.none())
 
-    ReceiveChatResponse(msg) -> #(
-      Model(
-        ..model,
-        chat_history: list.append(model.chat_history, [
-          Message(role: "assistant", content: msg.message),
-        ]),
-        loading: False,
-        session_id: Some(msg.session_id),
-        transcript: msg.transcript,
-      ),
-      effect.none(),
-    )
+    ReceiveChatResponse(msg) -> {
+      #(
+        Model(
+          ..model,
+          chat_history: list.append(model.chat_history, [
+            Message(role: "assistant", content: msg.message),
+          ]),
+          loading: False,
+          session_id: Some(msg.session_id),
+          transcript: msg.transcript,
+        ),
+        // dom.scroll_to_bottom_delayed("chat-ancor"),
+        effect.none(),
+      )
+    }
 
     SendMessage ->
       case model.loading {
         True -> #(model, effect.none())
-        False -> #(
-          Model(
-            ..model,
-            chat_history: list.append(model.chat_history, [
-              Message(role: "user", content: model.input_text),
+        False -> {
+          #(
+            Model(
+              ..model,
+              chat_history: list.append(model.chat_history, [
+                Message(role: "user", content: model.input_text),
+              ]),
+              is_streaming: False,
+              input_text: "",
+              loading: True,
+            ),
+            effect.batch([
+              // dom.scroll_to_bottom_delayed("chat-ancor"),
+              effect.map(
+                send_message(model.input_text, model.session_id),
+                fn(res) {
+                  let assert Ok(ar) = res
+                  ReceiveChatResponse(ar)
+                },
+              ),
             ]),
-            is_streaming: False,
-            input_text: "",
-            loading: True,
-          ),
-          effect.map(send_message(model.input_text, model.session_id), fn(res) {
-            let assert Ok(ar) = res
-            ReceiveChatResponse(ar)
-          }),
-        )
+          )
+        }
       }
 
     SetTheme(new_theme) -> #(Model(..model, theme: new_theme), effect.none())
@@ -262,7 +275,7 @@ fn view(model: Model) -> Element(Msg) {
           html.div(
             [
               attribute.class(
-                "flex-1 overflow-y-auto p-6 space-y-6 scrollbar-hide",
+                "flex-1 p-6 overflow-hidden",
                 // Fills gap between header and footer
               ),
             ],
@@ -283,14 +296,20 @@ fn view(model: Model) -> Element(Msg) {
               },
 
               html.div(
-                [attribute.class("space-y-6")],
-                model.chat_history |> list.map(view_message),
+                [
+                  attribute.id("chat-container"),
+                  attribute.class(
+                    "flex flex-col-reverse gap-y-6 overflow-y-auto max-h-full scrollbar-hide scroll-smooth",
+                  ),
+                ],
+                model.chat_history
+                  |> list.reverse
+                  |> list.map(view_message)
+                  |> list.prepend(case model.loading {
+                    True -> view_loading_indicator()
+                    False -> html.text("")
+                  }),
               ),
-
-              case model.loading {
-                True -> view_loading_indicator()
-                False -> html.text("")
-              },
             ],
           ),
 
