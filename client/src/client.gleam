@@ -142,7 +142,7 @@ fn view_loading_indicator() -> Element(Msg) {
     html.div(
       [
         attribute.class(
-          "flex items-center space-x-1.5 bg-bg-main border border-deep-moss/10 px-4 py-3 rounded-2xl rounded-bl-sm",
+          "flex items-center space-x-1.5 bg-bg-main border border-deep-moss/10 shadow-md px-4 py-3 rounded-2xl rounded-bl-sm",
         ),
       ],
       [
@@ -188,9 +188,9 @@ fn view_message(m: Message) -> Element(Msg) {
 
   let bubble_class = case is_user {
     True ->
-      "max-w-[85%] px-4 py-3 text-sm leading-relaxed whitespace-pre-wrap bg-neo-mint text-deep-moss rounded-2xl rounded-br-sm shadow-sm"
+      "max-w-[85%] px-4 py-3 text-sm leading-relaxed whitespace-pre-wrap bg-deep-moss text-off-white rounded-2xl rounded-br-sm shadow-md"
     False ->
-      "max-w-[85%] px-4 py-3 text-sm leading-relaxed whitespace-pre-wrap bg-bg-main border border-deep-moss/10 text-charcoal rounded-2xl rounded-bl-sm shadow-sm"
+      "max-w-[85%] px-4 py-3 text-sm leading-relaxed whitespace-pre-wrap bg-bg-main border border-deep-moss/10 text-charcoal rounded-2xl rounded-bl-sm shadow-md"
   }
 
   html.div([attribute.class(wrapper_class)], [
@@ -243,12 +243,19 @@ fn view(model: Model) -> Element(Msg) {
           html.header(
             [
               attribute.class(
-                "flex flex-col items-center justify-center pt-8 pb-4 px-6 text-center border-b border-deep-moss/5 bg-bg-header/50",
+                "flex flex-col items-center justify-center pt-8 pb-4 px-6 text-center border-b border-deep-moss/5 bg-bg-header/50 lg:rounded-[3rem]",
               ),
             ],
             [
-              view_theme_toggle(model.theme, fn(theme) { SetTheme(theme) }),
-              html.div([attribute.class("pulse-lotus gold-linear")], []),
+              // view_theme_toggle(model.theme, fn(theme) { SetTheme(theme) }),
+              html.div(
+                [
+                  attribute.class(
+                    "icon-lotus text-warm-sand text-8xl leading-none h-[80px]",
+                  ),
+                ],
+                [],
+              ),
               html.p(
                 [
                   attribute.class(
@@ -275,7 +282,7 @@ fn view(model: Model) -> Element(Msg) {
           html.div(
             [
               attribute.class(
-                "flex-1 p-6 overflow-hidden",
+                "flex-1 overflow-hidden bg-basic-paper-tactile-nature shadow-inner",
                 // Fills gap between header and footer
               ),
             ],
@@ -299,7 +306,7 @@ fn view(model: Model) -> Element(Msg) {
                 [
                   attribute.id("chat-container"),
                   attribute.class(
-                    "flex flex-col-reverse gap-y-6 overflow-y-auto max-h-full scrollbar-hide scroll-smooth",
+                    "flex flex-col-reverse gap-y-6 p-6 overflow-y-auto max-h-full scrollbar-hide scroll-smooth",
                   ),
                 ],
                 model.chat_history
@@ -317,14 +324,14 @@ fn view(model: Model) -> Element(Msg) {
           html.footer(
             [
               attribute.class(
-                "p-4 pb-8 lg:pb-6 bg-bg-header/80 backdrop-blur-lg border-t border-deep-moss/5",
+                "p-4 pb-8 lg:pb-6 bg-bg-header/80 backdrop-blur-lg border-t border-deep-moss/5 lg:rounded-[3rem]",
               ),
             ],
             [
               html.div(
                 [
                   attribute.class(
-                    "flex gap-2 bg-bg-main border border-gold-leaf/20 p-1.5 rounded-full shadow-inner focus-within:border-gold-leaf/50 transition-colors",
+                    "flex gap-2 bg-bg-main border border-gold-leaf/20 p-1.5 rounded-[1rem] shadow-inner focus-within:border-gold-leaf/50 transition-colors",
                   ),
                 ],
                 [
@@ -355,10 +362,10 @@ fn view(model: Model) -> Element(Msg) {
                       event.on_click(SendMessage),
                       attribute.disabled(model.loading),
                       attribute.class(
-                        "px-6 py-2 rounded-full bg-neo-mint text-deep-moss text-sm font-medium hover:bg-deep-moss hover:text-off-white transition-all",
+                        "icon-paper-plane rounded-[.7rem] bg-deep-moss cursor-pointer text-bg-main text-4xl hover:shadow-xl hover:text-off-white transition-all",
                       ),
                     ],
-                    [element.text("send")],
+                    [],
                   ),
                 ],
               ),

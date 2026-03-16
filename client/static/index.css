@@ -1,12 +1,15 @@
+@import url("/static/fontello-26853e83/css/mindfulness.css");
 @import "tailwindcss";
 
 @theme {
   /* Core Colors */
   --color-lavender: #A89ACD;
   --color-off-white: #F7F1E3;
+  --color-warm-sand: #ece6d2;
   --color-neo-mint: #A8E6CF;
   --color-deep-moss: #1A4D2E;
   --color-charcoal: #2D3436;
+  --color-earth-brown: #4A3F36;
   
   /* Final Touch Accents */
   --color-gold-leaf: #D4AF37;
@@ -16,14 +19,20 @@
   --color-bg-main: light-dark(var(--color-off-white), var(--color-charcoal));
   --color-bg-header: light-dark(#FFFFFF, #1F2526);
   --color-text-base: light-dark(var(--color-charcoal), var(--color-off-white));
+  --color-chat-history: light-dark(var(--color-warm-sand), var(--color-earth-brown));
   --color-brand-primary: var(--color-deep-moss);
-  
+
   /* Typography */
   --font-header: "Manrope", sans-serif;
   --font-body: "Satoshi", sans-serif;
 
   /* Custom Textures */
-  --background-image-paper: url('/static/assets/textures/006-Paper-Kraft.png');
+  --background-image-basik-paper: url('/static/assets/textures/001-Basik-Paper.png');
+  --background-image-watercolor-paper: url('/static/assets/textures/002-Watercolor-Paper.png');
+  --background-image-brown-paper: url('/static/assets/textures/003-Brown-Paper.png');
+  --background-image-fantasy-paper: url('/static/assets/textures/004-Fantasy-Paper.png');
+  --background-image-grunge-paper: url('/static/assets/textures/005-Grunge-Paper.png');
+  --background-image-paper-kraft: url('/static/assets/textures/006-Paper-Kraft.png');
 
 }
 
@@ -31,7 +40,7 @@
   body {
     @apply bg-bg-main text-text-base font-body antialiased transition-colors duration-500;
     /* Apply base paper texture */
-    background-image: var(--background-image-paper);
+    background-image: var(--background-image-paper-kraft);
     background-blend-mode: multiply;
   }
 
@@ -40,14 +49,14 @@
   }
 }
 
-
-
 .pulse-lotus {
   clip-path: url(#figma-clip);
   width: 120px;
   height: 78px;
   margin: 10px;
 }
+
+/* Custom Textures - Background Classes */
 
 .gold-linear {
   background: linear-gradient(
@@ -58,4 +67,52 @@
     #d4b237 85%,     /* Back to base */
     #B58D22 100%     /* Soft edge shadow */
   );
+}
+
+.tactile-nature {
+  background: linear-gradient(
+    130deg,
+    #A8E6CF 0%,
+    #ece6d2 40%
+  );
+}
+
+/* Custom Textures - Background Classes */
+.bg-basic-paper {
+  background-image: var(--background-image-basik-paper);
+  background-blend-mode: multiply;
+}
+
+.bg-basic-paper-tactile-nature {
+  background-image: var(--background-image-basik-paper), linear-gradient(
+    130deg,
+    #A8E6CF 0%,
+    #ece6d2 40%
+  );
+  background-blend-mode: multiply;
+}
+
+.bg-watercolor-paper {
+  background-image: var(--background-image-watercolor-paper);
+  background-blend-mode: multiply;
+}
+
+.bg-brown-paper {
+  background-image: var(--background-image-brown-paper);
+  background-blend-mode: multiply;
+}
+
+.bg-fantasy-paper {
+  background-image: var(--background-image-fantasy-paper);
+  background-blend-mode: multiply;
+}
+
+.bg-grunge-paper {
+  background-image: var(--background-image-grunge-paper);
+  background-blend-mode: multiply;
+}
+
+.bg-paper-kraft {
+  background-image: var(--background-image-paper-kraft);
+  background-blend-mode: multiply;
 }
