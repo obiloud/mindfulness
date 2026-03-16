@@ -10,7 +10,7 @@ import lustre/effect.{type Effect}
 import lustre/element.{type Element}
 import lustre/element/html
 import lustre/event
-import theme.{type Theme, Dark, Light, System, view_theme_toggle}
+import theme.{type Theme, Dark, Light, System}
 
 // --- TYPES ---
 
@@ -250,14 +250,13 @@ fn view(model: Model) -> Element(Msg) {
               ),
             ],
             [
-              // view_theme_toggle(model.theme, fn(theme) { SetTheme(theme) }),
               html.div(
                 [
                   attribute.class(
-                    "icon-lotus text-warm-sand text-8xl leading-none h-[80px]",
+                    "text-warm-sand text-8xl leading-none h-[60px] flex col items-center justify-center",
                   ),
                 ],
-                [],
+                [html.i([attribute.class("icon-lotus inline-flex")], [])],
               ),
               html.p(
                 [
@@ -370,6 +369,7 @@ fn view(model: Model) -> Element(Msg) {
                   ),
                 ],
               ),
+              // view_theme_toggle(model.theme, fn(theme) { SetTheme(theme) }),
             ],
           ),
         ],
