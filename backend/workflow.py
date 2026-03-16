@@ -70,7 +70,9 @@ def build_mindfulness_graph(checkpointer: BaseCheckpointSaver = None, store: Bas
         return "conversation"
 
     def should_answer(state: ConversationState) -> Literal["proceed_to_draft", "ask_again"]:
-        if state.get("info_score", 0) >= 0.9 or state["turn_count"] > 5:
+        logger.info(
+            f"Should answer: info_score {state['info_score']} turns {state['turn_count']}")
+        if state.get("info_score", 0) >= 0.8 or state["turn_count"] > 5:
             return "proceed_to_draft"
         return "ask_again"
 

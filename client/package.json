@@ -9,6 +9,7 @@
     "dev": "parcel serve -p 8084 static/index.html"
   },
   "devDependencies": {
+    "fontello-cli": "^0.6.2",
     "parcel": "^2.16.4",
     "parcel-transformer-gleam": "^1.0.0"
   },

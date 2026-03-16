@@ -45,7 +45,7 @@ def node_reflection(state: ConversationState, runtime: Runtime[GraphContext]) ->
 
     logger.info(f"REFLECT TEXT: {reflect_text}\n")
 
-    max_reflections = 3
+    max_reflections = 1
     current_count = state.get("reflection_count", 0)
 
     lower = reflect_text.lower()
