@@ -1,6 +1,6 @@
 import api.{type AgentResponse, send_message}
 
-// import dom
+import dom
 import gleam/dynamic/decode
 import gleam/list
 import gleam/option.{type Option, None, Some}
@@ -10,7 +10,7 @@ import lustre/effect.{type Effect}
 import lustre/element.{type Element}
 import lustre/element/html
 import lustre/event
-import theme.{type Theme, Dark, System}
+import theme.{type Theme, Dark, Light, System, view_theme_toggle}
 
 // --- TYPES ---
 
@@ -124,90 +124,98 @@ fn update(model: Model, msg: Msg) -> #(Model, Effect(Msg)) {
         }
       }
 
-    SetTheme(new_theme) -> #(Model(..model, theme: new_theme), effect.none())
+    SetTheme(new_theme) -> {
+      let theme_class = case new_theme {
+        Dark -> "dark"
+        Light -> "light"
+        System -> ""
+      }
+      #(Model(..model, theme: new_theme), dom.sync_body_class(theme_class))
+    }
   }
 }
 
 // --- VIEW ---
 
 fn view_loading_indicator() -> Element(Msg) {
-  // Loading Animation (Pulsing Dots)
-
-  html.div([attribute.class("flex justify-start gap-2 py-2")], [
-    html.div(
-      [
-        attribute.class("w-8 h-8 rounded-full bg-neo-mint/20 flex-shrink-0"),
-      ],
-      [],
-    ),
+  html.div([attribute.class("flex justify-start gap-3 items-end py-2")], [
+    // Avatar Placeholder: Matches the reactive message avatar
     html.div(
       [
         attribute.class(
-          "flex items-center space-x-1.5 bg-bg-main border border-deep-moss/10 shadow-md px-4 py-3 rounded-2xl rounded-bl-sm",
+          "w-8 h-8 rounded-full flex-shrink-0 transition-colors duration-500 "
+          <> "bg-neo-mint/20 dark:bg-neo-mint/10 border border-neo-mint/30 dark:border-neo-mint/20",
+        ),
+      ],
+      [],
+    ),
+
+    // Bubble: Uses the same semantic mapping as the agent message
+    html.div(
+      [
+        attribute.class(
+          "flex items-center space-x-2 px-5 py-4 rounded-2xl rounded-bl-none shadow-sm border "
+          <> "bg-bubble-agent-bg border-bubble-agent-border",
         ),
       ],
       [
-        html.div(
-          [
-            attribute.class(
-              "w-1.5 h-1.5 bg-deep-moss/40 rounded-full animate-bounce",
-            ),
-          ],
-          [],
-        ),
-        html.div(
-          [
-            attribute.class(
-              "w-1.5 h-1.5 bg-deep-moss/40 rounded-full animate-bounce delay-100",
-            ),
-          ],
-          [],
-        ),
-        html.div(
-          [
-            attribute.class(
-              "w-1.5 h-1.5 bg-deep-moss/40 rounded-full animate-bounce delay-200",
-            ),
-          ],
-          [],
-        ),
+        // Pulsing Dots: Using the agent text color with opacity for consistency
+        dot("animate-bounce"),
+        dot("animate-bounce [animation-delay:0.2s]"),
+        dot("animate-bounce [animation-delay:0.4s]"),
       ],
     ),
   ])
 }
 
+// Helper to keep the dots consistent and theme-aware
+fn dot(extra_class: String) -> Element(Msg) {
+  html.div(
+    [
+      attribute.class(
+        "w-1.5 h-1.5 rounded-full transition-colors duration-500 "
+        <> "bg-bubble-agent-text/40 "
+        <> extra_class,
+      ),
+    ],
+    [],
+  )
+}
+
 fn view_message(m: Message) -> Element(Msg) {
-  let is_user = case m.role {
-    "user" -> True
-    _ -> False
-  }
+  let is_user = m.role == "user"
 
   let wrapper_class = case is_user {
-    True -> "flex justify-end"
-    False -> "flex justify-start gap-2"
+    True -> "flex justify-end w-full"
+    False -> "flex justify-start gap-3 items-end"
   }
 
   let bubble_class = case is_user {
     True ->
-      "max-w-[85%] px-4 py-3 text-sm leading-relaxed whitespace-pre-wrap bg-deep-moss text-off-white rounded-2xl rounded-br-sm shadow-md"
+      "max-w-[85%] px-5 py-3 text-sm leading-relaxed whitespace-pre-wrap rounded-2xl rounded-br-none shadow-md "
+      <> "bg-bubble-user-bg text-bubble-user-text"
+
     False ->
-      "max-w-[85%] px-4 py-3 text-sm leading-relaxed whitespace-pre-wrap bg-bg-main border border-deep-moss/10 text-charcoal rounded-2xl rounded-bl-sm shadow-md"
+      "max-w-[85%] px-5 py-3 text-sm leading-relaxed whitespace-pre-wrap rounded-2xl rounded-bl-none shadow-sm border "
+      <> "bg-bubble-agent-bg text-bubble-agent-text border-bubble-agent-border"
   }
 
   html.div([attribute.class(wrapper_class)], [
-    // Agent Avatar Icon
+    // Agent Avatar Icon: Reactive background and border
     case is_user {
       False ->
         html.div(
           [
             attribute.class(
-              "w-8 h-8 rounded-full bg-neo-mint/20 flex-shrink-0 flex items-center justify-center text-deep-moss border border-neo-mint/50",
+              "w-8 h-8 rounded-full flex-shrink-0 flex items-center justify-center text-lg transition-colors duration-500 "
+              <> "bg-neo-mint/20 dark:bg-neo-mint/10 border border-neo-mint/30 dark:border-neo-mint/20",
             ),
           ],
           [element.text("🌿")],
         )
       True -> html.text("")
     },
+
     html.div([attribute.class(bubble_class)], [
       element.text(m.content),
     ]),
@@ -215,16 +223,10 @@ fn view_message(m: Message) -> Element(Msg) {
 }
 
 fn view(model: Model) -> Element(Msg) {
-  let theme_class = case model.theme {
-    Dark -> "dark "
-    _ -> ""
-  }
-
   html.div(
     [
       attribute.class(
-        theme_class
-        <> "min-h-screen bg-bg-main font-body text-text-base transition-colors duration-500 "
+        "min-h-screen bg-bg-main font-body text-text-base transition-colors duration-500 "
         <> "lg:flex lg:items-center lg:justify-center lg:p-4",
         // Centering only on large screens
       ),
@@ -283,7 +285,7 @@ fn view(model: Model) -> Element(Msg) {
           html.div(
             [
               attribute.class(
-                "flex-1 overflow-hidden bg-basic-paper-tactile-nature shadow-inner",
+                "flex-1 overflow-hidden bg-basic-paper-tactile-nature shadow-inner transition-colors duration-500",
                 // Fills gap between header and footer
               ),
             ],
@@ -305,7 +307,6 @@ fn view(model: Model) -> Element(Msg) {
 
               html.div(
                 [
-                  attribute.id("chat-container"),
                   attribute.class(
                     "flex flex-col-reverse gap-y-6 p-6 overflow-y-auto max-h-full scrollbar-hide scroll-smooth",
                   ),

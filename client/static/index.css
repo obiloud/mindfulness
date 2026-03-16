@@ -1,27 +1,51 @@
 @import url("/static/fontello-26853e83/css/mindfulness.css");
 @import "tailwindcss";
 
+:root {
+  /* This allows the browser to use system prefs by default */
+  color-scheme: light dark; 
+}
+
+/* 3. The Override: Force Dark Mode when the class is added */
+body.light {
+  color-scheme: light !important;
+}
+
+body.dark {
+  color-scheme: dark !important;
+}
+
 @theme {
   /* Core Colors */
   --color-lavender: #A89ACD;
-  --color-off-white: #F7F1E3;
-  --color-warm-sand: #ece6d2;
   --color-neo-mint: #A8E6CF;
   --color-deep-moss: #1A4D2E;
-  --color-charcoal: #2D3436;
   --color-earth-brown: #4A3F36;
   
   /* Final Touch Accents */
-  --color-gold-leaf: #D4AF37;
+  --color-gold-leaf: light-dark(#D4AF37, #F4CF62);
   --color-sandalwood: #8B5A2B; /* Earthy Brown for the knob */
 
-  /* Functional Theme Mapping */
+  /* Refining your Dark Theme palette for the "Night Forest" vibe */
+  --color-warm-sand: light-dark(#ece6d2, #3D4643); /* Deep sage instead of gray */
+  --color-charcoal: #0D1511; /* Deeper midnight green for dark mode */
+  --color-off-white: #F7F1E3;
+  
+  /* Functional Mapping */
   --color-bg-main: light-dark(var(--color-off-white), var(--color-charcoal));
-  --color-bg-header: light-dark(#FFFFFF, #1F2526);
-  --color-text-base: light-dark(var(--color-charcoal), var(--color-off-white));
-  --color-chat-history: light-dark(var(--color-warm-sand), var(--color-earth-brown));
-  --color-brand-primary: var(--color-deep-moss);
+  --color-bg-header: light-dark(rgba(255, 255, 255, 0.9), rgba(21, 34, 27, 0.9));
+  --color-text-base: light-dark(#1A4D2E, #F1F5F2);
+  --color-chat-history: light-dark(var(--color-warm-sand), #1D2E24);
 
+
+  /* Semantic Bubble Mappings */
+  --color-bubble-user-bg: light-dark(var(--color-deep-moss), #254E3B);
+  --color-bubble-user-text: #F7F1E3; /* Always light for contrast on dark green */
+  
+  --color-bubble-agent-bg: light-dark(#F9F7F2, #1D2E24);
+  --color-bubble-agent-text: light-dark(var(--color-charcoal), #F1F5F2);
+  --color-bubble-agent-border: light-dark(rgba(26, 77, 46, 0.1), rgba(255, 255, 255, 0.05));
+  
   /* Typography */
   --font-header: "Manrope", sans-serif;
   --font-body: "Satoshi", sans-serif;
@@ -38,14 +62,12 @@
 
 @layer base {
   body {
+    /* The transition will now trigger when the .dark class flips the color-scheme */
     @apply bg-bg-main text-text-base font-body antialiased transition-colors duration-500;
-    /* Apply base paper texture */
+    
+    /* Applying texture with transparency so the background color shows through */
     background-image: var(--background-image-paper-kraft);
     background-blend-mode: multiply;
-  }
-
-  h1, h2, h3 {
-    @apply font-header font-extralight tracking-tight;
   }
 }
 
@@ -58,25 +80,6 @@
 
 /* Custom Textures - Background Classes */
 
-.gold-linear {
-  background: linear-gradient(
-    55deg,
-    #997115 0%,      /* Deep shadow */
-    #d4a237 35%,     /* Your base gold */
-    #e8d49a 65%,     /* Bright light reflection */
-    #d4b237 85%,     /* Back to base */
-    #B58D22 100%     /* Soft edge shadow */
-  );
-}
-
-.tactile-nature {
-  background: linear-gradient(
-    130deg,
-    var(--color-neo-mint) 0%,
-    var(--color-warm-sand) 40%
-  );
-}
-
 /* Custom Textures - Background Classes */
 .bg-basic-paper {
   background-image: var(--background-image-basik-paper);
@@ -84,10 +87,10 @@
 }
 
 .bg-basic-paper-tactile-nature {
-  background-image: var(--background-image-basik-paper), linear-gradient(
-    130deg,
-    var(--color-neo-mint) 0%,
-    var(--color-warm-sand) 40%
+  background-image: var(--background-image-basik-paper), radial-gradient(
+    circle at top left,
+    light-dark(#A8E6CF, #15221B) 0%, /* Neo Mint - Deep Forest */
+    light-dark(#ece6d2, #0D1511) 70%  /* Warm Sand - Night */
   );
   background-blend-mode: multiply;
 }
