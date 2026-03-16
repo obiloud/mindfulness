@@ -72,8 +72,8 @@
 .tactile-nature {
   background: linear-gradient(
     130deg,
-    #A8E6CF 0%,
-    #ece6d2 40%
+    var(--color-neo-mint) 0%,
+    var(--color-warm-sand) 40%
   );
 }
 
@@ -86,8 +86,8 @@
 .bg-basic-paper-tactile-nature {
   background-image: var(--background-image-basik-paper), linear-gradient(
     130deg,
-    #A8E6CF 0%,
-    #ece6d2 40%
+    var(--color-neo-mint) 0%,
+    var(--color-warm-sand) 40%
   );
   background-blend-mode: multiply;
 }
