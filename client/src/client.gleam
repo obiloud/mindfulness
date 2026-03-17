@@ -256,7 +256,7 @@ fn view(model: Model) -> Element(Msg) {
                     "text-warm-sand text-8xl leading-none h-[60px] flex col items-center justify-center",
                   ),
                 ],
-                [html.i([attribute.class("icon-lotus inline-flex")], [])],
+                [html.i([attribute.class("icon-pulse-lotus inline-flex")], [])],
               ),
               html.p(
                 [
