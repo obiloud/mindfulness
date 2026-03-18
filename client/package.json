@@ -11,10 +11,13 @@
   "devDependencies": {
     "fontello-cli": "^0.6.2",
     "parcel": "^2.16.4",
-    "parcel-transformer-gleam": "^1.0.0"
+    "parcel-transformer-gleam": "^1.0.0",
+    "path-browserify": "^1.0.1",
+    "process": "^0.11.10"
   },
   "dependencies": {
     "@tailwindcss/postcss": "^4.2.1",
+    "p5": "^2.2.2",
     "tailwindcss": "^4.2.1"
   }
 }

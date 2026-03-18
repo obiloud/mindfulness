@@ -1,5 +1,8 @@
 import api.{type AgentResponse, send_message}
+import gleam/string
+import meditation
 
+import cartesia
 import dom
 import gleam/dynamic/decode
 import gleam/list
@@ -10,6 +13,8 @@ import lustre/effect.{type Effect}
 import lustre/element.{type Element}
 import lustre/element/html
 import lustre/event
+import mork
+import mork/to_lustre
 import theme.{type Theme, Dark, Light, System}
 
 // --- TYPES ---
@@ -27,6 +32,8 @@ pub type Model {
     transcript: Option(String),
     session_id: Option(String),
     theme: Theme,
+    show_meditation: Bool,
+    tts: cartesia.Model,
   )
 }
 
@@ -39,17 +46,29 @@ pub type Msg {
   ReceiveChatResponse(AgentResponse)
   SendMessage
   SetTheme(Theme)
+  HideMeditationScreen
+  CartesiaMsg(cartesia.Msg)
 }
 
 // --- FFI (Foreign Function Interface) ---
 
-// This maps to a function in your audio_bridge.js
-@external(javascript, "./audio_ffi.mjs", "init_cartesia_stream")
-fn init_stream_ffi() -> Nil
+@external(javascript, "./ffi/auto_height_ffi.mjs", "auto_height")
+fn auto_height(id: String) -> Nil
+
+@external(javascript, "./ffi/auto_height_ffi.mjs", "reset_height")
+fn reset_height(id: String) -> Nil
 
 // --- APP LOGIC ---
 
 fn init(_flags) -> #(Model, Effect(Msg)) {
+  let cartesia_init =
+    cartesia.Model(
+      ws: None,
+      is_connected: False,
+      input_text: "",
+      status_message: "Disconnected",
+    )
+  let #(tts, eff) = cartesia.update(cartesia_init, cartesia.Connect)
   #(
     Model(
       chat_history: [],
@@ -59,8 +78,10 @@ fn init(_flags) -> #(Model, Effect(Msg)) {
       session_id: None,
       transcript: None,
       theme: System,
+      show_meditation: False,
+      tts: tts,
     ),
-    effect.none(),
+    effect.map(eff, CartesiaMsg),
   )
 }
 
@@ -68,12 +89,23 @@ fn update(model: Model, msg: Msg) -> #(Model, Effect(Msg)) {
   case echo msg {
     Noop -> #(model, effect.none())
 
-    UserTyped(val) -> #(Model(..model, input_text: val), effect.none())
+    CartesiaMsg(submsg) -> {
+      let #(tts, eff) = cartesia.update(model.tts, submsg)
+      #(Model(..model, tts: tts), effect.map(eff, fn(e) { CartesiaMsg(e) }))
+    }
 
-    UserRequestedAudio -> #(
-      Model(..model, is_streaming: True),
-      effect.from(fn(_) { init_stream_ffi() }),
+    UserTyped(val) -> #(
+      Model(..model, input_text: val),
+      effect.from(fn(_) { auto_height("user-input") }),
     )
+
+    UserRequestedAudio -> {
+      let #(tts, eff) = cartesia.update(model.tts, cartesia.GenerateAudio)
+      #(
+        Model(..model, is_streaming: True, tts: tts),
+        effect.map(eff, CartesiaMsg),
+      )
+    }
 
     AudioStarted -> #(Model(..model, is_streaming: True), effect.none())
 
@@ -89,6 +121,11 @@ fn update(model: Model, msg: Msg) -> #(Model, Effect(Msg)) {
           loading: False,
           session_id: Some(msg.session_id),
           transcript: msg.transcript,
+          show_meditation: option.is_some(msg.transcript),
+          tts: cartesia.Model(
+            ..model.tts,
+            input_text: option.unwrap(msg.transcript, ""),
+          ),
         ),
         // dom.scroll_to_bottom_delayed("chat-ancor"),
         effect.none(),
@@ -96,15 +133,15 @@ fn update(model: Model, msg: Msg) -> #(Model, Effect(Msg)) {
     }
 
     SendMessage ->
-      case model.loading, model.input_text {
+      case model.loading, string.trim(model.input_text) {
         True, _ -> #(model, effect.none())
         _, "" -> #(model, effect.none())
-        False, _ -> {
+        False, user_message -> {
           #(
             Model(
               ..model,
               chat_history: list.append(model.chat_history, [
-                Message(role: "user", content: model.input_text),
+                Message(role: "user", content: user_message),
               ]),
               is_streaming: False,
               input_text: "",
@@ -112,13 +149,11 @@ fn update(model: Model, msg: Msg) -> #(Model, Effect(Msg)) {
             ),
             effect.batch([
               // dom.scroll_to_bottom_delayed("chat-ancor"),
-              effect.map(
-                send_message(model.input_text, model.session_id),
-                fn(res) {
-                  let assert Ok(ar) = res
-                  ReceiveChatResponse(ar)
-                },
-              ),
+              effect.from(fn(_) { reset_height("user-input") }),
+              effect.map(send_message(user_message, model.session_id), fn(res) {
+                let assert Ok(ar) = res
+                ReceiveChatResponse(ar)
+              }),
             ]),
           )
         }
@@ -132,6 +167,11 @@ fn update(model: Model, msg: Msg) -> #(Model, Effect(Msg)) {
       }
       #(Model(..model, theme: new_theme), dom.sync_body_class(theme_class))
     }
+
+    HideMeditationScreen -> #(
+      Model(..model, show_meditation: False),
+      effect.none(),
+    )
   }
 }
 
@@ -216,166 +256,194 @@ fn view_message(m: Message) -> Element(Msg) {
       True -> html.text("")
     },
 
-    html.div([attribute.class(bubble_class)], [
-      element.text(m.content),
-    ]),
+    html.div(
+      [attribute.class(bubble_class)],
+      m.content
+        |> mork.parse
+        |> to_lustre.to_lustre,
+    ),
   ])
 }
 
 fn view(model: Model) -> Element(Msg) {
-  html.div(
-    [
-      attribute.class(
-        "min-h-screen bg-bg-main font-body text-text-base transition-colors duration-500 "
-        <> "lg:flex lg:items-center lg:justify-center lg:p-4",
-        // Centering only on large screens
-      ),
-    ],
-    [
+  case model.show_meditation {
+    True -> {
+      let assert Ok(quote) =
+        list.last(
+          list.filter(model.chat_history, fn(m) { m.role == "assistant" }),
+        )
+      meditation.view_meditation_screen(
+        quote.content,
+        UserRequestedAudio,
+        HideMeditationScreen,
+      )
+    }
+    False ->
       html.div(
         [
           attribute.class(
-            // MOBILE: Full width/height, no corners, no border
-            "flex flex-col w-full h-svh bg-bg-header/90 backdrop-blur-md shadow-2xl "
-            // DESKTOP (lg): Fixed size, rounded corners, border
-            <> "lg:h-[850px] lg:max-w-md lg:rounded-[3rem] lg:border lg:border-deep-moss/10 lg:relative",
+            "min-h-screen bg-bg-main font-body text-text-base transition-colors duration-500 "
+            <> "lg:flex lg:items-center lg:justify-center lg:p-4",
+            // Centering only on large screens
           ),
         ],
         [
-          // FIXED HEADER: Pinned to top
-          html.header(
-            [
-              attribute.class(
-                "flex flex-col items-center justify-center pt-8 pb-4 px-6 text-center border-b border-deep-moss/5 bg-bg-header/50 lg:rounded-[3rem]",
-              ),
-            ],
-            [
-              html.div(
-                [
-                  attribute.class(
-                    "text-warm-sand text-8xl leading-none h-[60px] flex col items-center justify-center",
-                  ),
-                ],
-                [html.i([attribute.class("icon-pulse-lotus inline-flex")], [])],
-              ),
-              html.p(
-                [
-                  attribute.class(
-                    "text-[10px] font-semibold tracking-[0.2em] text-gold-leaf mb-1",
-                  ),
-                ],
-                [
-                  element.text("PULSE LOTUS"),
-                ],
-              ),
-              html.h1(
-                [
-                  attribute.class(
-                    "text-xl font-header font-extralight text-deep-moss tracking-tight",
-                  ),
-                ],
-                [element.text("TAILOR YOUR SESSION")],
-              ),
-            ],
-          ),
-
-          // SCROLLABLE MESSAGES: Fills all remaining space
           html.div(
             [
               attribute.class(
-                "flex-1 overflow-hidden bg-basic-paper-tactile-nature shadow-inner transition-colors duration-500",
-                // Fills gap between header and footer
+                // MOBILE: Full width/height, no corners, no border
+                "flex flex-col w-full h-svh bg-bg-header/90 backdrop-blur-md shadow-2xl "
+                // DESKTOP (lg): Fixed size, rounded corners, border
+                <> "lg:h-[850px] lg:max-w-md lg:rounded-[3rem] lg:border lg:border-deep-moss/10 lg:relative",
               ),
             ],
             [
-              case model.chat_history {
-                [] ->
+              // FIXED HEADER: Pinned to top
+              html.header(
+                [
+                  attribute.class(
+                    "flex flex-col items-center justify-center pt-8 pb-4 px-6 text-center border-b border-deep-moss/5 bg-bg-header/50 lg:rounded-[3rem]",
+                  ),
+                ],
+                [
+                  html.div(
+                    [
+                      attribute.class(
+                        "text-warm-sand text-8xl leading-none h-[60px] flex col items-center justify-center",
+                      ),
+                    ],
+                    [
+                      html.i(
+                        [attribute.class("icon-pulse-lotus inline-flex")],
+                        [],
+                      ),
+                    ],
+                  ),
                   html.p(
                     [
                       attribute.class(
-                        "text-welcome-text text-sm text-center italic mt-20",
+                        "text-[10px] font-semibold tracking-[0.2em] text-gold-leaf mb-1",
                       ),
                     ],
                     [
-                      element.text("How are you feeling in this moment?"),
+                      element.text("PULSE LOTUS"),
                     ],
-                  )
-                _ -> html.text("")
-              },
-
-              html.div(
-                [
-                  attribute.class(
-                    "flex flex-col-reverse gap-y-6 p-6 overflow-y-auto max-h-full scrollbar-hide scroll-smooth",
                   ),
-                ],
-                model.chat_history
-                  |> list.reverse
-                  |> list.map(view_message)
-                  |> list.prepend(case model.loading {
-                    True -> view_loading_indicator()
-                    False -> html.text("")
-                  }),
-              ),
-            ],
-          ),
-
-          // FIXED FOOTER (INPUT): Pinned to bottom
-          html.footer(
-            [
-              attribute.class(
-                "p-4 pb-8 lg:pb-6 bg-bg-header/80 backdrop-blur-lg border-t border-deep-moss/5 lg:rounded-[3rem]",
-              ),
-            ],
-            [
-              html.div(
-                [
-                  attribute.class(
-                    "flex gap-2 bg-bg-main border border-gold-leaf/20 p-1.5 rounded-[1rem] shadow-inner focus-within:border-gold-leaf/50 transition-colors",
-                  ),
-                ],
-                [
-                  html.input([
-                    attribute.type_("text"),
-                    attribute.value(model.input_text),
-                    attribute.placeholder("Tell me more about your feelings..."),
-                    attribute.class(
-                      "flex-1 bg-transparent px-5 py-3 text-sm outline-none",
-                    ),
-                    event.on_input(UserTyped),
-                    event.advanced("keydown", {
-                      use key <- decode.field("key", decode.string)
-                      let handler =
-                        event.handler(
-                          dispatch: SendMessage,
-                          prevent_default: True,
-                          stop_propagation: False,
-                        )
-                      case key {
-                        "Enter" -> decode.success(handler)
-                        _ -> decode.failure(handler, "SendMessage")
-                      }
-                    }),
-                  ]),
-                  html.button(
+                  html.h1(
                     [
-                      event.on_click(SendMessage),
-                      attribute.disabled(model.loading),
                       attribute.class(
-                        "icon-paper-plane rounded-[.7rem] text-gold-leaf cursor-pointer text-4xl hover:shadow-xl hover:text-off-white transition-all bg-bubble-user-bg text-bubble-user-text",
+                        "text-xl font-header font-extralight text-deep-moss tracking-tight",
                       ),
                     ],
-                    [],
+                    [element.text("TAILOR YOUR SESSION")],
                   ),
                 ],
               ),
-              // view_theme_toggle(model.theme, fn(theme) { SetTheme(theme) }),
+
+              // SCROLLABLE MESSAGES: Fills all remaining space
+              html.div(
+                [
+                  attribute.class(
+                    "flex-1 overflow-hidden bg-tactile-nature shadow-inner transition-colors duration-500",
+                    // Fills gap between header and footer
+                  ),
+                ],
+                [
+                  case model.chat_history {
+                    [] ->
+                      html.p(
+                        [
+                          attribute.class(
+                            "text-welcome-text text-sm text-center italic mt-20",
+                          ),
+                        ],
+                        [
+                          element.text("How are you feeling in this moment?"),
+                        ],
+                      )
+                    _ -> html.text("")
+                  },
+
+                  html.div(
+                    [
+                      attribute.class(
+                        "flex flex-col-reverse gap-y-6 p-6 overflow-y-auto max-h-full scrollbar-hide scroll-smooth",
+                      ),
+                    ],
+                    model.chat_history
+                      |> list.reverse
+                      |> list.map(view_message)
+                      |> list.prepend(case model.loading {
+                        True -> view_loading_indicator()
+                        False -> html.text("")
+                      }),
+                  ),
+                ],
+              ),
+
+              // FIXED FOOTER (INPUT): Pinned to bottom
+              html.footer(
+                [
+                  attribute.class(
+                    "p-4 pb-8 lg:pb-6 bg-bg-header/80 backdrop-blur-lg border-t border-deep-moss/5 lg:rounded-[3rem]",
+                  ),
+                ],
+                [
+                  html.div(
+                    [
+                      attribute.class(
+                        "flex gap-2 bg-bg-main border border-gold-leaf/20 p-1.5 rounded-[1rem] shadow-inner focus-within:border-gold-leaf/50 transition-colors",
+                      ),
+                    ],
+                    [
+                      html.textarea(
+                        [
+                          attribute.id("user-input"),
+                          attribute.placeholder(
+                            "Tell me more about your feelings...",
+                          ),
+                          attribute.class(
+                            "flex-1 bg-transparent px-5 py-3 text-sm outline-none resize-none",
+                          ),
+                          attribute.rows(1),
+                          event.on_input(UserTyped),
+                          event.advanced("keydown", {
+                            use key <- decode.field("key", decode.string)
+                            use shift <- decode.field("shiftKey", decode.bool)
+                            let handler =
+                              event.handler(
+                                dispatch: SendMessage,
+                                prevent_default: True,
+                                stop_propagation: False,
+                              )
+                            case shift, key {
+                              False, "Enter" -> decode.success(handler)
+                              _, _ -> decode.failure(handler, "SendMessage")
+                            }
+                          }),
+                        ],
+                        model.input_text,
+                      ),
+                      html.button(
+                        [
+                          event.on_click(SendMessage),
+                          attribute.disabled(model.loading),
+                          attribute.class(
+                            "icon-paper-plane rounded-[.7rem] text-gold-leaf cursor-pointer text-4xl hover:shadow-xl hover:text-off-white transition-all bg-bubble-user-bg text-bubble-user-text",
+                          ),
+                        ],
+                        [],
+                      ),
+                    ],
+                  ),
+                  // view_theme_toggle(model.theme, fn(theme) { SetTheme(theme) }),
+                ],
+              ),
             ],
           ),
         ],
-      ),
-    ],
-  )
+      )
+  }
 }
 
 pub fn main() {
