@@ -78,6 +78,25 @@ pub fn message_decoder() -> decode.Decoder(CartesiaMessage) {
   )
 }
 
+// Function to build the sophisticated voice payload
+fn build_voice_payload(
+  voice_id: String,
+  speed: Float,
+  emotion: String,
+) -> json.Json {
+  json.object([
+    #("mode", json.string("id")),
+    #("id", json.string(voice_id)),
+    #(
+      "settings",
+      json.object([
+        #("speed", json.float(speed)),
+        #("emotion", json.array([emotion], of: json.string)),
+      ]),
+    ),
+  ])
+}
+
 // --- FFI (Foreign Function Interface) ---
 
 @external(javascript, "./ffi/env_ffi.mjs", "get_cartesia_key")
@@ -98,7 +117,7 @@ fn mount_visualizer(id: String, analyser: Dynamic) -> Nil
 // --- UPDATE ---
 
 pub fn update(model: Model, msg: Msg) -> #(Model, Effect(Msg)) {
-  case msg {
+  case echo msg {
     Connect -> {
       let api_key = get_cartesia_key()
       let cartesia_url =
@@ -122,10 +141,7 @@ pub fn update(model: Model, msg: Msg) -> #(Model, Effect(Msg)) {
           is_connected: True,
           status_message: "Connected to Voice Model",
         ),
-        effect.from(fn(_) {
-          init_audio()
-          mount_visualizer("p5-container", get_analyser())
-        }),
+        effect.from(fn(_) { init_audio() }),
       )
     }
 
@@ -172,6 +188,7 @@ pub fn update(model: Model, msg: Msg) -> #(Model, Effect(Msg)) {
       case model.ws, model.is_connected {
         Some(socket), True -> {
           // Construct the strict Cartesia TTS streaming payload
+
           let payload =
             json.object([
               #("context_id", json.string("session-context-1")),
@@ -179,11 +196,11 @@ pub fn update(model: Model, msg: Msg) -> #(Model, Effect(Msg)) {
               #("transcript", json.string(model.input_text)),
               #(
                 "voice",
-                json.object([
-                  #("mode", json.string("id")),
-                  #("id", json.string("a0e99841-438c-4a64-b679-ae501e7d6091")),
-                  // Replace with desired voice ID
-                ]),
+                echo build_voice_payload(
+                  "a0e99841-438c-4a64-b679-ae501e7d6091",
+                  0.8,
+                  "calm:highest",
+                ),
               ),
               #(
                 "output_format",
@@ -198,7 +215,12 @@ pub fn update(model: Model, msg: Msg) -> #(Model, Effect(Msg)) {
           let json_payload = json.to_string(payload)
           #(
             Model(..model, status_message: "Generating..."),
-            ws.send(socket, json_payload),
+            effect.batch([
+              effect.from(fn(_) {
+                mount_visualizer("p5-container", get_analyser())
+              }),
+              ws.send(socket, json_payload),
+            ]),
           )
         }
         _, _ -> {

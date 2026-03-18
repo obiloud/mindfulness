@@ -91,7 +91,7 @@ fn update(model: Model, msg: Msg) -> #(Model, Effect(Msg)) {
 
     CartesiaMsg(submsg) -> {
       let #(tts, eff) = cartesia.update(model.tts, submsg)
-      #(Model(..model, tts: tts), effect.map(eff, fn(e) { CartesiaMsg(e) }))
+      #(Model(..model, tts: tts), effect.map(eff, CartesiaMsg))
     }
 
     UserTyped(val) -> #(

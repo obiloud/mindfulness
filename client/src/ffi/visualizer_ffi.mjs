@@ -24,8 +24,8 @@ export function mount_visualizer(containerId, analyser) {
         analyser.getByteTimeDomainData(dataArray);
 
         // Deep forest background with trailing "blur"
-        // ctx.fillStyle = 'rgba(15, 42, 41, 0.74)';
-        // ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.fillStyle = 'rgba(15, 42, 41, 0.74)';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
 
         const centerX = canvas.width / 2;
         const centerY = canvas.height / 2;
