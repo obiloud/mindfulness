@@ -73,25 +73,18 @@ body.dark {
   }
 }
 
-.pulse-lotus {
-  clip-path: url(#figma-clip);
-  width: 120px;
-  height: 78px;
-  margin: 10px;
-}
-
-/* Custom Textures - Background Classes */
-.bg-basic-paper {
-  background-image: var(--background-image-basik-paper);
-  background-blend-mode: multiply;
-}
-
-.bg-basic-paper-tactile-nature {
+.bg-tactile-nature {
   background-image: var(--background-image-basik-paper), radial-gradient(
     circle at top left,
     light-dark(#A8E6CF, #15221B) 0%, /* Neo Mint - Deep Forest */
     light-dark(#ece6d2, #0D1511) 70%  /* Warm Sand - Night */
   );
+  background-blend-mode: multiply;
+}
+
+/* Custom Textures - Background Classes */
+.bg-basic-paper {
+  background-image: var(--background-image-basik-paper);
   background-blend-mode: multiply;
 }
 
