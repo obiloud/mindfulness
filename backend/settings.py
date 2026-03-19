@@ -13,9 +13,12 @@ class Settings(BaseSettings):
     # Hugging Face
     hf_token: str = Field("", env="HF_TOKEN")
 
-    # # Cartesia
+    # Cartesia
     cartesia_api_key: str = Field("", env="CARTESIA_API_KEY")
     cartesia_model_id: str = Field("sonic-3", env="CARTESIA_MODEL_ID")
+
+    # Tavily
+    tavily_api_key: str = Field("", env="TAVILY_API_KEY")
 
     # PostgreSQL
     postgres_connection_string: str = Field(

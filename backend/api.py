@@ -67,6 +67,7 @@ class SessionRequest(BaseModel):
 class SessionResponse(BaseModel):
     session_id: str
     message: str
+    answer: Optional[str]
     transcript: Optional[str]
 
 
@@ -99,14 +100,17 @@ async def create_session(body: SessionRequest, request: Request) -> SessionRespo
             return {
                 "session_id": session_id,
                 "message": refusal,
+                "answer": None,
                 "transcript": None,
             }
 
+        answer = final_state.get("answer")
         transcript = final_state.get("transcript")
 
         return {
             "session_id": session_id,
             "message": ai_message.content,
+            "answer": answer,
             "transcript": transcript,
         }
     except Exception as e:
@@ -114,6 +118,7 @@ async def create_session(body: SessionRequest, request: Request) -> SessionRespo
         return {
             "session_id": session_id,
             "message": str(e),
+            "answer": None,
             "transcript": None,
         }
 

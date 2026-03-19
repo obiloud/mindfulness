@@ -28,8 +28,13 @@ class ConversationState(TypedDict):
                     "reflecting", "done"]
     info_score: float
     turn_count: int
+    # Quailty Gates
     reflection_count: int
-    reflection_notes: Optional[str]
+    is_transfer_valid: bool
+    is_answer_valid: bool
+    # Feedback
+    transcript_feedback: Optional[str]
+    answer_feedback: Optional[str]
 
 
 def print_state(state: ConversationState, full: bool = False) -> str:
