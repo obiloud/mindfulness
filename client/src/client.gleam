@@ -105,6 +105,7 @@ fn update(model: Model, msg: Msg) -> #(Model, Effect(Msg)) {
 
     UserRequestedAudio -> {
       let #(tts, eff) = cartesia.update(model.tts, cartesia.GenerateAudio)
+      echo tts
       #(
         Model(..model, is_streaming: True, tts: tts),
         effect.map(eff, CartesiaMsg),

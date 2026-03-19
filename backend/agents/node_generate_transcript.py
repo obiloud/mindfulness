@@ -1,4 +1,4 @@
-from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
+from langchain_core.messages import HumanMessage, SystemMessage
 from state import ConversationState, GraphContext, print_state
 from langgraph.runtime import Runtime
 from prompts.meditation import TRANSCRIPT_PROMPT
@@ -6,6 +6,7 @@ from prompts.meditation import TRANSCRIPT_PROMPT
 
 async def node_generate_transcript(state: ConversationState, runtime: Runtime[GraphContext]) -> dict:
     llm = runtime.context.llm
+    runtime.context.logger.info(f"TRANSCRIPT: {print_state(state)}")
 
     # Check if we are refining based on feedback
     feedback = state.get("transcript_feedback", "")

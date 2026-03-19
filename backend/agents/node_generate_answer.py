@@ -1,12 +1,14 @@
 from langchain_core.messages import SystemMessage, HumanMessage
 from langchain_tavily import TavilySearch
 from langgraph.runtime import Runtime
-from state import ConversationState, GraphContext
+from state import ConversationState, GraphContext, print_state
 from prompts.meditation import ANSWER_PROMPT, MEDITATION_PROMPT
 
 
 async def node_generate_answer(state: ConversationState, runtime: Runtime[GraphContext]) -> dict:
     llm = runtime.context.llm
+
+    runtime.context.logger.info(f"ANSWERING: {print_state(state)}")
 
     messages = state.get("messages", [])
     context_text = ""
@@ -15,7 +17,7 @@ async def node_generate_answer(state: ConversationState, runtime: Runtime[GraphC
     if human_messages:
         context_text = "\n\n".join(m.content for m in human_messages)
 
-    # 1. Execute the search deterministically in Python
+    # Execute the search deterministically in Python
     search_tool = TavilySearch(max_results=2)
     search_query = f"Short mindfulness quote for someone feeling {context_text}"
 
@@ -28,7 +30,7 @@ async def node_generate_answer(state: ConversationState, runtime: Runtime[GraphC
         runtime.context.logger.warning(f"Tavily search failed: {e}")
         quotes_context = "Fallback quote: 'Peace comes from within. Do not seek it without.' - Buddha"
 
-    # 2. Prepare context with the injected search results
+    # Prepare context with the injected search results
     feedback = state.get("answer_feedback", "")
 
     # We update the prompt to include the quotes we just found
@@ -42,8 +44,6 @@ async def node_generate_answer(state: ConversationState, runtime: Runtime[GraphC
     if feedback:
         prompt_context += f"\n\n# ADDRESS THIS FEEDBACK: {feedback}"
 
-    # 3. Standard LLM invocation (NO bind_tools)
-    # This guarantees compatibility with any Hugging Face model
     ai_msg = await llm.ainvoke([
         SystemMessage(content=MEDITATION_PROMPT),
         HumanMessage(content=prompt_context)
@@ -51,5 +51,5 @@ async def node_generate_answer(state: ConversationState, runtime: Runtime[GraphC
 
     return {
         "answer": ai_msg.content,
-        "is_answer_valid": False
+        "is_answer_valid": False  # Reset for re-validation
     }

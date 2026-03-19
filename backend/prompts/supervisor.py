@@ -13,6 +13,8 @@ SUPERVISOR_PROMPT = inspect.cleandoc(f"""
 
     ### OUTPUT FORMAT
     You MUST provide your evaluation in exactly this format:
-    ANSWER_STATUS: [SATISFACTORY or FEEDBACK: your instructions]
-    TRANSCRIPT_STATUS: [SATISFACTORY or FEEDBACK: your instructions]
+    is_answer_valid: [True/False]
+    is_transcript_valid: [True/False]
+    answer_feedback: [[Your detailed feedback goes here, even if it contains colons or lists]]
+    transcript_feedback: [[Your detailed feedback goes here, even if it contains colons or lists]]
 """)

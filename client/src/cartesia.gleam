@@ -3,6 +3,7 @@ import gleam/int
 import gleam/json
 import gleam/list
 import gleam/option.{type Option, None, Some}
+import gleam/regexp
 import gleam/string
 
 // import lustre
@@ -149,6 +150,11 @@ fn split_into_chapters(text: String) -> List(String) {
   text
   |> string.split("\n\n")
   |> list.filter(fn(s) { string.length(s) > 0 })
+  |> list.map(fn(s) {
+    let assert Ok(pattern) = regexp.from_string("\\n\\n")
+    let t = string.trim(s)
+    regexp.replace(pattern, t, "")
+  })
 }
 
 // --- FFI (Foreign Function Interface) ---
