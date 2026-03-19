@@ -68,6 +68,8 @@ fn init(_flags) -> #(Model, Effect(Msg)) {
       is_connected: False,
       input_text: "",
       status_message: "Disconnected",
+      pending_chunks: [],
+      current_context_index: 0,
     )
   let #(tts, eff) = cartesia.update(cartesia_init, cartesia.Connect)
   #(
@@ -88,7 +90,7 @@ fn init(_flags) -> #(Model, Effect(Msg)) {
 }
 
 fn update(model: Model, msg: Msg) -> #(Model, Effect(Msg)) {
-  case echo msg {
+  case msg {
     Noop -> #(model, effect.none())
 
     CartesiaMsg(submsg) -> {

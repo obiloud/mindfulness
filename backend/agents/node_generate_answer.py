@@ -1,5 +1,5 @@
 from langchain_core.messages import SystemMessage, HumanMessage
-from langchain_community.tools.tavily_search import TavilySearchResults
+from langchain_tavily import TavilySearch
 from langgraph.runtime import Runtime
 from state import ConversationState, GraphContext
 from prompts.meditation import ANSWER_PROMPT, MEDITATION_PROMPT
@@ -16,15 +16,14 @@ async def node_generate_answer(state: ConversationState, runtime: Runtime[GraphC
         context_text = "\n\n".join(m.content for m in human_messages)
 
     # 1. Execute the search deterministically in Python
-    search_tool = TavilySearchResults(max_results=2)
+    search_tool = TavilySearch(max_results=2)
     search_query = f"Short mindfulness quote for someone feeling {context_text}"
 
     try:
         # Run the tool directly
         search_results = await search_tool.ainvoke({"query": search_query})
         # Extract just the content/snippets to save context window
-        quotes_context = "\n".join([res.get("content", "")
-                                   for res in search_results])
+        quotes_context = "\n".join([res for res in search_results])
     except Exception as e:
         runtime.context.logger.warning(f"Tavily search failed: {e}")
         quotes_context = "Fallback quote: 'Peace comes from within. Do not seek it without.' - Buddha"

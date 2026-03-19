@@ -1,4 +1,4 @@
-from state import ConversationState, GraphContext
+from state import ConversationState, GraphContext, print_state
 from langchain_core.messages import AIMessage, SystemMessage
 from langgraph.runtime import Runtime
 from prompts.supervisor import SUPERVISOR_PROMPT
@@ -13,7 +13,9 @@ async def node_reflection(state: ConversationState, runtime: Runtime[GraphContex
     logger = runtime.context.logger
     llm = runtime.context.llm
 
-    # 1. Handle edge case: Missing content
+    logger.info(f"REFLECTING ON STATE: {print_state(state)}")
+
+    # Handle edge case: Missing content
     if not state.get("transcript") or len(state["transcript"].strip()) < 10:
         return {
             "transcript_feedback": "Transcript was empty. Generate a full 10-minute meditation.",
@@ -21,7 +23,7 @@ async def node_reflection(state: ConversationState, runtime: Runtime[GraphContex
             "status": "reflecting"
         }
 
-    # 2. Invoke Supervisor
+    # Invoke Supervisor
     reflection_prompt = SUPERVISOR_PROMPT.format(
         answer=state.get('answer', ''),
         transcript=state.get('transcript', '')
@@ -63,6 +65,7 @@ async def node_reflection(state: ConversationState, runtime: Runtime[GraphContex
         return None
 
     return {
+        # **state,
         "is_answer_valid": is_ans_valid,
         "is_transcript_valid": is_tra_valid,
         "answer_feedback": get_feedback(ans_status) if not is_ans_valid else None,

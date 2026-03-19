@@ -30,7 +30,7 @@ class ConversationState(TypedDict):
     turn_count: int
     # Quailty Gates
     reflection_count: int
-    is_transfer_valid: bool
+    is_transcript_valid: bool
     is_answer_valid: bool
     # Feedback
     transcript_feedback: Optional[str]
