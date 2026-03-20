@@ -1,5 +1,5 @@
 from langchain_core.messages import HumanMessage, SystemMessage
-from state import ConversationState, GraphContext, print_state
+from backend.agent_a_chat.state import ConversationState, GraphContext, print_state
 from langgraph.runtime import Runtime
 from prompts.meditation import TRANSCRIPT_PROMPT
 

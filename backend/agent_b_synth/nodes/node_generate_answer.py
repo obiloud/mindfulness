@@ -1,7 +1,7 @@
 from langchain_core.messages import SystemMessage, HumanMessage
 from langchain_tavily import TavilySearch
 from langgraph.runtime import Runtime
-from state import ConversationState, GraphContext, print_state
+from backend.agent_a_chat.state import ConversationState, GraphContext, print_state
 from prompts.meditation import ANSWER_PROMPT, MEDITATION_PROMPT
 
 

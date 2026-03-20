@@ -10,6 +10,9 @@ class Settings(BaseSettings):
     api_host: str = Field("0.0.0.0", env="API_HOST")
     api_port: int = Field(8000, env="API_PORT")
 
+    synth_agent_url: str = Field(
+        "http://synth-agent:8001", env="SYNTH_AGENT_URL")
+
     # Hugging Face
     hf_token: str = Field("", env="HF_TOKEN")
 

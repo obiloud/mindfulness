@@ -1,6 +1,38 @@
 version: '3.8'
 
 services:
+  # Agent A: Chat & UI Gateway (Requester)
+  chat-agent:
+    build: 
+      context: .
+      dockerfile: ./agent_a_chat/Dockerfile
+    container_name: pulse-chat-agent
+    ports:
+      - "8000:8000"
+    environment:
+      - SYNTH_AGENT_URL=http://synth-agent:8001
+      - DATABASE_URL=postgresql://guru:changeme12345@postgres:5432/mindfulness
+      - HUGGINGFACEHUB_API_TOKEN=${HUGGINGFACEHUB_API_TOKEN}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # Agent B: Meditation Synthesizer (Producer)
+  synth-agent:
+    build:
+      context: .
+      dockerfile: ./agent_b_synth/Dockerfile
+    container_name: pulse-synth-agent
+    environment:
+      - DATABASE_URL=postgresql://guru:changeme12345@postgres:5432/mindfulness
+      - HUGGINGFACEHUB_API_TOKEN=${HUGGINGFACEHUB_API_TOKEN}
+      - A2A_PORT=8001
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
   postgres:
     image: postgres:15
     container_name: postgres
@@ -19,7 +51,6 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
-    # Comment: Health check ensures PostgreSQL is ready before application starts
 
 volumes:
   postgres_data:

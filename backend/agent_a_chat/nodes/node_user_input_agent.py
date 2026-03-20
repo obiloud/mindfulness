@@ -9,7 +9,7 @@ from langgraph.runtime import Runtime
 from langgraph.store.base import BaseStore
 from langchain_huggingface import ChatHuggingFace
 
-from state import ConversationState, GraphContext, print_state
+from backend.agent_a_chat.state import ConversationState, GraphContext, print_state
 
 
 def create_safety_classifier(llm: ChatHuggingFace) -> Runnable:
