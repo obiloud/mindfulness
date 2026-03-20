@@ -29,6 +29,7 @@ pub type Model {
     is_streaming: Bool,
     input_text: String,
     loading: Bool,
+    answer: Option(String),
     transcript: Option(String),
     session_id: Option(String),
     theme: Theme,
@@ -67,6 +68,8 @@ fn init(_flags) -> #(Model, Effect(Msg)) {
       is_connected: False,
       input_text: "",
       status_message: "Disconnected",
+      pending_chunks: [],
+      current_context_index: 0,
     )
   let #(tts, eff) = cartesia.update(cartesia_init, cartesia.Connect)
   #(
@@ -76,6 +79,7 @@ fn init(_flags) -> #(Model, Effect(Msg)) {
       input_text: "",
       loading: False,
       session_id: None,
+      answer: None,
       transcript: None,
       theme: System,
       show_meditation: False,
@@ -86,12 +90,12 @@ fn init(_flags) -> #(Model, Effect(Msg)) {
 }
 
 fn update(model: Model, msg: Msg) -> #(Model, Effect(Msg)) {
-  case echo msg {
+  case msg {
     Noop -> #(model, effect.none())
 
     CartesiaMsg(submsg) -> {
       let #(tts, eff) = cartesia.update(model.tts, submsg)
-      #(Model(..model, tts: tts), effect.map(eff, fn(e) { CartesiaMsg(e) }))
+      #(Model(..model, tts: tts), effect.map(eff, CartesiaMsg))
     }
 
     UserTyped(val) -> #(
@@ -101,6 +105,7 @@ fn update(model: Model, msg: Msg) -> #(Model, Effect(Msg)) {
 
     UserRequestedAudio -> {
       let #(tts, eff) = cartesia.update(model.tts, cartesia.GenerateAudio)
+      echo tts
       #(
         Model(..model, is_streaming: True, tts: tts),
         effect.map(eff, CartesiaMsg),
@@ -120,8 +125,10 @@ fn update(model: Model, msg: Msg) -> #(Model, Effect(Msg)) {
           ]),
           loading: False,
           session_id: Some(msg.session_id),
+          answer: msg.answer,
           transcript: msg.transcript,
-          show_meditation: option.is_some(msg.transcript),
+          show_meditation: option.is_some(msg.answer)
+            && option.is_some(msg.transcript),
           tts: cartesia.Model(
             ..model.tts,
             input_text: option.unwrap(msg.transcript, ""),
@@ -268,12 +275,9 @@ fn view_message(m: Message) -> Element(Msg) {
 fn view(model: Model) -> Element(Msg) {
   case model.show_meditation {
     True -> {
-      let assert Ok(quote) =
-        list.last(
-          list.filter(model.chat_history, fn(m) { m.role == "assistant" }),
-        )
+      let assert Some(quote) = model.answer
       meditation.view_meditation_screen(
-        quote.content,
+        quote,
         UserRequestedAudio,
         HideMeditationScreen,
       )

@@ -87,7 +87,7 @@ pub fn view_meditation_screen(
       ),
 
       html.div([event.on_click(hide)], [
-        html.button([], [element.text("Close")]),
+        html.button([attribute.class("cursor-pointer")], [element.text("Close")]),
       ]),
     ],
   )

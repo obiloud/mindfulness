@@ -1,6 +1,10 @@
 import gleam/dynamic/decode.{type Dynamic}
+import gleam/int
 import gleam/json
+import gleam/list
 import gleam/option.{type Option, None, Some}
+import gleam/regexp
+import gleam/string
 
 // import lustre
 // import lustre/attribute
@@ -19,6 +23,8 @@ pub type Model {
     is_connected: Bool,
     input_text: String,
     status_message: String,
+    pending_chunks: List(String),
+    current_context_index: Int,
   )
 }
 
@@ -54,7 +60,8 @@ pub type Msg {
 
 pub type CartesiaMessage {
   AudioChunk(data: String)
-  StreamDone(request_id: String)
+  StreamDone(context_id: String)
+  StreamError(message: String)
 }
 
 pub fn message_decoder() -> decode.Decoder(CartesiaMessage) {
@@ -68,14 +75,86 @@ pub fn message_decoder() -> decode.Decoder(CartesiaMessage) {
             decode.success(AudioChunk(data:))
           }
           "done" -> {
-            use id <- decode.field("request_id", decode.string)
+            use id <- decode.field("context_id", decode.string)
             decode.success(StreamDone(id))
           }
-          _ -> decode.failure(AudioChunk(data: ""), "Unknown message type")
+          "error" -> {
+            use error_msg <- decode.field("error", decode.string)
+            decode.success(StreamError(error_msg))
+          }
+          _ ->
+            decode.failure(
+              AudioChunk(data: ""),
+              "Unsupported message type: " <> msg_type,
+            )
         }
       }),
     [],
   )
+}
+
+// Function to build the sophisticated voice payload
+fn build_voice_payload(
+  voice_id: String,
+  speed: Float,
+  emotion: String,
+) -> json.Json {
+  json.object([
+    #("mode", json.string("id")),
+    #("id", json.string(voice_id)),
+    #(
+      "settings",
+      json.object([
+        #("speed", json.float(speed)),
+        #("emotion", json.array([emotion], of: json.string)),
+      ]),
+    ),
+  ])
+}
+
+fn send_tts_payload(model: Model, text: String) -> Effect(Msg) {
+  case model.ws {
+    Some(socket) -> {
+      // We generate a unique context_id for every chapter to FORCE a state reset
+      let context_id = "chapter-" <> int.to_string(model.current_context_index)
+
+      let payload =
+        json.object([
+          #("context_id", json.string(context_id)),
+          #("model_id", json.string("sonic-3")),
+          #("transcript", json.string(text)),
+          #(
+            "voice",
+            build_voice_payload(
+              "a0e99841-438c-4a64-b679-ae501e7d6091",
+              0.8,
+              "calm:highest",
+            ),
+          ),
+          #(
+            "output_format",
+            json.object([
+              #("container", json.string("raw")),
+              #("encoding", json.string("pcm_f32le")),
+              #("sample_rate", json.int(24_000)),
+            ]),
+          ),
+        ])
+      ws.send(socket, json.to_string(payload))
+    }
+    None -> effect.none()
+  }
+}
+
+fn split_into_chapters(text: String) -> List(String) {
+  text
+  |> string.split("\n\n")
+  |> list.filter(fn(s) { string.length(s) > 0 })
+  |> list.map(fn(s) {
+    let assert Ok(pattern) = regexp.from_string("\\n\\n")
+    let t = string.trim(s)
+    regexp.replace(pattern, t, "")
+  })
 }
 
 // --- FFI (Foreign Function Interface) ---
@@ -122,29 +201,47 @@ pub fn update(model: Model, msg: Msg) -> #(Model, Effect(Msg)) {
           is_connected: True,
           status_message: "Connected to Voice Model",
         ),
-        effect.from(fn(_) {
-          init_audio()
-          mount_visualizer("p5-container", get_analyser())
-        }),
+        effect.from(fn(_) { init_audio() }),
       )
     }
 
     WsEvent(ws.OnTextMessage(json_string)) -> {
-      // Cartesia streams audio chunks as JSON payloads containing base64 audio.
-      // NOTE: Dispatch to a JS FFI port here to queue chunks in a Web Audio API buffer.
       let result = json.parse(json_string, message_decoder())
       case result {
         Ok(AudioChunk(data)) -> {
-          #(
-            Model(..model, status_message: "Streaming audio..."),
-            effect.from(fn(_) { play_chunk(data) }),
-          )
+          #(model, effect.from(fn(_) { play_chunk(data) }))
         }
         Ok(StreamDone(_)) -> {
-          // Stream finished, maybe reset UI state
-          #(Model(..model, status_message: "Done"), effect.none())
+          case model.pending_chunks {
+            [next, ..rest] -> {
+              let next_index = model.current_context_index + 1
+              let new_model =
+                Model(
+                  ..model,
+                  pending_chunks: rest,
+                  current_context_index: next_index,
+                  status_message: "Resetting context... Starting Chapter "
+                    <> int.to_string(next_index),
+                )
+
+              // This triggers the fresh WebSocket request with a NEW context_id
+              #(new_model, send_tts_payload(new_model, next))
+            }
+            [] -> #(
+              Model(..model, status_message: "Meditation Complete"),
+              effect.none(),
+            )
+          }
         }
-        Error(_) -> #(model, effect.none())
+        Ok(StreamError(err)) -> #(
+          Model(..model, status_message: err),
+          effect.none(),
+        )
+
+        Error(_) -> #(
+          Model(..model, status_message: "Error decoding message"),
+          effect.none(),
+        )
       }
     }
 
@@ -169,44 +266,28 @@ pub fn update(model: Model, msg: Msg) -> #(Model, Effect(Msg)) {
     }
 
     GenerateAudio -> {
-      case model.ws, model.is_connected {
-        Some(socket), True -> {
-          // Construct the strict Cartesia TTS streaming payload
-          let payload =
-            json.object([
-              #("context_id", json.string("session-context-1")),
-              #("model_id", json.string("sonic-3")),
-              #("transcript", json.string(model.input_text)),
-              #(
-                "voice",
-                json.object([
-                  #("mode", json.string("id")),
-                  #("id", json.string("a0e99841-438c-4a64-b679-ae501e7d6091")),
-                  // Replace with desired voice ID
-                ]),
-              ),
-              #(
-                "output_format",
-                json.object([
-                  #("container", json.string("raw")),
-                  #("encoding", json.string("pcm_f32le")),
-                  #("sample_rate", json.int(24_000)),
-                ]),
-              ),
-            ])
+      let chunks = split_into_chapters(model.input_text)
 
-          let json_payload = json.to_string(payload)
+      case chunks {
+        [first, ..rest] -> {
+          let new_model =
+            Model(
+              ..model,
+              input_text: "",
+              pending_chunks: rest,
+              current_context_index: 1,
+            )
           #(
-            Model(..model, status_message: "Generating..."),
-            ws.send(socket, json_payload),
+            Model(..new_model, status_message: "Starting Chapter 1..."),
+            effect.batch([
+              effect.from(fn(_) {
+                mount_visualizer("p5-container", get_analyser())
+              }),
+              send_tts_payload(new_model, first),
+            ]),
           )
         }
-        _, _ -> {
-          #(
-            Model(..model, status_message: "Socket not connected."),
-            effect.none(),
-          )
-        }
+        [] -> #(model, effect.none())
       }
     }
   }

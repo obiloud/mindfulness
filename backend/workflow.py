@@ -7,16 +7,17 @@ from langchain_huggingface import ChatHuggingFace, HuggingFaceEndpoint
 from langgraph.graph import StateGraph, END
 from langgraph.checkpoint.base import BaseCheckpointSaver
 from langgraph.store.base import BaseStore
+from langgraph.types import Send
 
 import logging
 import json
 
-from state import ConversationState, GraphContext
-from agents.user_input_agent import node_user_input
-from agents.conversation_agent import node_conversation
-from agents.meditation_guide_agent import node_assistant
-from agents.supervisor_agent import node_reflection
-from settings import get_settings
+from state import ConversationState
+from agents.node_user_input_agent import node_user_input
+from agents.node_conversation_agent import node_conversation
+from agents.node_generate_answer import node_generate_answer
+from agents.node_generate_transcript import node_generate_transcript
+from agents.node_supervisor_agent import node_reflection
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -35,7 +36,7 @@ def print_state(state: ConversationState) -> str:
 
 
 def get_llm() -> ChatHuggingFace:
-    """Create the base chat model used by the graph."""
+    """Create the base chat model used by the workflow."""
     hf_token = os.getenv("HF_TOKEN")
 
     # repo_id = "Qwen/Qwen3-30B-A3B-Instruct-2507"
@@ -58,16 +59,16 @@ def get_llm() -> ChatHuggingFace:
 
 def build_mindfulness_graph(checkpointer: BaseCheckpointSaver = None, store: BaseStore = None):
     """
-    Build a LangGraph graph that can:
+    Build a LangGraph workflow that can:
     - hold a short conversation about the user's context
     - optionally call tools (e.g. guided meditation audio session)
     - reflect on its answer once and improve it.
     """
-    def safe_to_proceed(state: ConversationState) -> Literal["conversation", "end"]:
+    def safe_to_proceed(state: ConversationState) -> Literal["yes", "no"]:
         if state.get("status") == "done":
-            return "end"
+            return "no"
 
-        return "conversation"
+        return "yes"
 
     def should_answer(state: ConversationState) -> Literal["proceed_to_draft", "ask_again"]:
         logger.info(
@@ -76,92 +77,53 @@ def build_mindfulness_graph(checkpointer: BaseCheckpointSaver = None, store: Bas
             return "proceed_to_draft"
         return "ask_again"
 
-    def should_refine(state: ConversationState) -> Literal["refine", "end"]:
-        if state.get("status") == "done":
-            return "end"
+    def node_patience(state: ConversationState) -> ConversationState:
+        return state
 
-        return "refine"
+    def router(state: ConversationState):
+        # If both components passed reflection, terminate the loop
+        if state.get("is_answer_valid") and state.get("is_transcript_valid"):
+            return END
 
-    graph = StateGraph(ConversationState)
-    graph.add_node("user", node_user_input)
-    graph.add_node("conversation", node_conversation)
-    graph.add_node("assistant", node_assistant)
-    graph.add_node("reflection", node_reflection)
+        # Dynamic Fan-Out
+        tasks = []
 
-    graph.set_entry_point("user")
-    graph.add_conditional_edges("user", safe_to_proceed, {
-        "conversation": "conversation",
-        "end": END
+        if not state.get("is_answer_valid"):
+            tasks.append(Send("generate_answer", state))
+
+        if not state.get("is_transcript_valid"):
+            tasks.append(Send("generate_transcript", state))
+
+        return tasks
+
+    workflow = StateGraph(ConversationState)
+    workflow.add_node("user", node_user_input)
+    workflow.add_node("conversation", node_conversation)
+    workflow.add_node("patience", node_patience)
+    workflow.add_node("generate_transcript", node_generate_transcript)
+    workflow.add_node("generate_answer", node_generate_answer)
+    workflow.add_node("reflection", node_reflection)
+
+    workflow.set_entry_point("user")
+    workflow.add_conditional_edges("user", safe_to_proceed, {
+        "yes": "conversation",
+        "no": END
     })
-    graph.add_conditional_edges("conversation", should_answer, {
+    workflow.add_conditional_edges("conversation", should_answer, {
         "ask_again": END,
-        "proceed_to_draft": "assistant"
+        "proceed_to_draft": "patience"
     })
-    graph.add_edge("assistant", "reflection")
-    graph.add_conditional_edges(
-        "reflection",
-        should_refine,
-        {
-            "refine": "assistant",
-            "end": END,
-        },
-    )
+    workflow.add_conditional_edges(
+        "patience", router, ["generate_answer", "generate_transcript", END])
+    workflow.add_edge(["generate_transcript", "generate_answer"], "reflection")
+    workflow.add_conditional_edges(
+        "reflection", router, ["generate_answer", "generate_transcript", END])
 
-    return graph.compile(checkpointer=checkpointer, store=store)
-
-
-def run_mindfulness_graph(query: str):
-    """
-    Convenience function for external callers (FastAPI, CLI, etc.).
-    Returns the last assistant message content and any generated metadata.
-    """
-    app = build_mindfulness_graph()
-
-    dependencies = GraphContext(
-        logger=logger,
-        llm=get_llm()
-    )
-
-    initial_state: ConversationState = {
-        "query": query,
-        "messages": [],
-        "transcript": None,
-        "safety_flag": None,
-        "refusal_message": None,
-        "status": "initial",
-        "info_score": 0,
-        "turn_count": 0,
-        "reflection_count": 0,
-    }
-
-    final_state = app.invoke(initial_state, context=dependencies, config={
-                             "configurable": {"thread_id": "1"}})
-    messages = final_state["messages"]
-    last_ai = next((m for m in reversed(messages)
-                   if getattr(m, "type", None) == "ai"), None)
-    content = last_ai.content if last_ai is not None else ""
-
-    # Safety refusal: never return a transcript.
-    if final_state.get("safety_flag") == "unsafe":
-        refusal = final_state.get("refusal_message") or content
-        return {
-            "message": refusal,
-            "transcript": None,
-        }
-
-    transcript = final_state.get("transcript")
-
-    logger.info(
-        f"Graph completed. Final status: {print_state(final_state)}")
-
-    return {
-        "message": content,
-        "transcript": transcript,
-    }
+    return workflow.compile(checkpointer=checkpointer, store=store)
 
 
 if __name__ == "__main__":
-    graph = build_mindfulness_graph()
+    workflow = build_mindfulness_graph()
 
     with open("workflow_mermaid.png", "wb") as f:
-        f.write(graph.get_graph().draw_mermaid_png())
+        f.write(workflow.get_graph().draw_mermaid_png())

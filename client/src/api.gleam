@@ -6,14 +6,20 @@ import lustre/effect
 import rsvp
 
 pub type AgentResponse {
-  AgentResponse(session_id: String, message: String, transcript: Option(String))
+  AgentResponse(
+    session_id: String,
+    message: String,
+    answer: Option(String),
+    transcript: Option(String),
+  )
 }
 
 fn decode_agent_response() -> decode.Decoder(AgentResponse) {
   use session_id <- decode.field("session_id", decode.string)
   use message <- decode.field("message", decode.string)
+  use answer <- decode.field("answer", decode.optional(decode.string))
   use transcript <- decode.field("transcript", decode.optional(decode.string))
-  decode.success(AgentResponse(session_id:, message:, transcript:))
+  decode.success(AgentResponse(session_id:, message:, answer:, transcript:))
 }
 
 pub fn send_message(
