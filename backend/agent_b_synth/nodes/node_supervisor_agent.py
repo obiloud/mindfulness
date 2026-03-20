@@ -1,10 +1,9 @@
-from backend.agent_a_chat.state import ConversationState, GraphContext, print_state
+import json
 from langchain_core.messages import SystemMessage
 from langgraph.runtime import Runtime
-from prompts.supervisor import SUPERVISOR_PROMPT
 from pydantic import BaseModel, Field
-import json
-from functools import reduce
+from agent_b_synth.state import SynthState, GraphContext, print_state
+from agent_b_synth.prompts.supervisor import SUPERVISOR_PROMPT
 
 
 class ReflectionOutput(BaseModel):
@@ -17,7 +16,7 @@ class ReflectionOutput(BaseModel):
         description="Detailed feedback for the transcript, including specific areas for improvement")
 
 
-async def node_reflection(state: ConversationState, runtime: Runtime[GraphContext]) -> ConversationState:
+async def node_reflection(state: SynthState, runtime: Runtime[GraphContext]) -> SynthState:
     """
     Iterative reflection: the model critiques and, if needed, refines
     its previous answer into a clearer, more soothing response.

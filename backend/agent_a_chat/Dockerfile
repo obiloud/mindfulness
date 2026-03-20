@@ -9,10 +9,9 @@ WORKDIR /app
 COPY pyproject.toml ./
 RUN uv pip install --system --no-cache -r pyproject.toml
 
-# Copy Agent A source code
-COPY ./agent_a_chat ./agent_a_chat
-# Copy any shared logic if applicable
-# COPY ./shared ./shared 
+COPY ./backend/agent_a_chat ./agent_a_chat
+
+COPY ./backend/shared ./shared
 
 EXPOSE 8000
 

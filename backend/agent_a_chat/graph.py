@@ -1,23 +1,13 @@
 # agent_a_chat/graph.py
-import os
-from typing import Literal, TypedDict, List, Annotated
-import operator
-from langchain_core.messages import AnyMessage
+from typing import Literal
 from langchain_huggingface import ChatHuggingFace, HuggingFaceEndpoint
+from langgraph.checkpoint.base import BaseCheckpointSaver
+from langgraph.store.base import BaseStore
 from langgraph.graph import StateGraph, END
 
-# Import your fast conversation nodes
-from nodes.node_user_input_agent import node_user_input
-from nodes.node_conversation_agent import node_conversation
-
-
-class ChatState(TypedDict):
-    messages: Annotated[List[AnyMessage], operator.add]
-    status: str
-    turn_count: int
-    info_score: float
-    summary: str
-    trigger_synth: bool  # New flag for A2A handoff
+from agent_a_chat.nodes.node_user_input_agent import node_user_input
+from agent_a_chat.nodes.node_conversation_agent import node_conversation
+from agent_a_chat.state import ChatState
 
 
 def get_llm(hf_token: str) -> ChatHuggingFace:
@@ -33,13 +23,11 @@ def get_llm(hf_token: str) -> ChatHuggingFace:
     return ChatHuggingFace(llm=llm)
 
 
-def create_chat_graph(dependencies: dict):
+def create_chat_graph(checkpointer: BaseCheckpointSaver = None, store: BaseStore = None):
     """
     Builds the fast Chat Graph.
     Evaluates context and flags when to trigger the Synthesis Agent.
     """
-    hf_token = dependencies.get("hf_token")
-    llm = get_llm(hf_token)
 
     def safe_to_proceed(state: ChatState) -> Literal["yes", "no"]:
         if state.get("status") == "done":
@@ -70,4 +58,4 @@ def create_chat_graph(dependencies: dict):
     workflow.add_edge("conversation", "evaluate_patience")
     workflow.add_edge("evaluate_patience", END)
 
-    return workflow
+    return workflow.compile(checkpointer=checkpointer, store=store)

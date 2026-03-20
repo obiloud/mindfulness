@@ -1,10 +1,10 @@
 from langchain_core.messages import HumanMessage, SystemMessage
-from backend.agent_a_chat.state import ConversationState, GraphContext, print_state
 from langgraph.runtime import Runtime
-from prompts.meditation import TRANSCRIPT_PROMPT
+from agent_b_synth.state import SynthState, GraphContext, print_state
+from agent_b_synth.prompts.meditation import TRANSCRIPT_PROMPT
 
 
-async def node_generate_transcript(state: ConversationState, runtime: Runtime[GraphContext]) -> dict:
+async def node_generate_transcript(state: SynthState, runtime: Runtime[GraphContext]) -> dict:
     llm = runtime.context.llm
     runtime.context.logger.info(f"TRANSCRIPT: {print_state(state)}")
 

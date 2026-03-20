@@ -5,7 +5,7 @@ description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
-    "a2a-sdk>=0.3.25",
+    "a2a-sdk[http-server]>=0.3.25",
     "aiohappyeyeballs==2.6.1",
     "aiohttp==3.13.3",
     "aiosignal==1.4.0",

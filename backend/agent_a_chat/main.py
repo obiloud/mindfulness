@@ -1,11 +1,10 @@
 # agent_a_chat/main.py
-import os
+import httpx
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, BackgroundTasks, HTTPException
 from pydantic import BaseModel
 from typing import Optional
 import logging
-from dotenv import load_dotenv
 from psycopg_pool import AsyncConnectionPool
 from psycopg.rows import dict_row
 
@@ -13,56 +12,58 @@ from psycopg.rows import dict_row
 from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
 from langgraph.store.postgres.aio import AsyncPostgresStore
 
-from graph import get_llm, create_chat_graph
+from agent_a_chat.graph import get_llm, create_chat_graph
 
 # A2A SDK
 from a2a.client import A2AClient
 
 from shared.settings import get_settings
-from backend.agent_a_chat.state import GraphContext
+from agent_a_chat.state import GraphContext
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
-
-
-load_dotenv(override=True)
 
 s = get_settings()
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    async with httpx.AsyncClient() as httpx_client:
 
-    app.state.a2a_client = A2AClient(base_url=s.synth_agent_url)
-    # Initialize the connection pool using 'async with'
-    # This automatically handles pool.open() and pool.close()
-    async with AsyncConnectionPool(
-        s.postgres_connection_string,
-        max_size=10,
-        kwargs={"autocommit": True, "row_factory": dict_row}
-    ) as pool:
-
-        checkpointer = AsyncPostgresSaver(pool)
-        store = AsyncPostgresStore(pool)
-
-        await checkpointer.setup()
-        await store.setup()
-
-        dependencies = GraphContext(
-            logger=logger,
-            llm=get_llm()
+        app.state.a2a_client = A2AClient(
+            url=s.synth_agent_url,
+            httpx_client=httpx_client
         )
 
-        app.state.chat_graph = create_chat_graph(
-            checkpointer=checkpointer, store=store)
-        app.state.checkpointer = checkpointer
-        app.state.store = store
-        app.state.dependencies = dependencies
+        # Initialize the connection pool using 'async with'
+        # This automatically handles pool.open() and pool.close()
+        async with AsyncConnectionPool(
+            s.postgres_connection_string,
+            max_size=10,
+            kwargs={"autocommit": True, "row_factory": dict_row}
+        ) as pool:
 
-        logger.info(
-            "Mindfulness API is ready. Database checkpointer and store initialized.")
+            checkpointer = AsyncPostgresSaver(pool)
+            store = AsyncPostgresStore(pool)
 
-        yield
+            await checkpointer.setup()
+            await store.setup()
+
+            dependencies = GraphContext(
+                logger=logger,
+                llm=get_llm(s.hf_token)
+            )
+
+            app.state.chat_graph = create_chat_graph(
+                checkpointer=checkpointer, store=store)
+            app.state.checkpointer = checkpointer
+            app.state.store = store
+            app.state.dependencies = dependencies
+
+            logger.info(
+                "Mindfulness API is ready. Database checkpointer and store initialized.")
+
+            yield
 
     logger.info("Application shutting down. Database connection pool closed.")
 

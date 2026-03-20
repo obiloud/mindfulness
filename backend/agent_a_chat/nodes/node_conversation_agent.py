@@ -1,10 +1,10 @@
-from typing import List
-from backend.agent_a_chat.state import ConversationState, GraphContext, print_state
-from langchain_core.messages import SystemMessage, AIMessage, HumanMessage, AnyMessage, message_to_dict
-from langgraph.runtime import Runtime
-from prompts.conversation import CONVERSATION_PROMPT
 import inspect
 import json
+from typing import List
+from langchain_core.messages import SystemMessage, AIMessage, HumanMessage, AnyMessage, message_to_dict
+from langgraph.runtime import Runtime
+from agent_a_chat.state import ChatState, GraphContext, print_state
+from agent_a_chat.prompts.conversation import CONVERSATION_PROMPT
 
 
 def format_conversation_history(messages: List[AnyMessage]) -> str:
@@ -22,7 +22,7 @@ def format_conversation_history(messages: List[AnyMessage]) -> str:
     return conversation_history
 
 
-def node_conversation(state: ConversationState, runtime: Runtime[GraphContext]) -> ConversationState:
+def node_conversation(state: ChatState, runtime: Runtime[GraphContext]) -> ChatState:
     """
     Ask a short, targeted follow-up question to gather more context.
 

@@ -1,25 +1,31 @@
-# agent_b_synth/main.py
-from a2a.server import A2AServer
-from a2a.types import AgentCard, Skill, Parameter
-from graph import synth_graph  # Your existing 3-turn reflection graph
+import uvicorn
+from fastapi import FastAPI
+from a2a.server.apps import A2AFastAPIApplication
+from a2a.server.request_handlers import DefaultRequestHandler
+from a2a.server.tasks import InMemoryTaskStore
 
-synth_skill = Skill(
-    name="generate_meditation",
-    description="Generates a high-quality mindfulness transcript via reflection",
-    parameters=[Parameter(name="context", type="string")]
+# Import your agent executor and agent card from your LangGraph definition
+from agent_b_synth.graph import PulseSynthExecutor
+from agent_b_synth.agent_card import PULSE_SYNTH_CARD
+
+# 2. Set up the required A2A server components
+task_store = InMemoryTaskStore()
+
+request_handler = DefaultRequestHandler(
+    agent_executor=PulseSynthExecutor(),
+    task_store=task_store
 )
 
+# 3. Initialize the A2A FastAPI Wrapper
+a2a_app = A2AFastAPIApplication(
+    agent_card=PULSE_SYNTH_CARD,
+    http_handler=request_handler
+)
 
-class SynthesizerAgent(A2AServer):
-    async def on_task_start(self, task):
-        # The 'context' contains the summary or state from Agent A
-        context = task.input_data["context"]
+# 4. Attach the A2A routes to a standard FastAPI app
+app = FastAPI()
+a2a_app.add_routes_to_app(app)
 
-        # Invoke the LangGraph logic
-        result = await synth_graph.ainvoke({"input_context": context})
-
-        # Return the generated artifact
-        return {"transcript": result["final_transcript"]}
-
-
-# card = AgentCard(agent_id="pulse-synth-v1", skills=[synth_skill])
+if __name__ == "__main__":
+    # Ensure this matches the port exposed in your docker-compose or Dockerfile
+    uvicorn.run(app, host="0.0.0.0", port=8000)

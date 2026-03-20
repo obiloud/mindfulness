@@ -1,4 +1,4 @@
-from .base import GLOBAL_IDENTITY
+from shared.prompts.base import GLOBAL_IDENTITY
 import inspect
 
 

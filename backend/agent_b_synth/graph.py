@@ -1,23 +1,22 @@
 # agent_b_synth/graph.py
 import os
-from typing import TypedDict
 from langchain_huggingface import ChatHuggingFace, HuggingFaceEndpoint
 from langgraph.graph import StateGraph, END
 from langgraph.types import Send
 
 # Import your heavy reflection nodes
-from nodes.node_generate_answer import node_generate_answer
-from nodes.node_generate_transcript import node_generate_transcript
-from nodes.node_supervisor_agent import node_reflection
+from agent_b_synth.nodes.node_generate_answer import node_generate_answer
+from agent_b_synth.nodes.node_generate_transcript import node_generate_transcript
+from agent_b_synth.nodes.node_supervisor_agent import node_reflection
+
+from a2a.server.agent_execution import AgentExecutor
+from a2a.server.agent_execution.context import RequestContext
+from a2a.server.events.event_queue import EventQueue
+from a2a.server.tasks import TaskUpdater
+from a2a.types import TextPart, TaskState
 
 
-class SynthState(TypedDict):
-    context: str  # The summary passed from Agent A
-    draft_transcript: str
-    draft_answer: str
-    is_transcript_valid: bool
-    is_answer_valid: bool
-    final_transcript: str
+from agent_b_synth.state import SynthState
 
 
 def get_heavy_llm() -> ChatHuggingFace:
@@ -80,5 +79,39 @@ def build_synth_graph():
     return workflow.compile()
 
 
-# Instantiate globally for the A2AServer to use
-synth_graph = build_synth_graph()
+class PulseSynthExecutor(AgentExecutor):
+    def __init__(self):
+        super().__init__()
+        self.synth_graph = build_synth_graph()
+
+    async def execute(self, context: RequestContext, event_queue: EventQueue) -> None:
+        # Initialize the helper to send updates back to the client
+        task_updater = TaskUpdater(
+            event_queue, context.task_id, context.context_id)
+
+        # 1. Transitions: Submitted -> Working
+        task_updater.submit()
+        task_updater.start_work()
+
+        try:
+            # Extract input (assumes text/plain input from the RequestContext)
+            input_text = "".join(
+                [p.text for p in context.message.parts if hasattr(p, 'text')])
+
+            # --- Your Pulse Lotus Synthesis Logic Here ---
+
+            result_text = await self.synth_graph.ainvoke(SynthState(context=input_text))
+
+            # Complete the task by providing the response parts
+            # Note: complete() handles the state transition and event publishing
+            task_updater.complete(parts=[TextPart(text=result_text)])
+
+        except Exception as e:
+            # Handle failures gracefully
+            task_updater.fail(message=f"Synthesis failed: {str(e)}")
+
+    async def cancel(self, context: RequestContext, event_queue: EventQueue) -> None:
+        """Required by the interface to handle client-side cancellation."""
+        task_updater = TaskUpdater(
+            event_queue, context.task_id, context.context_id)
+        task_updater.update_status(state=TaskState.CANCELED)

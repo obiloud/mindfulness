@@ -13,31 +13,16 @@ class GraphContext:
     llm: ChatHuggingFace
 
 
-class ConversationState(TypedDict):
-    """Shared state for the mindfulness LangGraph agent."""
-
-    long_term_memory: Optional[str]
+class ChatState(TypedDict):
     messages: Annotated[List[AnyMessage], add_messages]
-    answer: Optional[str]
-    transcript: Optional[str]
-    # Safety / refusal
-    safety_flag: Optional[str]
-    refusal_message: Optional[str]
-    # Control flow
-    status: Literal["initial", "conversation", "answering",
-                    "reflecting", "done"]
-    info_score: float
+    status: str
     turn_count: int
-    # Quailty Gates
-    reflection_count: int
-    is_transcript_valid: bool
-    is_answer_valid: bool
-    # Feedback
-    transcript_feedback: Optional[str]
-    answer_feedback: Optional[str]
+    info_score: float
+    summary: str
+    trigger_synth: bool  # New flag for A2A handoff
 
 
-def print_state(state: ConversationState, full: bool = False) -> str:
+def print_state(state: ChatState) -> str:
     print_data = {
         **state,
         # "messages": messages_to_dict(state["messages"])
