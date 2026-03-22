@@ -31,7 +31,7 @@ pub type Model {
     loading: Bool,
     answer: Option(String),
     transcript: Option(String),
-    session_id: Option(String),
+    thread_id: Option(String),
     theme: Theme,
     show_meditation: Bool,
     tts: cartesia.Model,
@@ -78,7 +78,7 @@ fn init(_flags) -> #(Model, Effect(Msg)) {
       is_streaming: False,
       input_text: "",
       loading: False,
-      session_id: None,
+      thread_id: None,
       answer: None,
       transcript: None,
       theme: System,
@@ -121,10 +121,10 @@ fn update(model: Model, msg: Msg) -> #(Model, Effect(Msg)) {
         Model(
           ..model,
           chat_history: list.append(model.chat_history, [
-            Message(role: "assistant", content: msg.message),
+            Message(role: "assistant", content: msg.reply),
           ]),
           loading: False,
-          session_id: Some(msg.session_id),
+          thread_id: Some(msg.thread_id),
           answer: msg.answer,
           transcript: msg.transcript,
           show_meditation: option.is_some(msg.answer)
@@ -157,7 +157,7 @@ fn update(model: Model, msg: Msg) -> #(Model, Effect(Msg)) {
             effect.batch([
               // dom.scroll_to_bottom_delayed("chat-ancor"),
               effect.from(fn(_) { reset_height("user-input") }),
-              effect.map(send_message(user_message, model.session_id), fn(res) {
+              effect.map(send_message(user_message, model.thread_id), fn(res) {
                 let assert Ok(ar) = res
                 ReceiveChatResponse(ar)
               }),

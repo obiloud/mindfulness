@@ -1,5 +1,7 @@
 # agent_b_synth/graph.py
 import os
+import re
+import logging
 from langchain_huggingface import ChatHuggingFace, HuggingFaceEndpoint
 from langgraph.graph import StateGraph, END
 from langgraph.types import Send
@@ -13,10 +15,13 @@ from a2a.server.agent_execution import AgentExecutor
 from a2a.server.agent_execution.context import RequestContext
 from a2a.server.events.event_queue import EventQueue
 from a2a.server.tasks import TaskUpdater
-from a2a.types import TextPart, TaskState
+from a2a.types import TextPart, TaskState, Part
+from a2a.utils import new_task, new_agent_text_message
 
+from agent_b_synth.state import SynthState, GraphContext
 
-from agent_b_synth.state import SynthState
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 
 def get_heavy_llm() -> ChatHuggingFace:
@@ -82,33 +87,68 @@ def build_synth_graph():
 class PulseSynthExecutor(AgentExecutor):
     def __init__(self):
         super().__init__()
+        self.dependencies = GraphContext(
+            llm=get_heavy_llm(),
+            logger=logger
+        )
         self.synth_graph = build_synth_graph()
 
     async def execute(self, context: RequestContext, event_queue: EventQueue) -> None:
-        # Initialize the helper to send updates back to the client
-        task_updater = TaskUpdater(
-            event_queue, context.task_id, context.context_id)
+        raw_query = context.get_user_input()
+        query = re.sub(r'[a-f0-9\-]{36}', '', raw_query).strip()
+        task = context.current_task or new_task(context.message)
 
-        # 1. Transitions: Submitted -> Working
-        task_updater.submit()
-        task_updater.start_work()
+        # Ensure the task is known to the queue
+        if not context.current_task:
+            await event_queue.enqueue_event(task)
+
+        task_updater = TaskUpdater(event_queue, task.id, task.context_id)
+        final_state = None
 
         try:
-            # Extract input (assumes text/plain input from the RequestContext)
-            input_text = "".join(
-                [p.text for p in context.message.parts if hasattr(p, 'text')])
+            # iterate and track the full state
+            async for step in self.synth_graph.astream({"context": query}, context=self.dependencies):
+                # step is a dict like {"node_name": {state_updates}}
+                for node_output in step.values():
+                    # Update our local reference to the latest state data
+                    final_state = node_output
 
-            # --- Your Pulse Lotus Synthesis Logic Here ---
+                # Optional: Send "Thinking..." updates to UI
+                await task_updater.update_status(TaskState.working)
 
-            result_text = await self.synth_graph.ainvoke(SynthState(context=input_text))
+            # Extract data safely from the final state
+            # In your logs, reflection returns a list, so we handle that:
+            if isinstance(final_state, list):
+                final_state = final_state[0]
 
-            # Complete the task by providing the response parts
-            # Note: complete() handles the state transition and event publishing
-            task_updater.complete(parts=[TextPart(text=result_text)])
+            answer = final_state.get("answer", "")
+            transcript = final_state.get("transcript", "")
+
+            if final_state.get("is_answer_valid") and final_state.get("is_transcript_valid"):
+                # Use add_artifact for the long transcript and complete the task
+                await task_updater.add_artifact(
+                    [
+                        Part(root=TextPart(text=answer)),
+                        Part(root=TextPart(text=transcript))
+                    ],
+                    name='meditation_synthesis',
+                )
+                # A2A V3 uses .update_status for completion usually, or .complete()
+                await task_updater.update_status(TaskState.completed)
+            else:
+                await task_updater.update_status(
+                    TaskState.failed,
+                    new_agent_text_message(
+                        "Reflection failed to validate the output.")
+                )
 
         except Exception as e:
-            # Handle failures gracefully
-            task_updater.fail(message=f"Synthesis failed: {str(e)}")
+            logger.error(f"Execution Error: {e}", exc_info=True)
+
+            await task_updater.update_status(
+                TaskState.failed,
+                new_agent_text_message(f"Synthesis failed: {str(e)}")
+            )
 
     async def cancel(self, context: RequestContext, event_queue: EventQueue) -> None:
         """Required by the interface to handle client-side cancellation."""

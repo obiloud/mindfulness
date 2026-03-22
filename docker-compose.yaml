@@ -7,6 +7,10 @@ services:
     container_name: pulse-chat-agent
     ports:
       - "8000:8000"
+    develop:
+      watch:
+        - path: ./backend/agent_a_chat
+        - action: rebuild
     environment:
       - SYNTH_AGENT_URL=http://synth-agent:8001
       - POSTGRES_CONNECTION_STRING=${POSTGRES_CONNECTION_STRING}
@@ -22,6 +26,10 @@ services:
       context: .
       dockerfile: ./backend/agent_b_synth/Dockerfile
     container_name: pulse-synth-agent
+    develop:
+      watch:
+        - path: ./backend/agent_b_synth
+        - action: rebuild
     environment:
       - POSTGRES_CONNECTION_STRING=${POSTGRES_CONNECTION_STRING}
       - HF_TOKEN=${HF_TOKEN}

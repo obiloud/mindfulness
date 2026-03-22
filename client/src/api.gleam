@@ -7,36 +7,36 @@ import rsvp
 
 pub type AgentResponse {
   AgentResponse(
-    session_id: String,
-    message: String,
+    thread_id: String,
+    reply: String,
     answer: Option(String),
     transcript: Option(String),
   )
 }
 
 fn decode_agent_response() -> decode.Decoder(AgentResponse) {
-  use session_id <- decode.field("session_id", decode.string)
-  use message <- decode.field("message", decode.string)
+  use thread_id <- decode.field("thread_id", decode.string)
+  use reply <- decode.field("reply", decode.string)
   use answer <- decode.field("answer", decode.optional(decode.string))
   use transcript <- decode.field("transcript", decode.optional(decode.string))
-  decode.success(AgentResponse(session_id:, message:, answer:, transcript:))
+  decode.success(AgentResponse(thread_id:, reply:, answer:, transcript:))
 }
 
 pub fn send_message(
   content: String,
-  session_id: Option(String),
+  thread_id: Option(String),
 ) -> effect.Effect(Result(AgentResponse, rsvp.Error)) {
-  let payload = case session_id {
+  let payload = case thread_id {
     Some(sid) ->
       json.object([
-        #("query", json.string(content)),
-        #("session_id", json.string(sid)),
+        #("message", json.string(content)),
+        #("thread_id", json.string(sid)),
       ])
 
-    None -> json.object([#("query", json.string(content))])
+    None -> json.object([#("message", json.string(content))])
   }
 
-  let url = "http://localhost:8000/v1/mindfulness/session"
+  let url = "http://localhost:8000/v1/mindfulness/chat"
   let handler = rsvp.expect_json(decode_agent_response(), function.identity)
 
   rsvp.post(url, payload, handler)

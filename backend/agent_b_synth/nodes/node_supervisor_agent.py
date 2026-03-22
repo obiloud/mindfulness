@@ -1,18 +1,19 @@
 import json
 from langchain_core.messages import SystemMessage
 from langgraph.runtime import Runtime
+from typing import List
 from pydantic import BaseModel, Field
 from agent_b_synth.state import SynthState, GraphContext, print_state
 from agent_b_synth.prompts.supervisor import SUPERVISOR_PROMPT
 
 
 class ReflectionOutput(BaseModel):
-    is_answer_valid: str = Field("Whether the answer meets all constraints")
-    is_transcript_valid: str = Field(
+    is_answer_valid: bool = Field("Whether the answer meets all constraints")
+    is_transcript_valid: bool = Field(
         "Whether the transcript meets all constraints")
-    answer_feedback: str = Field(
+    answer_feedback: List[str] = Field(
         description="Detailed feedback for the answer, including specific areas for improvement")
-    transcript_feedback: str = Field(
+    transcript_feedback: List[str] = Field(
         description="Detailed feedback for the transcript, including specific areas for improvement")
 
 

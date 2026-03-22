@@ -12,12 +12,11 @@ class GraphContext:
 
 
 class SynthState(TypedDict):
-    context: str  # The summary passed from Agent A
-    draft_transcript: str
-    draft_answer: str
+    context: str
+    transcript: str
+    answer: str
     is_transcript_valid: bool
     is_answer_valid: bool
-    final_transcript: str
 
 
 def print_state(state: SynthState) -> str:

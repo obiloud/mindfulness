@@ -109,5 +109,6 @@ def node_conversation(state: ChatState, runtime: Runtime[GraphContext]) -> ChatS
         "messages": [ai_msg],
         "info_score": float(info_score),
         "turn_count": turn_count + 1,
-        "status": "conversation"
+        "status": "conversation",
+        "summary": conversation_history,
     }

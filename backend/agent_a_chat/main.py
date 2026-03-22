@@ -1,24 +1,37 @@
 # agent_a_chat/main.py
 import httpx
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, BackgroundTasks, HTTPException
+from fastapi import FastAPI, BackgroundTasks, HTTPException, Request
+from fastapi.middleware.cors import CORSMiddleware
+from typing import Optional, Any
 from pydantic import BaseModel
-from typing import Optional
 import logging
 from psycopg_pool import AsyncConnectionPool
 from psycopg.rows import dict_row
+from uuid import uuid4
 
 # LangGraph & Checkpointing
+from langchain.messages import HumanMessage
 from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
 from langgraph.store.postgres.aio import AsyncPostgresStore
 
 from agent_a_chat.graph import get_llm, create_chat_graph
 
 # A2A SDK
-from a2a.client import A2AClient
+from a2a.client import A2AClient, A2ACardResolver
+from a2a.types import (
+    AgentCard,
+    MessageSendParams,
+    SendMessageRequest,
+    TaskState
+)
+from a2a.utils.constants import (
+    AGENT_CARD_WELL_KNOWN_PATH,
+    EXTENDED_AGENT_CARD_PATH,
+)
 
 from shared.settings import get_settings
-from agent_a_chat.state import GraphContext
+from agent_a_chat.state import GraphContext, print_state
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -28,11 +41,77 @@ s = get_settings()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    async with httpx.AsyncClient() as httpx_client:
+    async with httpx.AsyncClient(timeout=60.0) as httpx_client:
+
+        resolver = A2ACardResolver(
+            httpx_client=httpx_client,
+            base_url=s.synth_agent_url,
+        )
+
+        final_agent_card_to_use: AgentCard | None = None
+
+        try:
+            logger.info(
+                f'Attempting to fetch public agent card from: {s.synth_agent_url}{AGENT_CARD_WELL_KNOWN_PATH}'
+            )
+            _public_card = await resolver.get_agent_card()
+
+            logger.info('Successfully fetched public agent card:')
+            logger.info(
+                _public_card.model_dump_json(indent=2, exclude_none=True)
+            )
+            final_agent_card_to_use = _public_card
+            logger.info(
+                '\nUsing PUBLIC agent card for client initialization (default).'
+            )
+
+            if _public_card.supports_authenticated_extended_card:
+                try:
+                    logger.info(
+                        f'\nPublic card supports authenticated extended card. Attempting to fetch from: {s.synth_agent_url}{EXTENDED_AGENT_CARD_PATH}'
+                    )
+                    auth_headers_dict = {
+                        'Authorization': 'Bearer dummy-token-for-extended-card'
+                    }
+                    _extended_card = await resolver.get_agent_card(
+                        relative_card_path=EXTENDED_AGENT_CARD_PATH,
+                        http_kwargs={'headers': auth_headers_dict},
+                    )
+                    logger.info(
+                        'Successfully fetched authenticated extended agent card:'
+                    )
+                    logger.info(
+                        _extended_card.model_dump_json(
+                            indent=2, exclude_none=True
+                        )
+                    )
+                    final_agent_card_to_use = (
+                        _extended_card  # Update to use the extended card
+                    )
+                    logger.info(
+                        '\nUsing AUTHENTICATED EXTENDED agent card for client initialization.'
+                    )
+                except Exception as e_extended:
+                    logger.warning(
+                        f'Failed to fetch extended agent card: {e_extended}. Will proceed with public card.',
+                        exc_info=True,
+                    )
+            elif _public_card:  # supports_authenticated_extended_card is False or None
+                logger.info(
+                    '\nPublic card does not indicate support for an extended card. Using public card.'
+                )
+
+        except Exception as e:
+            logger.error(
+                f'Critical error fetching public agent card: {e}', exc_info=True
+            )
+            raise RuntimeError(
+                'Failed to fetch the public agent card. Cannot continue.'
+            ) from e
 
         app.state.a2a_client = A2AClient(
-            url=s.synth_agent_url,
-            httpx_client=httpx_client
+            httpx_client=httpx_client,
+            agent_card=final_agent_card_to_use
         )
 
         # Initialize the connection pool using 'async with'
@@ -71,64 +150,129 @@ async def lifespan(app: FastAPI):
 # Initialize FastAPI with the lifespan
 app = FastAPI(title="Pulse Lotus - Requester Agent", lifespan=lifespan)
 
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 
 # --- Schemas ---
 class ChatRequest(BaseModel):
-    user_id: str
-    thread_id: str
     message: str
+    user_id: Optional[str] = None
+    thread_id: Optional[str] = None
 
 
 class ChatResponse(BaseModel):
     reply: str
+    thread_id: str
+    user_id: str
     synth_triggered: bool
+    answer: Optional[str] = None
+    transcript: Optional[str] = None
 
+
+class TaskStatusResponse(BaseModel):
+    status: str
+    answer: Optional[str] = None
+    transcript: Optional[str] = None
 
 # --- Routes ---
-@app.post("/chat", response_model=ChatResponse)
-async def chat_endpoint(request: ChatRequest, bg_tasks: BackgroundTasks):
+
+
+@app.post("/v1/mindfulness/chat", response_model=ChatResponse)
+async def chat_endpoint(body: ChatRequest, request: Request, bg_tasks: BackgroundTasks):
     """
     Handles user messages, advances the fast chat graph, and evaluates 
     the patience loop to trigger the heavy-compute synthesis graph.
     """
-    graph = app.state.chat_graph
+    graph = request.app.state.chat_graph
     a2a_client = app.state.a2a_client
 
+    thread_id = str(
+        uuid4()) if body.thread_id is None else body.thread_id
+
+    user_id = str(
+        uuid4()) if body.user_id is None else body.user_id
+
     # LangGraph config requires a thread_id to persist state across turns
-    config = {"configurable": {"thread_id": request.thread_id}}
+    config = {"configurable": {"thread_id": thread_id}}
 
     try:
         # Advance the graph state with the new user message
-        state = await graph.ainvoke({"messages": [("user", request.message)]}, config)
+        state = await graph.ainvoke({"messages": [HumanMessage(content=body.message)]}, config=config, context=request.app.state.dependencies)
 
-        # Check the patience loop threshold logic defined in your graph
+        logger.info(f"final_state: {print_state(state)}")
+
         trigger_synth = state.get("trigger_synth", False)
 
         if trigger_synth:
             # Trigger Agent B asynchronously.
             # We pass the thread_id so Agent B can potentially read
             # the exact same checkpoint state from Postgres if needed.
-            bg_tasks.add_task(
-                a2a_client.request_task,
-                agent_id="pulse-synth-v1",
-                skill="generate_meditation",
-                input_data={
-                    "context": state.get("summary", ""),
-                    "thread_id": request.thread_id,
-                    "user_id": request.user_id
-                }
-            )
+            send_message_payload: dict[str, Any] = {
+                'message': {
+                    'role': 'user',
+                    'parts': [
+                        {'kind': 'text', 'text': state.get("summary", ""), },
+                    ],
+                    'messageId': uuid4().hex,
+                },
+            }
+            bg_tasks.add_task(a2a_client.send_message, SendMessageRequest(
+                id=str(uuid4()), params=MessageSendParams(**send_message_payload)
+            ))
 
         # Extract the AI's latest reply (assuming standard LangGraph message list)
         last_message = state["messages"][-1].content
 
         return ChatResponse(
             reply=last_message,
+            user_id=user_id,
+            thread_id=thread_id,
             synth_triggered=trigger_synth
         )
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/v1/mindfulness/status/{task_id}", response_model=TaskStatusResponse)
+async def get_synth_status(task_id: str, request: Request):
+    """
+    Polls the A2A client to check if Agent B has finished the synthesis.
+    """
+    a2a_client = request.app.state.a2a_client
+
+    try:
+        # Fetch the task state from the A2A Orchestrator
+        task = await a2a_client.get_task(task_id)
+
+        if task.state == TaskState.completed:
+            # Extract the 'transcript' artifact we named in Agent B's node
+            # A2A stores these in a list of 'artifacts' or 'parts'
+            transcript = next(
+                (p.root.text for p in task.artifacts if p.name == "transcript"),
+                None
+            )
+            return TaskStatusResponse(
+                status="completed",
+                transcript=transcript,
+                answer=next(
+                    (p.root.text for p in task.artifacts if p.name == "answer"), None)
+            )
+
+        elif task.state == TaskState.failed:
+            return TaskStatusResponse(status="failed", error="Synthesis failed reflection.")
+
+        return TaskStatusResponse(status="processing")
+
+    except Exception as e:
+        logger.error(f"Status check failed: {e}")
+        raise HTTPException(status_code=404, detail="Task not found")
 
 
 @app.get("/health")
