@@ -5,7 +5,7 @@ from a2a.server.request_handlers import DefaultRequestHandler
 from a2a.server.tasks import InMemoryTaskStore
 
 # Import your agent executor and agent card from your LangGraph definition
-from agent_b_synth.graph import PulseSynthExecutor
+from agent_b_synth.agent_executor import PulseSynthExecutor
 from agent_b_synth.agent_card import PULSE_SYNTH_CARD
 
 # 2. Set up the required A2A server components
