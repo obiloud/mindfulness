@@ -56,6 +56,7 @@ pub type Msg {
   UpdateInput(String)
   GenerateAudio
   Connect
+  Connected
 }
 
 pub type CartesiaMessage {
@@ -186,6 +187,9 @@ pub fn update(model: Model, msg: Msg) -> #(Model, Effect(Msg)) {
         <> "&cartesia_version=2024-06-10"
       #(model, ws.init(cartesia_url, WsEvent))
     }
+
+    Connected -> #(model, effect.none())
+
     WsEvent(ws.InvalidUrl) -> {
       #(
         Model(..model, status_message: "Error: Invalid Cartesia URL"),
@@ -201,7 +205,10 @@ pub fn update(model: Model, msg: Msg) -> #(Model, Effect(Msg)) {
           is_connected: True,
           status_message: "Connected to Voice Model",
         ),
-        effect.from(fn(_) { init_audio() }),
+        effect.batch([
+          effect.from(fn(_) { init_audio() }),
+          effect.from(fn(dispatch) { dispatch(Connected) }),
+        ]),
       )
     }
 

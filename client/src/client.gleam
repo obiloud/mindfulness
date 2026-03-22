@@ -7,7 +7,7 @@ import gleam/string
 import meditation
 import rsvp
 
-import cartesia
+import cartesia.{Connected}
 import dom
 import gleam/dynamic/decode
 import gleam/list
@@ -68,7 +68,7 @@ fn reset_height(id: String) -> Nil
 // --- APP LOGIC ---
 
 fn init(_flags) -> #(Model, Effect(Msg)) {
-  let cartesia_init =
+  let tts =
     cartesia.Model(
       ws: None,
       is_connected: False,
@@ -77,7 +77,6 @@ fn init(_flags) -> #(Model, Effect(Msg)) {
       pending_chunks: [],
       current_context_index: 0,
     )
-  let #(tts, eff) = cartesia.update(cartesia_init, cartesia.Connect)
   #(
     Model(
       chat_history: [],
@@ -91,13 +90,21 @@ fn init(_flags) -> #(Model, Effect(Msg)) {
       synth_ready: False,
       synth_status: Idle,
     ),
-    effect.map(eff, CartesiaMsg),
+    effect.none(),
   )
 }
 
 fn update(model: Model, msg: Msg) -> #(Model, Effect(Msg)) {
-  case echo msg {
+  case msg {
     Noop -> #(model, effect.none())
+
+    CartesiaMsg(Connected) -> {
+      let #(tts, eff) = cartesia.update(model.tts, cartesia.GenerateAudio)
+      #(
+        Model(..model, is_streaming: True, tts: tts),
+        effect.map(eff, CartesiaMsg),
+      )
+    }
 
     CartesiaMsg(submsg) -> {
       let #(tts, eff) = cartesia.update(model.tts, submsg)
@@ -110,12 +117,18 @@ fn update(model: Model, msg: Msg) -> #(Model, Effect(Msg)) {
     )
 
     UserRequestedAudio -> {
-      let #(tts, eff) = cartesia.update(model.tts, cartesia.GenerateAudio)
-      echo tts
-      #(
-        Model(..model, is_streaming: True, tts: tts),
-        effect.map(eff, CartesiaMsg),
-      )
+      case model.synth_status {
+        Completed(_, transcript) -> {
+          let #(tts, eff) =
+            cartesia.update(
+              cartesia.Model(..model.tts, input_text: transcript),
+              cartesia.Connect,
+            )
+          #(Model(..model, tts: tts), effect.map(eff, CartesiaMsg))
+        }
+
+        _ -> #(model, effect.none())
+      }
     }
 
     AudioStarted -> #(Model(..model, is_streaming: True), effect.none())
