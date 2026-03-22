@@ -10,13 +10,15 @@ services:
     develop:
       watch:
         - path: ./backend/agent_a_chat
-        - action: rebuild
+          action: rebuild
     environment:
       - SYNTH_AGENT_URL=http://synth-agent:8001
       - POSTGRES_CONNECTION_STRING=${POSTGRES_CONNECTION_STRING}
       - HF_TOKEN=${HF_TOKEN}
     depends_on:
       postgres:
+        condition: service_healthy
+      synth-agent:
         condition: service_healthy
     restart: unless-stopped
 
@@ -29,7 +31,7 @@ services:
     develop:
       watch:
         - path: ./backend/agent_b_synth
-        - action: rebuild
+          action: rebuild
     environment:
       - POSTGRES_CONNECTION_STRING=${POSTGRES_CONNECTION_STRING}
       - HF_TOKEN=${HF_TOKEN}
@@ -39,6 +41,11 @@ services:
       postgres:
         condition: service_healthy
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8001/.well-known/agent-card.json')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   postgres:
     image: postgres:15

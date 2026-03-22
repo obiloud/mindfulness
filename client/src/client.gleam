@@ -1,6 +1,11 @@
-import api.{type AgentResponse, send_message}
+import api.{
+  type AgentResponse, type TaskStatus, Completed, Failed, Idle, Processing,
+  call_synthesis_api, send_message,
+}
+
 import gleam/string
 import meditation
+import rsvp
 
 import cartesia
 import dom
@@ -29,12 +34,12 @@ pub type Model {
     is_streaming: Bool,
     input_text: String,
     loading: Bool,
-    answer: Option(String),
-    transcript: Option(String),
     thread_id: Option(String),
     theme: Theme,
     show_meditation: Bool,
     tts: cartesia.Model,
+    synth_ready: Bool,
+    synth_status: TaskStatus,
   )
 }
 
@@ -49,6 +54,7 @@ pub type Msg {
   SetTheme(Theme)
   HideMeditationScreen
   CartesiaMsg(cartesia.Msg)
+  OnSynthResponse(Result(TaskStatus, rsvp.Error))
 }
 
 // --- FFI (Foreign Function Interface) ---
@@ -79,18 +85,18 @@ fn init(_flags) -> #(Model, Effect(Msg)) {
       input_text: "",
       loading: False,
       thread_id: None,
-      answer: None,
-      transcript: None,
       theme: System,
       show_meditation: False,
       tts: tts,
+      synth_ready: False,
+      synth_status: Idle,
     ),
     effect.map(eff, CartesiaMsg),
   )
 }
 
 fn update(model: Model, msg: Msg) -> #(Model, Effect(Msg)) {
-  case msg {
+  case echo msg {
     Noop -> #(model, effect.none())
 
     CartesiaMsg(submsg) -> {
@@ -125,17 +131,13 @@ fn update(model: Model, msg: Msg) -> #(Model, Effect(Msg)) {
           ]),
           loading: False,
           thread_id: Some(msg.thread_id),
-          answer: msg.answer,
-          transcript: msg.transcript,
-          show_meditation: option.is_some(msg.answer)
-            && option.is_some(msg.transcript),
-          tts: cartesia.Model(
-            ..model.tts,
-            input_text: option.unwrap(msg.transcript, ""),
-          ),
+          synth_ready: msg.synth_ready,
         ),
         // dom.scroll_to_bottom_delayed("chat-ancor"),
-        effect.none(),
+        case msg.synth_ready {
+          True -> effect.map(call_synthesis_api(msg.thread_id), OnSynthResponse)
+          False -> effect.none()
+        },
       )
     }
 
@@ -179,6 +181,22 @@ fn update(model: Model, msg: Msg) -> #(Model, Effect(Msg)) {
       Model(..model, show_meditation: False),
       effect.none(),
     )
+
+    OnSynthResponse(response) ->
+      case response {
+        Ok(task_status) -> #(
+          Model(
+            ..model,
+            synth_status: task_status,
+            show_meditation: case task_status {
+              Completed(_, _) -> True
+              _ -> False
+            },
+          ),
+          effect.none(),
+        )
+        Error(_) -> #(Model(..model, synth_status: Failed("")), effect.none())
+      }
   }
 }
 
@@ -272,17 +290,33 @@ fn view_message(m: Message) -> Element(Msg) {
   ])
 }
 
+fn render_synth_status(synth_status: TaskStatus) {
+  case synth_status {
+    Idle -> html.text("")
+    Processing ->
+      html.div([attribute.class("loading-pulse")], [
+        html.text(
+          "Agent B is synthesizing your meditation... This usually takes 30s.",
+        ),
+      ])
+
+    Completed(_, _) -> html.div([], [])
+
+    Failed(err) ->
+      html.div([attribute.class("error")], [html.text("Error: " <> err)])
+  }
+}
+
 fn view(model: Model) -> Element(Msg) {
-  case model.show_meditation {
-    True -> {
-      let assert Some(quote) = model.answer
+  case model.show_meditation, model.synth_status {
+    True, Completed(answer, _) -> {
       meditation.view_meditation_screen(
-        quote,
+        answer,
         UserRequestedAudio,
         HideMeditationScreen,
       )
     }
-    False ->
+    _, _ ->
       html.div(
         [
           attribute.class(
@@ -343,6 +377,8 @@ fn view(model: Model) -> Element(Msg) {
                   ),
                 ],
               ),
+
+              render_synth_status(model.synth_status),
 
               // SCROLLABLE MESSAGES: Fills all remaining space
               html.div(

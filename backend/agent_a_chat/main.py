@@ -23,8 +23,14 @@ from a2a.types import (
     AgentCard,
     MessageSendParams,
     SendMessageRequest,
-    TaskState
+    Role,
+    Part,
+    TextPart,
+    SendMessageSuccessResponse,
+    Task,
+    Message
 )
+from a2a.utils import get_data_parts
 from a2a.utils.constants import (
     AGENT_CARD_WELL_KNOWN_PATH,
     EXTENDED_AGENT_CARD_PATH,
@@ -111,7 +117,7 @@ async def lifespan(app: FastAPI):
 
         app.state.a2a_client = A2AClient(
             httpx_client=httpx_client,
-            agent_card=final_agent_card_to_use
+            agent_card=final_agent_card_to_use,
         )
 
         # Initialize the connection pool using 'async with'
@@ -170,9 +176,7 @@ class ChatResponse(BaseModel):
     reply: str
     thread_id: str
     user_id: str
-    synth_triggered: bool
-    answer: Optional[str] = None
-    transcript: Optional[str] = None
+    synth_ready: bool
 
 
 class TaskStatusResponse(BaseModel):
@@ -209,23 +213,6 @@ async def chat_endpoint(body: ChatRequest, request: Request, bg_tasks: Backgroun
 
         trigger_synth = state.get("trigger_synth", False)
 
-        if trigger_synth:
-            # Trigger Agent B asynchronously.
-            # We pass the thread_id so Agent B can potentially read
-            # the exact same checkpoint state from Postgres if needed.
-            send_message_payload: dict[str, Any] = {
-                'message': {
-                    'role': 'user',
-                    'parts': [
-                        {'kind': 'text', 'text': state.get("summary", ""), },
-                    ],
-                    'messageId': uuid4().hex,
-                },
-            }
-            bg_tasks.add_task(a2a_client.send_message, SendMessageRequest(
-                id=str(uuid4()), params=MessageSendParams(**send_message_payload)
-            ))
-
         # Extract the AI's latest reply (assuming standard LangGraph message list)
         last_message = state["messages"][-1].content
 
@@ -233,46 +220,59 @@ async def chat_endpoint(body: ChatRequest, request: Request, bg_tasks: Backgroun
             reply=last_message,
             user_id=user_id,
             thread_id=thread_id,
-            synth_triggered=trigger_synth
+            synth_ready=trigger_synth,
         )
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.get("/v1/mindfulness/status/{task_id}", response_model=TaskStatusResponse)
-async def get_synth_status(task_id: str, request: Request):
-    """
-    Polls the A2A client to check if Agent B has finished the synthesis.
-    """
+@app.get("/v1/mindfulness/synthesis/{thread_id}", response_model=TaskStatusResponse)
+async def trigger_synthesis(thread_id: str, request: Request):
+    graph = request.app.state.chat_graph
     a2a_client = request.app.state.a2a_client
+    config = {"configurable": {"thread_id": thread_id}}
+
+    # Retrieve the latest state snapshot from LangGraph
+    state_snapshot = await graph.aget_state(config)
+
+    # Extract the summary (ensure your State schema defines this field)
+    summary = state_snapshot.values.get("summary", "")
+
+    if not summary:
+        raise HTTPException(
+            status_code=400,
+            detail="No summary found for this thread. Agent A may not have finished processing."
+        )
 
     try:
-        # Fetch the task state from the A2A Orchestrator
-        task = await a2a_client.get_task(task_id)
+        response = await a2a_client.send_message(
+            SendMessageRequest(id=str(uuid4()), params=MessageSendParams(
+                message=Message(message_id=str(uuid4()), role=Role(
+                    'user'), parts=[Part(root=TextPart(text=summary))])
+            ))
+        )
 
-        if task.state == TaskState.completed:
-            # Extract the 'transcript' artifact we named in Agent B's node
-            # A2A stores these in a list of 'artifacts' or 'parts'
-            transcript = next(
-                (p.root.text for p in task.artifacts if p.name == "transcript"),
-                None
-            )
-            return TaskStatusResponse(
-                status="completed",
-                transcript=transcript,
-                answer=next(
-                    (p.root.text for p in task.artifacts if p.name == "answer"), None)
-            )
+        if isinstance(response.root, SendMessageSuccessResponse):
+            if isinstance(response.root.result, Task):
+                data = get_data_parts(
+                    response.root.result.artifacts[-1].parts)[-1]
+            else:
+                data = get_data_parts(response.root.result.parts)[-1]
 
-        elif task.state == TaskState.failed:
-            return TaskStatusResponse(status="failed", error="Synthesis failed reflection.")
-
-        return TaskStatusResponse(status="processing")
+            return {
+                "answer": data.get("answer", ""),
+                "transcript": data.get("transcript", ""),
+                "status": "success"
+            }
+        else:
+            raise HTTPException(
+                status_code=500, detail=response.root.message)
 
     except Exception as e:
-        logger.error(f"Status check failed: {e}")
-        raise HTTPException(status_code=404, detail="Task not found")
+        logger.error(f"A2A Synthesis failed: {e}")
+        raise HTTPException(
+            status_code=500, detail="Synthesis agent failed to respond.")
 
 
 @app.get("/health")

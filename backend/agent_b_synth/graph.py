@@ -15,7 +15,7 @@ from a2a.server.agent_execution import AgentExecutor
 from a2a.server.agent_execution.context import RequestContext
 from a2a.server.events.event_queue import EventQueue
 from a2a.server.tasks import TaskUpdater
-from a2a.types import TextPart, TaskState, Part
+from a2a.types import TextPart, DataPart, TaskState, Part
 from a2a.utils import new_task, new_agent_text_message
 
 from agent_b_synth.state import SynthState, GraphContext
@@ -94,8 +94,9 @@ class PulseSynthExecutor(AgentExecutor):
         self.synth_graph = build_synth_graph()
 
     async def execute(self, context: RequestContext, event_queue: EventQueue) -> None:
-        raw_query = context.get_user_input()
-        query = re.sub(r'[a-f0-9\-]{36}', '', raw_query).strip()
+        self.dependencies.logger.info(f"THE REQUEST CONTEXT: {context}")
+
+        query = context.get_user_input()
         task = context.current_task or new_task(context.message)
 
         # Ensure the task is known to the queue
@@ -103,33 +104,23 @@ class PulseSynthExecutor(AgentExecutor):
             await event_queue.enqueue_event(task)
 
         task_updater = TaskUpdater(event_queue, task.id, task.context_id)
-        final_state = None
 
         try:
-            # iterate and track the full state
-            async for step in self.synth_graph.astream({"context": query}, context=self.dependencies):
-                # step is a dict like {"node_name": {state_updates}}
-                for node_output in step.values():
-                    # Update our local reference to the latest state data
-                    final_state = node_output
+            final_state = await self.synth_graph.ainvoke({"context": query}, context=self.dependencies)
 
-                # Optional: Send "Thinking..." updates to UI
-                await task_updater.update_status(TaskState.working)
-
-            # Extract data safely from the final state
-            # In your logs, reflection returns a list, so we handle that:
-            if isinstance(final_state, list):
-                final_state = final_state[0]
-
-            answer = final_state.get("answer", "")
-            transcript = final_state.get("transcript", "")
+            answer = final_state.get("answer", "No answer generated.")
+            transcript = final_state.get(
+                "transcript", "No transcript generated.")
 
             if final_state.get("is_answer_valid") and final_state.get("is_transcript_valid"):
                 # Use add_artifact for the long transcript and complete the task
                 await task_updater.add_artifact(
-                    [
-                        Part(root=TextPart(text=answer)),
-                        Part(root=TextPart(text=transcript))
+                    parts=[
+                        Part(root=DataPart(data={
+                            "answer": answer,
+                            "transcript": transcript,
+                        })),
+
                     ],
                     name='meditation_synthesis',
                 )
