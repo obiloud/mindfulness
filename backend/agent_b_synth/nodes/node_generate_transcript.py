@@ -1,8 +1,8 @@
 import re
 from langchain_core.messages import HumanMessage, SystemMessage
 from langgraph.runtime import Runtime
-from agent_b_synth.state import SynthState, GraphContext, print_state
-from agent_b_synth.prompts.meditation import TRANSCRIPT_PROMPT
+from ..state import SynthState, GraphContext, print_state
+from ..prompts.meditation import TRANSCRIPT_PROMPT
 
 
 def fix_ssml(text: str) -> str:

@@ -5,11 +5,11 @@ from langgraph.graph import StateGraph, END
 from langgraph.types import Send
 
 # Import your heavy reflection nodes
-from agent_b_synth.nodes.node_generate_answer import node_generate_answer
-from agent_b_synth.nodes.node_generate_transcript import node_generate_transcript
-from agent_b_synth.nodes.node_supervisor_agent import node_reflection
+from .nodes.node_generate_answer import node_generate_answer
+from .nodes.node_generate_transcript import node_generate_transcript
+from .nodes.node_supervisor_agent import node_reflection
 
-from agent_b_synth.state import SynthState
+from .state import SynthState
 
 
 def get_heavy_llm() -> ChatHuggingFace:
