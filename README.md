@@ -11,24 +11,35 @@ Mindfulness AI is a full-stack application designed to provide users with guided
 ```
 mindfulness-ai/
 ├── backend/            # FastAPI project
-│   ├── app/            # Python logic for API endpoints, data processing, and business rules
-│   ├── state.py        # Core state management for meditation sessions and user data
-│   ├── workflow.py     # Workflow definitions for meditation sequences and transitions
-│   ├── prompts/        # Prompt templates for AI-generated meditation content
-│   │   ├── base.py     # Base prompt templates
-│   │   └── meditation.py # Meditation-specific prompt templates
+│   ├── agent_a_chat/   # AI chat agent for conversation-based meditation
+│   │   ├── state.py    # Core state management for chat sessions
+│   │   └── prompts/    # Prompt templates for conversation flows
+│   │       ├── conversation.py # Conversation-specific prompt templates
+│   │       └── __init__.py
+│   │
+│   ├── agent_b_synth/  # AI content synthesis agent for meditation content
+│   │   ├── state.py    # Core state management for meditation sessions
+│   │   └── prompts/    # Prompt templates for meditation content generation
+│   │       ├── meditation.py # Meditation-specific prompt templates
+│   │       ├── supervisor.py # Supervisor prompt templates
+│   │       └── __init__.py
+│   │
 │   ├── node_evaluator.py # Node evaluation logic for processing meditation workflows
-│   ├── workflow_mermaid.png # Visual representation of workflow diagrams
-│   └── pytest.ini      # Configuration for Pytest testing framework
+│   ├── prompts/        # Shared prompt templates
+│   │   └── base.py     # Base prompt templates
+│   └── workflow.py     # Workflow definitions for meditation sequences and transitions
 │
 ├── client/             # Gleam/Lustre project (frontend)
 │   ├── src/            # Gleam source files containing UI components and state logic
 │   │   ├── api.gleam   # API interaction layer for frontend
-│   │   ├── audio_ffi.mjs # JavaScript bridge for audio processing and playback
+│   │   ├── utils.gleam # Utility functions for common operations
+│   │   ├── dom.gleam   # DOM manipulation and event handling
+│   │   ├── theme.gleam # Theme and styling management
+│   │   ├── cartesia.gleam # Cartesia integration for voice synthesis
 │   │   ├── client.gleam # Main application entry point and state management
 │   │
 │   ├── ffi/            # JavaScript bridge files for audio processing and device interactions
-│   │   └── audio_bridge.js (mocks)
+│   │   └── audio_ffi.mjs # JavaScript bridge for audio processing and playback
 │   │
 │   ├── ios/            # Capacitor iOS platform folder for native iOS integration
 │   │
@@ -53,12 +64,28 @@ mindfulness-ai/
 
 ### Backend (Python)
 - **Framework**: FastAPI (for RESTful APIs with async support)
-- **Features**: 
+- **Architecture**: Microservices pattern with two specialized AI agents
+  - **Agent A (Chat Agent)**: Handles conversation-based meditation sessions using prompt templates for dialogue flows
+  - **Agent B (Synthesis Agent)**: Generates meditation content including guided sessions and breathing exercises
+- **Features**:
   - Real-time meditation session tracking
   - User authentication and session management
   - Audio streaming and playback
   - Data persistence and analytics
   - Workflow-based meditation sequences with AI prompt generation
+  - Modular prompt system with shared base templates and agent-specific templates
+
+### Core Orchestration via A2A Protocol
+
+The application leverages the A2A (Agent-to-Agent) protocol as the core mechanism for orchestrating AI agent interactions. This protocol enables seamless coordination between specialized agents, allowing for a modular and scalable architecture where each agent performs a specific function.
+
+Key aspects of A2A protocol usage:
+- **Asynchronous Workflow Orchestration**: The chat agent (Agent A) initiates meditation sessions and triggers background content generation through the synthesis agent (Agent B) using the A2A protocol
+- **Stateful Communication**: The A2A protocol maintains state across agent interactions, ensuring that generated content can be properly injected back into the conversation context
+- **Callback-Based Integration**: When heavy-compute tasks (like meditation content generation) are completed, the A2A protocol uses callback mechanisms to notify the chat agent and update the session state
+- **Modular Agent Design**: Each agent operates independently with its own state and logic, communicating through the A2A protocol to maintain a clean separation of concerns
+
+This agent orchestration model enables the application to handle complex mindfulness workflows efficiently, with the ability to scale individual components independently while maintaining a cohesive user experience.
 
 ### Frontend (Gleam/Lustre)
 - **Language**: Gleam (functional, type-safe language with strong compile-time guarantees)
@@ -69,6 +96,8 @@ mindfulness-ai/
   - Seamless integration with audio processing via FFI
   - Cross-platform support (iOS via Capacitor)
   - Responsive design with static assets
+  - Voice synthesis integration through Cartesia API
+  - Modular component structure with clear separation of concerns
 
 ### Cross-Platform Integration
 - **Audio Bridge**: JavaScript FFI layer enables the frontend to interact with audio processing libraries
@@ -116,6 +145,8 @@ mindfulness-ai/
 - Offline mode with local storage
 - Device-specific audio playback via FFI integration
 - AI-generated meditation content based on user preferences
+- Voice-based meditation guidance through Cartesia integration
+- Asynchronous content generation with real-time state updates
 
 ## Future Roadmap
 
