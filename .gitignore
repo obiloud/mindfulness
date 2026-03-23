@@ -1,6 +1,6 @@
 __pycache__/
 maya1-fastapi/
-venv/
+.venv/
 .DS_Store
 .env
 *.wav

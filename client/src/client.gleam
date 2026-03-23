@@ -1,8 +1,13 @@
-import api.{type AgentResponse, send_message}
+import api.{
+  type AgentResponse, type TaskStatus, Completed, Failed, Idle, Processing,
+  call_synthesis_api, send_message,
+}
+
 import gleam/string
 import meditation
+import rsvp
 
-import cartesia
+import cartesia.{Connected}
 import dom
 import gleam/dynamic/decode
 import gleam/list
@@ -29,12 +34,12 @@ pub type Model {
     is_streaming: Bool,
     input_text: String,
     loading: Bool,
-    answer: Option(String),
-    transcript: Option(String),
-    session_id: Option(String),
+    thread_id: Option(String),
     theme: Theme,
     show_meditation: Bool,
     tts: cartesia.Model,
+    synth_ready: Bool,
+    synth_status: TaskStatus,
   )
 }
 
@@ -49,6 +54,7 @@ pub type Msg {
   SetTheme(Theme)
   HideMeditationScreen
   CartesiaMsg(cartesia.Msg)
+  OnSynthResponse(Result(TaskStatus, rsvp.Error))
 }
 
 // --- FFI (Foreign Function Interface) ---
@@ -62,7 +68,7 @@ fn reset_height(id: String) -> Nil
 // --- APP LOGIC ---
 
 fn init(_flags) -> #(Model, Effect(Msg)) {
-  let cartesia_init =
+  let tts =
     cartesia.Model(
       ws: None,
       is_connected: False,
@@ -71,27 +77,34 @@ fn init(_flags) -> #(Model, Effect(Msg)) {
       pending_chunks: [],
       current_context_index: 0,
     )
-  let #(tts, eff) = cartesia.update(cartesia_init, cartesia.Connect)
   #(
     Model(
       chat_history: [],
       is_streaming: False,
       input_text: "",
       loading: False,
-      session_id: None,
-      answer: None,
-      transcript: None,
+      thread_id: None,
       theme: System,
       show_meditation: False,
       tts: tts,
+      synth_ready: False,
+      synth_status: Idle,
     ),
-    effect.map(eff, CartesiaMsg),
+    effect.none(),
   )
 }
 
 fn update(model: Model, msg: Msg) -> #(Model, Effect(Msg)) {
   case msg {
     Noop -> #(model, effect.none())
+
+    CartesiaMsg(Connected) -> {
+      let #(tts, eff) = cartesia.update(model.tts, cartesia.GenerateAudio)
+      #(
+        Model(..model, is_streaming: True, tts: tts),
+        effect.map(eff, CartesiaMsg),
+      )
+    }
 
     CartesiaMsg(submsg) -> {
       let #(tts, eff) = cartesia.update(model.tts, submsg)
@@ -104,12 +117,18 @@ fn update(model: Model, msg: Msg) -> #(Model, Effect(Msg)) {
     )
 
     UserRequestedAudio -> {
-      let #(tts, eff) = cartesia.update(model.tts, cartesia.GenerateAudio)
-      echo tts
-      #(
-        Model(..model, is_streaming: True, tts: tts),
-        effect.map(eff, CartesiaMsg),
-      )
+      case model.synth_status {
+        Completed(_, transcript) -> {
+          let #(tts, eff) =
+            cartesia.update(
+              cartesia.Model(..model.tts, input_text: transcript),
+              cartesia.Connect,
+            )
+          #(Model(..model, tts: tts), effect.map(eff, CartesiaMsg))
+        }
+
+        _ -> #(model, effect.none())
+      }
     }
 
     AudioStarted -> #(Model(..model, is_streaming: True), effect.none())
@@ -121,21 +140,17 @@ fn update(model: Model, msg: Msg) -> #(Model, Effect(Msg)) {
         Model(
           ..model,
           chat_history: list.append(model.chat_history, [
-            Message(role: "assistant", content: msg.message),
+            Message(role: "assistant", content: msg.reply),
           ]),
           loading: False,
-          session_id: Some(msg.session_id),
-          answer: msg.answer,
-          transcript: msg.transcript,
-          show_meditation: option.is_some(msg.answer)
-            && option.is_some(msg.transcript),
-          tts: cartesia.Model(
-            ..model.tts,
-            input_text: option.unwrap(msg.transcript, ""),
-          ),
+          thread_id: Some(msg.thread_id),
+          synth_ready: msg.synth_ready,
         ),
         // dom.scroll_to_bottom_delayed("chat-ancor"),
-        effect.none(),
+        case msg.synth_ready {
+          True -> effect.map(call_synthesis_api(msg.thread_id), OnSynthResponse)
+          False -> effect.none()
+        },
       )
     }
 
@@ -157,7 +172,7 @@ fn update(model: Model, msg: Msg) -> #(Model, Effect(Msg)) {
             effect.batch([
               // dom.scroll_to_bottom_delayed("chat-ancor"),
               effect.from(fn(_) { reset_height("user-input") }),
-              effect.map(send_message(user_message, model.session_id), fn(res) {
+              effect.map(send_message(user_message, model.thread_id), fn(res) {
                 let assert Ok(ar) = res
                 ReceiveChatResponse(ar)
               }),
@@ -179,6 +194,22 @@ fn update(model: Model, msg: Msg) -> #(Model, Effect(Msg)) {
       Model(..model, show_meditation: False),
       effect.none(),
     )
+
+    OnSynthResponse(response) ->
+      case response {
+        Ok(task_status) -> #(
+          Model(
+            ..model,
+            synth_status: task_status,
+            show_meditation: case task_status {
+              Completed(_, _) -> True
+              _ -> False
+            },
+          ),
+          effect.none(),
+        )
+        Error(_) -> #(Model(..model, synth_status: Failed("")), effect.none())
+      }
   }
 }
 
@@ -272,17 +303,33 @@ fn view_message(m: Message) -> Element(Msg) {
   ])
 }
 
+fn render_synth_status(synth_status: TaskStatus) {
+  case synth_status {
+    Idle -> html.text("")
+    Processing ->
+      html.div([attribute.class("loading-pulse")], [
+        html.text(
+          "Agent B is synthesizing your meditation... This usually takes 30s.",
+        ),
+      ])
+
+    Completed(_, _) -> html.div([], [])
+
+    Failed(err) ->
+      html.div([attribute.class("error")], [html.text("Error: " <> err)])
+  }
+}
+
 fn view(model: Model) -> Element(Msg) {
-  case model.show_meditation {
-    True -> {
-      let assert Some(quote) = model.answer
+  case model.show_meditation, model.synth_status {
+    True, Completed(answer, _) -> {
       meditation.view_meditation_screen(
-        quote,
+        answer,
         UserRequestedAudio,
         HideMeditationScreen,
       )
     }
-    False ->
+    _, _ ->
       html.div(
         [
           attribute.class(
@@ -343,6 +390,8 @@ fn view(model: Model) -> Element(Msg) {
                   ),
                 ],
               ),
+
+              render_synth_status(model.synth_status),
 
               // SCROLLABLE MESSAGES: Fills all remaining space
               html.div(

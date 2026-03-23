@@ -1,4 +1,4 @@
-from .base import GLOBAL_IDENTITY, GUARDRAILS
+from shared.prompts.base import GLOBAL_IDENTITY, GUARDRAILS
 import inspect
 
 CONVERSATION_PROMPT = inspect.cleandoc(f"""

@@ -9,7 +9,7 @@ from langgraph.runtime import Runtime
 from langgraph.store.base import BaseStore
 from langchain_huggingface import ChatHuggingFace
 
-from state import ConversationState, GraphContext, print_state
+from agent_a_chat.state import ChatState, GraphContext, print_state
 
 
 def create_safety_classifier(llm: ChatHuggingFace) -> Runnable:
@@ -53,7 +53,7 @@ def retrieve_from_store(query: str, store: BaseStore) -> List[Dict[str, Any]]:
     return store.search(query, k=3)  # Return top 3 results
 
 
-def node_user_input(state: ConversationState, runtime: Runtime[GraphContext]) -> ConversationState:
+def node_user_input(state: ChatState, runtime: Runtime[GraphContext]) -> ChatState:
     """
     Process user input with safety classification and long-term memory retrieval.
 
