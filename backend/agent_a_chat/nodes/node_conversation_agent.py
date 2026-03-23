@@ -3,8 +3,8 @@ import json
 from typing import List
 from langchain_core.messages import SystemMessage, AIMessage, HumanMessage, AnyMessage, message_to_dict
 from langgraph.runtime import Runtime
-from agent_a_chat.state import ChatState, GraphContext, print_state
-from agent_a_chat.prompts.conversation import CONVERSATION_PROMPT
+from ..state import ChatState, GraphContext, print_state
+from ..prompts.conversation import CONVERSATION_PROMPT
 
 
 def format_conversation_history(messages: List[AnyMessage]) -> str:

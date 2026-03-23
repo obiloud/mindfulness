@@ -3,8 +3,8 @@ from langchain_core.messages import SystemMessage
 from langgraph.runtime import Runtime
 from typing import List
 from pydantic import BaseModel, Field
-from agent_b_synth.state import SynthState, GraphContext, print_state
-from agent_b_synth.prompts.supervisor import SUPERVISOR_PROMPT
+from ..state import SynthState, GraphContext, print_state
+from ..prompts.supervisor import SUPERVISOR_PROMPT
 
 
 class ReflectionOutput(BaseModel):

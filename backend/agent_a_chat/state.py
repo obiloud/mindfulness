@@ -15,11 +15,14 @@ class GraphContext:
 
 class ChatState(TypedDict):
     messages: Annotated[List[AnyMessage], add_messages]
-    status: str
     turn_count: int
     info_score: float
     summary: str
-    trigger_synth: bool  # New flag for A2A handoff
+    answer: Optional[str]
+    transcript: Optional[str]
+    synth_status: Literal["idle", "requested", "in_progress", "completed"]
+    is_synthesis_ready: bool
+    awaiting_confirmation: bool
 
 
 def print_state(state: ChatState) -> str:

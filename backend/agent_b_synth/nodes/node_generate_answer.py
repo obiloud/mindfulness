@@ -1,8 +1,8 @@
 from langchain_core.messages import SystemMessage, HumanMessage
 from langchain_tavily import TavilySearch
 from langgraph.runtime import Runtime
-from agent_b_synth.state import SynthState, GraphContext, print_state
-from agent_b_synth.prompts.meditation import ANSWER_PROMPT, MEDITATION_PROMPT
+from ..state import SynthState, GraphContext, print_state
+from ..prompts.meditation import ANSWER_PROMPT, MEDITATION_PROMPT
 
 
 async def node_generate_answer(state: SynthState, runtime: Runtime[GraphContext]) -> dict:

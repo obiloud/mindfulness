@@ -3,7 +3,7 @@ import httpx
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, BackgroundTasks, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from typing import Optional, Any
+from typing import Optional
 from pydantic import BaseModel
 import logging
 from psycopg_pool import AsyncConnectionPool
@@ -15,7 +15,7 @@ from langchain.messages import HumanMessage
 from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
 from langgraph.store.postgres.aio import AsyncPostgresStore
 
-from agent_a_chat.graph import get_llm, create_chat_graph
+from .graph import get_llm, create_chat_graph
 
 # A2A SDK
 from a2a.client import A2AClient, A2ACardResolver
@@ -23,12 +23,9 @@ from a2a.types import (
     AgentCard,
     MessageSendParams,
     SendMessageRequest,
-    Role,
-    Part,
-    TextPart,
-    SendMessageSuccessResponse,
-    Task,
-    Message
+    MessageSendConfiguration,
+    PushNotificationConfig,
+    Message, Role, Part, TextPart, DataPart
 )
 from a2a.utils import get_data_parts
 from a2a.utils.constants import (
@@ -176,7 +173,8 @@ class ChatResponse(BaseModel):
     reply: str
     thread_id: str
     user_id: str
-    synth_ready: bool
+    answer: Optional[str] = None
+    transcript: Optional[str] = None
 
 
 class TaskStatusResponse(BaseModel):
@@ -184,23 +182,27 @@ class TaskStatusResponse(BaseModel):
     answer: Optional[str] = None
     transcript: Optional[str] = None
 
+
+class SynthesisResult(BaseModel):
+    thread_id: str
+    answer: str
+    transcript: str
+    status: str = "completed"
+
 # --- Routes ---
 
 
 @app.post("/v1/mindfulness/chat", response_model=ChatResponse)
 async def chat_endpoint(body: ChatRequest, request: Request, bg_tasks: BackgroundTasks):
     """
-    Handles user messages, advances the fast chat graph, and evaluates 
+    Handles user messages, advances the fast chat graph, and evaluates
     the patience loop to trigger the heavy-compute synthesis graph.
     """
     graph = request.app.state.chat_graph
     a2a_client = app.state.a2a_client
 
-    thread_id = str(
-        uuid4()) if body.thread_id is None else body.thread_id
-
-    user_id = str(
-        uuid4()) if body.user_id is None else body.user_id
+    thread_id = str(uuid4()) if body.thread_id is None else body.thread_id
+    user_id = str(uuid4()) if body.user_id is None else body.user_id
 
     # LangGraph config requires a thread_id to persist state across turns
     config = {"configurable": {"thread_id": thread_id}}
@@ -211,70 +213,85 @@ async def chat_endpoint(body: ChatRequest, request: Request, bg_tasks: Backgroun
 
         logger.info(f"final_state: {print_state(state)}")
 
-        trigger_synth = state.get("trigger_synth", False)
+        synth_status = state.get("synth_status")
+
+        if synth_status == "requested":
+            summary = state.get("summary", "")
+            bg_tasks.add_task(
+                a2a_client.send_message,
+                SendMessageRequest(id=str(uuid4()), params=MessageSendParams(
+                    configuration=MessageSendConfiguration(
+                        push_notification_config=PushNotificationConfig(
+                            url="http://chat-agent:8000/internal/v1/synthesis-callback")
+                    ),
+                    message=Message(
+                        message_id=str(uuid4()),
+                        role=Role('user'),
+                        parts=[
+                            Part(root=TextPart(text=summary)),
+                            Part(root=DataPart(data={"thread_id": thread_id}))
+                        ])
+                ))
+            )
+            await graph.aupdate_state(config, {"synth_status": "in_progress"})
 
         # Extract the AI's latest reply (assuming standard LangGraph message list)
-        last_message = state["messages"][-1].content
+        last_message = state["messages"][-1]
+        reply = last_message.content
+        answer = last_message.additional_kwargs.get("answer")
+        transcript = last_message.additional_kwargs.get("transcript")
 
         return ChatResponse(
-            reply=last_message,
+            reply=reply,
             user_id=user_id,
             thread_id=thread_id,
-            synth_ready=trigger_synth,
+            answer=answer,
+            transcript=transcript
         )
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.get("/v1/mindfulness/synthesis/{thread_id}", response_model=TaskStatusResponse)
-async def trigger_synthesis(thread_id: str, request: Request):
-    graph = request.app.state.chat_graph
-    a2a_client = request.app.state.a2a_client
+# --- Internal Callback Endpoint ---
+@app.post("/internal/v1/synthesis-callback")
+async def handle_synthesis_complete(result: SynthesisResult, request: Request):
+    """
+    Receives the finished transcript from the synthesis agent and updates the session state.
+    Also triggers a proactive message to the user via WebSocket.
+    """
+    chat_graph = request.app.state.chat_graph
+    thread_id = result.thread_id
+    answer = result.answer
+    transcript = result.transcript
+    status = result.status
+
+    if status != "completed":
+        logger.error(f"Synthesis failed for thread {thread_id}")
+        return {"status": "error"}
+
     config = {"configurable": {"thread_id": thread_id}}
 
-    # Retrieve the latest state snapshot from LangGraph
-    state_snapshot = await graph.aget_state(config)
+    await chat_graph.aupdate_state(
+        config,
+        {
+            "answer": answer,
+            "transcript": transcript,
+            "synth_status": "completed",
+            "is_synthesis_ready": True
+        },
+    )
 
-    # Extract the summary (ensure your State schema defines this field)
-    summary = state_snapshot.values.get("summary", "")
+    logger.info(
+        f"Received transcript for thread {thread_id}: {transcript[:100]}...")
 
-    if not summary:
-        raise HTTPException(
-            status_code=400,
-            detail="No summary found for this thread. Agent A may not have finished processing."
-        )
+    # Notify the frontend via WebSocket
+    # await notify_user_via_websocket(thread_id, "I've finished preparing your meditation. Ready to start?")
 
-    try:
-        response = await a2a_client.send_message(
-            SendMessageRequest(id=str(uuid4()), params=MessageSendParams(
-                message=Message(message_id=str(uuid4()), role=Role(
-                    'user'), parts=[Part(root=TextPart(text=summary))])
-            ))
-        )
-
-        if isinstance(response.root, SendMessageSuccessResponse):
-            if isinstance(response.root.result, Task):
-                data = get_data_parts(
-                    response.root.result.artifacts[-1].parts)[-1]
-            else:
-                data = get_data_parts(response.root.result.parts)[-1]
-
-            return {
-                "answer": data.get("answer", ""),
-                "transcript": data.get("transcript", ""),
-                "status": "success"
-            }
-        else:
-            raise HTTPException(
-                status_code=500, detail=response.root.message)
-
-    except Exception as e:
-        logger.error(f"A2A Synthesis failed: {e}")
-        raise HTTPException(
-            status_code=500, detail="Synthesis agent failed to respond.")
+    return {"status": "acknowledged"}
 
 
+# --- Health Check ---
 @app.get("/health")
 async def health_check():
     return {"status": "healthy", "service": "agent_a_chat"}

@@ -1,11 +1,7 @@
-import api.{
-  type AgentResponse, type TaskStatus, Completed, Failed, Idle, Processing,
-  call_synthesis_api, send_message,
-}
+import api.{type AgentResponse, send_message}
 
 import gleam/string
 import meditation
-import rsvp
 
 import cartesia.{Connected}
 import dom
@@ -20,7 +16,9 @@ import lustre/element/html
 import lustre/event
 import mork
 import mork/to_lustre
+import rsvp
 import theme.{type Theme, Dark, Light, System}
+import utils.{delay_effect}
 
 // --- TYPES ---
 
@@ -38,8 +36,8 @@ pub type Model {
     theme: Theme,
     show_meditation: Bool,
     tts: cartesia.Model,
-    synth_ready: Bool,
-    synth_status: TaskStatus,
+    answer: Option(String),
+    transcript: Option(String),
   )
 }
 
@@ -49,12 +47,12 @@ pub type Msg {
   UserRequestedAudio
   AudioStarted
   AudioEnded
-  ReceiveChatResponse(AgentResponse)
+  ReceiveChatResponse(Result(AgentResponse, rsvp.Error))
   SendMessage
   SetTheme(Theme)
   HideMeditationScreen
   CartesiaMsg(cartesia.Msg)
-  OnSynthResponse(Result(TaskStatus, rsvp.Error))
+  ShowMeditationScreen
 }
 
 // --- FFI (Foreign Function Interface) ---
@@ -87,15 +85,15 @@ fn init(_flags) -> #(Model, Effect(Msg)) {
       theme: System,
       show_meditation: False,
       tts: tts,
-      synth_ready: False,
-      synth_status: Idle,
+      answer: None,
+      transcript: None,
     ),
     effect.none(),
   )
 }
 
 fn update(model: Model, msg: Msg) -> #(Model, Effect(Msg)) {
-  case msg {
+  case echo msg {
     Noop -> #(model, effect.none())
 
     CartesiaMsg(Connected) -> {
@@ -117,8 +115,8 @@ fn update(model: Model, msg: Msg) -> #(Model, Effect(Msg)) {
     )
 
     UserRequestedAudio -> {
-      case model.synth_status {
-        Completed(_, transcript) -> {
+      case model.transcript {
+        Some(transcript) -> {
           let #(tts, eff) =
             cartesia.update(
               cartesia.Model(..model.tts, input_text: transcript),
@@ -135,7 +133,7 @@ fn update(model: Model, msg: Msg) -> #(Model, Effect(Msg)) {
 
     AudioEnded -> #(Model(..model, is_streaming: False), effect.none())
 
-    ReceiveChatResponse(msg) -> {
+    ReceiveChatResponse(Ok(msg)) -> {
       #(
         Model(
           ..model,
@@ -144,15 +142,23 @@ fn update(model: Model, msg: Msg) -> #(Model, Effect(Msg)) {
           ]),
           loading: False,
           thread_id: Some(msg.thread_id),
-          synth_ready: msg.synth_ready,
+          answer: msg.answer,
+          transcript: msg.transcript,
         ),
         // dom.scroll_to_bottom_delayed("chat-ancor"),
-        case msg.synth_ready {
-          True -> effect.map(call_synthesis_api(msg.thread_id), OnSynthResponse)
-          False -> effect.none()
+        case msg.transcript {
+          Some(_) -> delay_effect(1000, ShowMeditationScreen)
+          None -> effect.none()
         },
       )
     }
+
+    ReceiveChatResponse(Error(_)) -> #(model, effect.none())
+
+    ShowMeditationScreen -> #(
+      Model(..model, show_meditation: True),
+      effect.none(),
+    )
 
     SendMessage ->
       case model.loading, string.trim(model.input_text) {
@@ -172,10 +178,10 @@ fn update(model: Model, msg: Msg) -> #(Model, Effect(Msg)) {
             effect.batch([
               // dom.scroll_to_bottom_delayed("chat-ancor"),
               effect.from(fn(_) { reset_height("user-input") }),
-              effect.map(send_message(user_message, model.thread_id), fn(res) {
-                let assert Ok(ar) = res
-                ReceiveChatResponse(ar)
-              }),
+              effect.map(
+                send_message(user_message, model.thread_id),
+                ReceiveChatResponse,
+              ),
             ]),
           )
         }
@@ -194,22 +200,6 @@ fn update(model: Model, msg: Msg) -> #(Model, Effect(Msg)) {
       Model(..model, show_meditation: False),
       effect.none(),
     )
-
-    OnSynthResponse(response) ->
-      case response {
-        Ok(task_status) -> #(
-          Model(
-            ..model,
-            synth_status: task_status,
-            show_meditation: case task_status {
-              Completed(_, _) -> True
-              _ -> False
-            },
-          ),
-          effect.none(),
-        )
-        Error(_) -> #(Model(..model, synth_status: Failed("")), effect.none())
-      }
   }
 }
 
@@ -303,26 +293,9 @@ fn view_message(m: Message) -> Element(Msg) {
   ])
 }
 
-fn render_synth_status(synth_status: TaskStatus) {
-  case synth_status {
-    Idle -> html.text("")
-    Processing ->
-      html.div([attribute.class("loading-pulse")], [
-        html.text(
-          "Agent B is synthesizing your meditation... This usually takes 30s.",
-        ),
-      ])
-
-    Completed(_, _) -> html.div([], [])
-
-    Failed(err) ->
-      html.div([attribute.class("error")], [html.text("Error: " <> err)])
-  }
-}
-
 fn view(model: Model) -> Element(Msg) {
-  case model.show_meditation, model.synth_status {
-    True, Completed(answer, _) -> {
+  case model.show_meditation, model.answer {
+    True, Some(answer) -> {
       meditation.view_meditation_screen(
         answer,
         UserRequestedAudio,
@@ -390,8 +363,6 @@ fn view(model: Model) -> Element(Msg) {
                   ),
                 ],
               ),
-
-              render_synth_status(model.synth_status),
 
               // SCROLLABLE MESSAGES: Fills all remaining space
               html.div(
