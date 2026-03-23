@@ -35,8 +35,7 @@ def should_trigger_synth(state: ChatState) -> ChatState:
     return {}
 
 
-def node_deliver_transcript(state: ChatState, runtime: GraphContext) -> ChatState:
-    runtime.logger.info("DELIVER TRANSCRIPT")
+def node_deliver_transcript(state: ChatState) -> ChatState:
     return {
         "messages": [
             AIMessage(
