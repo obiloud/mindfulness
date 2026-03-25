@@ -4,6 +4,8 @@ services:
     build: 
       context: .
       dockerfile: ./backend/agent_a_chat/Dockerfile
+    volumes:
+      - ./fastembed_cache:/app/model_cache
     container_name: pulse-chat-agent
     ports:
       - "8000:8000"
@@ -13,6 +15,7 @@ services:
           action: rebuild
     environment:
       - SYNTH_AGENT_URL=http://synth-agent:8001
+      - FASTEMBED_CACHE_PATH=/app/model_cache
       - POSTGRES_CONNECTION_STRING=${POSTGRES_CONNECTION_STRING}
       - HF_TOKEN=${HF_TOKEN}
     depends_on:

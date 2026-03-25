@@ -1,9 +1,25 @@
 import gleam/dynamic/decode
 import gleam/function
+import gleam/http
+import gleam/http/request
 import gleam/json
 import gleam/option.{type Option, None, Some}
 import lustre/effect
 import rsvp
+
+pub type User {
+  User(email: String, password: String)
+}
+
+pub type AuthResponse {
+  AuthResponse(access_token: String, token_type: String)
+}
+
+fn decode_auth_response() -> decode.Decoder(AuthResponse) {
+  use access_token <- decode.field("access_token", decode.string)
+  use token_type <- decode.field("token_type", decode.string)
+  decode.success(AuthResponse(access_token:, token_type:))
+}
 
 pub type AgentResponse {
   AgentResponse(
@@ -33,6 +49,7 @@ fn decode_agent_response() -> decode.Decoder(AgentResponse) {
 pub fn send_message(
   content: String,
   thread_id: Option(String),
+  access_token: String,
 ) -> effect.Effect(Result(AgentResponse, rsvp.Error)) {
   let payload = case thread_id {
     Some(sid) ->
@@ -44,8 +61,48 @@ pub fn send_message(
     None -> json.object([#("message", json.string(content))])
   }
 
-  let url = "http://localhost:8000/v1/mindfulness/chat"
   let handler = rsvp.expect_json(decode_agent_response(), function.identity)
+
+  request.new()
+  |> request.set_method(http.Post)
+  |> request.set_header("content-type", "application/json")
+  |> request.set_header("authorization", "Bearer " <> access_token)
+  |> request.set_scheme(http.Http)
+  |> request.set_host("localhost")
+  |> request.set_port(8000)
+  |> request.set_path("/v1/mindfulness/chat")
+  |> request.set_body(json.to_string(payload))
+  |> rsvp.send(handler)
+}
+
+pub fn register(
+  email: String,
+  password: String,
+) -> effect.Effect(Result(AuthResponse, rsvp.Error)) {
+  let payload =
+    json.object([
+      #("email", json.string(email)),
+      #("password", json.string(password)),
+    ])
+
+  let url = "http://localhost:8000/auth/register"
+  let handler = rsvp.expect_json(decode_auth_response(), function.identity)
+
+  rsvp.post(url, payload, handler)
+}
+
+pub fn login(
+  email: String,
+  password: String,
+) -> effect.Effect(Result(AuthResponse, rsvp.Error)) {
+  let payload =
+    json.object([
+      #("email", json.string(email)),
+      #("password", json.string(password)),
+    ])
+
+  let url = "http://localhost:8000/auth/login"
+  let handler = rsvp.expect_json(decode_auth_response(), function.identity)
 
   rsvp.post(url, payload, handler)
 }

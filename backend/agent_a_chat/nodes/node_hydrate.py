@@ -11,7 +11,7 @@ async def node_hydrate(state: ChatState,  runtime: Runtime[GraphContext]) -> Cha
 
     # Search the store for all memories in this user's namespace
     # You can search by semantic similarity or just get all keys
-    items = await runtime.store.asearch(namespace, state["messages"][-1].content, limit=5)
+    items = await runtime.store.asearch(namespace, query=state["messages"][-1].content, limit=5)
 
     # Format the items into a readable block
     if items:

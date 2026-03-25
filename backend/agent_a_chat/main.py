@@ -1,5 +1,5 @@
 # backend/agent_a_chat/main.py
-
+import os
 import httpx
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, BackgroundTasks, HTTPException, Request, Depends
@@ -177,12 +177,30 @@ async def lifespan(app: FastAPI):
         ) as pool:
 
             checkpointer = AsyncPostgresSaver(pool)
-            embeddings = TextEmbedding(model_name="BAAI/bge-small-en-v1.5")
+            cache_path = os.getenv("FASTEMBED_CACHE_PATH", "./local_cache")
+
+            embedding_model = TextEmbedding(
+                model_name="BAAI/bge-small-en-v1.5",
+                cache_dir=cache_path
+            )
+
+            def bge_embed_wrapper(input_data):
+                # Ensure input is a list (FastEmbed requirement)
+                if isinstance(input_data, str):
+                    input_data = [input_data]
+
+                # Generate embeddings (returns a generator of ndarrays)
+                embeddings_generator = embedding_model.embed(input_data)
+
+                # Convert ndarrays to lists (Postgres requirement)
+                # and return the results
+                return [e.tolist() for e in embeddings_generator]
+
             store = AsyncPostgresStore(
                 pool,
                 index=PostgresIndexConfig(
                     dims=384,
-                    embed=embeddings,
+                    embed=bge_embed_wrapper,
                     fields=["content"],
                     ann_index_config=ANNIndexConfig(kind="hnsw"),
                     distance_type="cosine"
@@ -253,18 +271,19 @@ async def save_message(thread_id: str, user_id: str, role: str, content: str):
     if not app.state or not app.state.db_pool:
         logger.warning("Database pool not available. Cannot save message.")
         return
-    async with app.state.db_pool.get() as conn:
-        try:
-            await conn.execute(
-                """
-                INSERT INTO messages (thread_id, user_id, role, content, created_at)
-                VALUES (%s, %s, %s, %s, NOW())
-                """,
-                thread_id, user_id, role, content
-            )
-            logger.debug(f"Saved message: {role} -> {content[:50]}...")
-        except Exception as e:
-            logger.error(f"Failed to save message: {e}", exc_info=True)
+    async with app.state.db_pool.connection() as conn:
+        async with conn.cursor() as cur:
+            try:
+                await cur.execute(
+                    """
+                    INSERT INTO messages (id, thread_id, user_id, role, content, created_at)
+                    VALUES (%s, %s, %s, %s, %s, NOW())
+                    """,
+                    (str(uuid4()), thread_id, user_id, role, content)
+                )
+                logger.debug(f"Saved message: {role} -> {content[:50]}...")
+            except Exception as e:
+                logger.error(f"Failed to save message: {e}", exc_info=True)
 
 # === Auth Routes ===
 
@@ -274,30 +293,40 @@ async def register(user: User):
     """
     Register a new user.
     """
-    # Check if user already exists
-    async with app.state.db_pool.get() as conn:
-        result = await conn.execute(
-            "SELECT id FROM users WHERE email = %s",
-            user.email
-        )
-        if result.fetchone():
-            raise HTTPException(
-                status_code=400, detail="Email already registered")
+    try:
+        # Check if user already exists
+        async with app.state.db_pool.connection() as conn:
+            result = await conn.execute(
+                "SELECT id FROM users WHERE email = %s",
+                (user.email,)
+            )
+            if await result.fetchone():
+                raise HTTPException(
+                    status_code=400, detail="Email already registered")
 
-    # Hash password
-    hashed_password = get_password_hash(user.password)
+            # Hash password
+            hashed_password = get_password_hash(user.password)
 
-    # Insert user
-    await app.state.db_pool.get().execute(
-        """
-        INSERT INTO users (email, password_hash)
-        VALUES (%s, %s)
-        """,
-        user.email, hashed_password
-    )
+            # Insert user
+            new_user_id = str(uuid4())
 
-    # Return success (no user_id yet — in real app, return user_id)
-    return {"message": "User registered successfully", "email": user.email}
+            async with conn.cursor() as cur:
+                await cur.execute(
+                    """
+                    INSERT INTO users (id, email, password_hash)
+                    VALUES (%s, %s, %s)
+                    """,
+                    (new_user_id, user.email, hashed_password)
+                )
+
+            # Create token
+            token = create_access_token(data={"sub": new_user_id})
+            return {"access_token": token, "token_type": "bearer"}
+    except Exception as e:
+        raise HTTPException(
+            status_code=500, detail=str(e))
+    finally:
+        pass
 
 
 @app.post("/auth/login")
@@ -305,12 +334,12 @@ async def login(user: User):
     """
     Login user and return JWT token.
     """
-    async with app.state.db_pool.get() as conn:
+    async with app.state.db_pool.connection() as conn:
         result = await conn.execute(
             "SELECT id, email, password_hash FROM users WHERE email = %s",
-            user.email
+            (user.email,)
         )
-        row = result.fetchone()
+        row = await result.fetchone()
         if not row:
             raise HTTPException(status_code=400, detail="Invalid credentials")
 
@@ -319,7 +348,7 @@ async def login(user: User):
             raise HTTPException(status_code=400, detail="Invalid credentials")
 
         # Create token
-        token = create_access_token(data={"sub": row["id"]})
+        token = create_access_token(data={"sub": str(row["id"])})
         return {"access_token": token, "token_type": "bearer"}
 
 
@@ -345,7 +374,7 @@ async def get_message_history(thread_id: str, user_id: str = None):
     """
     Retrieve conversation history for a thread.
     """
-    async with app.state.db_pool.get() as conn:
+    async with app.state.db_pool.connection() as conn:
         result = await conn.execute(
             """
             SELECT thread_id, user_id, role, content, created_at
@@ -353,7 +382,7 @@ async def get_message_history(thread_id: str, user_id: str = None):
             WHERE thread_id = %s AND user_id = %s
             ORDER BY created_at ASC
             """,
-            thread_id, user_id
+            (thread_id, user_id)
         )
         messages = []
         for row in result.fetchall():
@@ -379,7 +408,7 @@ async def chat_endpoint(body: ChatRequest, request: Request, bg_tasks: Backgroun
     a2a_client = app.state.a2a_client
 
     thread_id = str(uuid4()) if body.thread_id is None else body.thread_id
-    user_id = current_user.user_id
+    user_id = current_user.get("user_id")
 
     # Validate user_id (in real app, verify user exists)
     if not user_id:
