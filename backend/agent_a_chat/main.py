@@ -1,7 +1,8 @@
-# agent_a_chat/main.py
+# backend/agent_a_chat/main.py
+
 import httpx
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, BackgroundTasks, HTTPException, Request
+from fastapi import FastAPI, BackgroundTasks, HTTPException, Request, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from typing import Optional
 from pydantic import BaseModel
@@ -9,12 +10,17 @@ import logging
 from psycopg_pool import AsyncConnectionPool
 from psycopg.rows import dict_row
 from uuid import uuid4
+from passlib.context import CryptContext
+from jose import JWTError, jwt
+from datetime import datetime, timedelta
+from fastapi.security import OAuth2PasswordBearer
 
 # LangGraph & Checkpointing
 from langchain.messages import HumanMessage
 from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
-from langgraph.store.postgres.aio import AsyncPostgresStore
-
+from langgraph.store.postgres.aio import AsyncPostgresStore, PostgresIndexConfig
+from langgraph.store.postgres.base import ANNIndexConfig
+from fastembed import TextEmbedding
 from .graph import get_llm, create_chat_graph
 
 # A2A SDK
@@ -36,6 +42,54 @@ from a2a.utils.constants import (
 from shared.settings import get_settings
 from agent_a_chat.state import GraphContext, print_state
 
+# === AUTHENTICATION ===
+SECRET_KEY = "your-super-secret-key"  # In production, use environment variable
+ALGORITHM = "HS256"
+ACCESS_TOKEN_EXPIRE_MINUTES = 30
+
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/login")
+
+# === JWT Helper Functions ===
+
+
+def verify_password(plain_password: str, hashed_password: str) -> bool:
+    return pwd_context.verify(plain_password, hashed_password)
+
+
+def get_password_hash(password: str) -> str:
+    return pwd_context.hash(password)
+
+
+def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
+    to_encode = data.copy()
+    expire = datetime.utcnow() + (expires_delta or timedelta(minutes=15))
+    to_encode.update({"exp": expire})
+    return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+
+# === User Model (for DB) ===
+
+
+class User(BaseModel):
+    email: str
+    password: str
+
+# === Auth Schemas ===
+
+
+class Token(BaseModel):
+    access_token: str
+    token_type: str = "bearer"
+
+
+class TokenData(BaseModel):
+    user_id: Optional[str] = None
+
+# === Auth Routes ===
+# We'll add these to the app later
+
+
+# === Database Setup ===
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
@@ -88,9 +142,7 @@ async def lifespan(app: FastAPI):
                             indent=2, exclude_none=True
                         )
                     )
-                    final_agent_card_to_use = (
-                        _extended_card  # Update to use the extended card
-                    )
+                    final_agent_card_to_use = _extended_card
                     logger.info(
                         '\nUsing AUTHENTICATED EXTENDED agent card for client initialization.'
                     )
@@ -117,8 +169,7 @@ async def lifespan(app: FastAPI):
             agent_card=final_agent_card_to_use,
         )
 
-        # Initialize the connection pool using 'async with'
-        # This automatically handles pool.open() and pool.close()
+        # Initialize the connection pool
         async with AsyncConnectionPool(
             s.postgres_connection_string,
             max_size=10,
@@ -126,21 +177,33 @@ async def lifespan(app: FastAPI):
         ) as pool:
 
             checkpointer = AsyncPostgresSaver(pool)
-            store = AsyncPostgresStore(pool)
+            embeddings = TextEmbedding(model_name="BAAI/bge-small-en-v1.5")
+            store = AsyncPostgresStore(
+                pool,
+                index=PostgresIndexConfig(
+                    dims=384,
+                    embed=embeddings,
+                    fields=["content"],
+                    ann_index_config=ANNIndexConfig(kind="hnsw"),
+                    distance_type="cosine"
+                )
+            )
 
             await checkpointer.setup()
             await store.setup()
 
-            dependencies = GraphContext(
+            context = GraphContext(
                 logger=logger,
-                llm=get_llm(s.hf_token)
+                llm=get_llm(s.hf_token),
+                user_id=None
             )
 
+            app.state.db_pool = pool
             app.state.chat_graph = create_chat_graph(
                 checkpointer=checkpointer, store=store)
             app.state.checkpointer = checkpointer
             app.state.store = store
-            app.state.dependencies = dependencies
+            app.state.context = context
 
             logger.info(
                 "Mindfulness API is ready. Database checkpointer and store initialized.")
@@ -177,23 +240,137 @@ class ChatResponse(BaseModel):
     transcript: Optional[str] = None
 
 
-class TaskStatusResponse(BaseModel):
-    status: str
-    answer: Optional[str] = None
-    transcript: Optional[str] = None
-
-
 class SynthesisResult(BaseModel):
     thread_id: str
     answer: str
     transcript: str
     status: str = "completed"
 
-# --- Routes ---
+# === Message Saving Helper ===
+
+
+async def save_message(thread_id: str, user_id: str, role: str, content: str):
+    if not app.state or not app.state.db_pool:
+        logger.warning("Database pool not available. Cannot save message.")
+        return
+    async with app.state.db_pool.get() as conn:
+        try:
+            await conn.execute(
+                """
+                INSERT INTO messages (thread_id, user_id, role, content, created_at)
+                VALUES (%s, %s, %s, %s, NOW())
+                """,
+                thread_id, user_id, role, content
+            )
+            logger.debug(f"Saved message: {role} -> {content[:50]}...")
+        except Exception as e:
+            logger.error(f"Failed to save message: {e}", exc_info=True)
+
+# === Auth Routes ===
+
+
+@app.post("/auth/register")
+async def register(user: User):
+    """
+    Register a new user.
+    """
+    # Check if user already exists
+    async with app.state.db_pool.get() as conn:
+        result = await conn.execute(
+            "SELECT id FROM users WHERE email = %s",
+            user.email
+        )
+        if result.fetchone():
+            raise HTTPException(
+                status_code=400, detail="Email already registered")
+
+    # Hash password
+    hashed_password = get_password_hash(user.password)
+
+    # Insert user
+    await app.state.db_pool.get().execute(
+        """
+        INSERT INTO users (email, password_hash)
+        VALUES (%s, %s)
+        """,
+        user.email, hashed_password
+    )
+
+    # Return success (no user_id yet — in real app, return user_id)
+    return {"message": "User registered successfully", "email": user.email}
+
+
+@app.post("/auth/login")
+async def login(user: User):
+    """
+    Login user and return JWT token.
+    """
+    async with app.state.db_pool.get() as conn:
+        result = await conn.execute(
+            "SELECT id, email, password_hash FROM users WHERE email = %s",
+            user.email
+        )
+        row = result.fetchone()
+        if not row:
+            raise HTTPException(status_code=400, detail="Invalid credentials")
+
+        # Verify password
+        if not verify_password(user.password, row["password_hash"]):
+            raise HTTPException(status_code=400, detail="Invalid credentials")
+
+        # Create token
+        token = create_access_token(data={"sub": row["id"]})
+        return {"access_token": token, "token_type": "bearer"}
+
+
+@app.get("/users/me")
+async def get_current_user(token: str = Depends(oauth2_scheme)):
+    """
+    Get current authenticated user.
+    """
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        user_id: str = payload.get("sub")
+        if user_id is None:
+            raise HTTPException(status_code=401, detail="Invalid token")
+        return {"user_id": user_id}
+    except JWTError:
+        raise HTTPException(status_code=401, detail="Invalid token")
+
+# === Message History Endpoint ===
+
+
+@app.get("/v1/mindfulness/messages/history/{thread_id}")
+async def get_message_history(thread_id: str, user_id: str = None):
+    """
+    Retrieve conversation history for a thread.
+    """
+    async with app.state.db_pool.get() as conn:
+        result = await conn.execute(
+            """
+            SELECT thread_id, user_id, role, content, created_at
+            FROM messages
+            WHERE thread_id = %s AND user_id = %s
+            ORDER BY created_at ASC
+            """,
+            thread_id, user_id
+        )
+        messages = []
+        for row in result.fetchall():
+            messages.append({
+                "thread_id": row["thread_id"],
+                "user_id": row["user_id"],
+                "role": row["role"],
+                "content": row["content"],
+                "created_at": row["created_at"]
+            })
+    return {"thread_id": thread_id, "messages": messages}
+
+# === Routes (unchanged except for user_id handling) ===
 
 
 @app.post("/v1/mindfulness/chat", response_model=ChatResponse)
-async def chat_endpoint(body: ChatRequest, request: Request, bg_tasks: BackgroundTasks):
+async def chat_endpoint(body: ChatRequest, request: Request, bg_tasks: BackgroundTasks, current_user: TokenData = Depends(get_current_user)):
     """
     Handles user messages, advances the fast chat graph, and evaluates
     the patience loop to trigger the heavy-compute synthesis graph.
@@ -202,14 +379,20 @@ async def chat_endpoint(body: ChatRequest, request: Request, bg_tasks: Backgroun
     a2a_client = app.state.a2a_client
 
     thread_id = str(uuid4()) if body.thread_id is None else body.thread_id
-    user_id = str(uuid4()) if body.user_id is None else body.user_id
+    user_id = current_user.user_id
 
-    # LangGraph config requires a thread_id to persist state across turns
+    # Validate user_id (in real app, verify user exists)
+    if not user_id:
+        raise HTTPException(status_code=400, detail="User ID is required")
+
+    context = request.app.state.context
+    context.user_id = user_id
+
     config = {"configurable": {"thread_id": thread_id}}
 
     try:
         # Advance the graph state with the new user message
-        state = await graph.ainvoke({"messages": [HumanMessage(content=body.message)]}, config=config, context=request.app.state.dependencies)
+        state = await graph.ainvoke({"messages": [HumanMessage(content=body.message)]}, config=config, context=context)
 
         logger.info(f"final_state: {print_state(state)}")
 
@@ -229,17 +412,22 @@ async def chat_endpoint(body: ChatRequest, request: Request, bg_tasks: Backgroun
                         role=Role('user'),
                         parts=[
                             Part(root=TextPart(text=summary)),
-                            Part(root=DataPart(data={"thread_id": thread_id}))
+                            Part(root=DataPart(
+                                data={"thread_id": thread_id, "user_id": user_id}))
                         ])
                 ))
             )
             await graph.aupdate_state(config, {"synth_status": "in_progress"})
 
-        # Extract the AI's latest reply (assuming standard LangGraph message list)
+        # Extract the AI's latest reply
         last_message = state["messages"][-1]
         reply = last_message.content
         answer = last_message.additional_kwargs.get("answer")
         transcript = last_message.additional_kwargs.get("transcript")
+
+        # Save user and AI messages
+        await save_message(thread_id, user_id, "user", body.message)
+        await save_message(thread_id, user_id, "ai", reply)
 
         return ChatResponse(
             reply=reply,
@@ -284,9 +472,6 @@ async def handle_synthesis_complete(result: SynthesisResult, request: Request):
 
     logger.info(
         f"Received transcript for thread {thread_id}: {transcript[:100]}...")
-
-    # Notify the frontend via WebSocket
-    # await notify_user_via_websocket(thread_id, "I've finished preparing your meditation. Ready to start?")
 
     return {"status": "acknowledged"}
 

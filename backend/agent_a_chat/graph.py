@@ -9,6 +9,9 @@ from langchain.messages import AIMessage
 from .nodes.node_user_input_agent import node_user_input
 from .nodes.node_conversation_agent import node_conversation
 from .nodes.node_proactive_engagement import node_proactive_engagement
+from .nodes.node_hydrate import node_hydrate
+from .nodes.node_manage_memory import node_manage_memory
+from .nodes.node_summary import summarization_node
 from .state import ChatState, GraphContext
 
 
@@ -55,11 +58,13 @@ def create_chat_graph(checkpointer: BaseCheckpointSaver = None, store: BaseStore
     Evaluates context and flags when to trigger the Synthesis Agent.
     """
 
-    workflow = StateGraph(ChatState)
+    workflow = StateGraph(ChatState, context_schema=GraphContext)
 
     # We pass llm to nodes via partials or adjust your node implementations to accept it
     workflow.add_node("user", node_user_input)
+    workflow.add_node("hydrate", node_hydrate)
     workflow.add_node("conversation", node_conversation)
+    workflow.add_node("manage_memory", node_manage_memory)
     workflow.add_node("evaluate_patience", should_trigger_synth)
     workflow.add_node("proactive_engagement", node_proactive_engagement)
     workflow.add_node("deliver_transcript", node_deliver_transcript)
@@ -79,9 +84,12 @@ def create_chat_graph(checkpointer: BaseCheckpointSaver = None, store: BaseStore
 
     workflow.add_conditional_edges("user", route_after_user, {
         "deliver_transcript": "deliver_transcript",
-        "safe_to_proceed": "conversation",
+        "safe_to_proceed": "hydrate",
         "end": END
     })
+
+    workflow.add_edge("hydrate", "conversation")
+    workflow.add_edge("conversation", "manage_memory")
 
     def route_after_conversation(state: ChatState) -> Literal["proactive_engagement", "evaluate_patience"]:
         if state.get("is_synthesis_ready") and not state.get("awaiting_confirmation"):
@@ -89,7 +97,7 @@ def create_chat_graph(checkpointer: BaseCheckpointSaver = None, store: BaseStore
         return "evaluate_patience"
 
     workflow.add_conditional_edges(
-        "conversation",
+        "manage_memory",
         route_after_conversation,
         {
             "proactive_engagement": "proactive_engagement",

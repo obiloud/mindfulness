@@ -11,10 +11,12 @@ import json
 class GraphContext:
     logger: logging.Logger
     llm: ChatHuggingFace
+    user_id: Optional[str]
 
 
 class ChatState(TypedDict):
     messages: Annotated[List[AnyMessage], add_messages]
+    long_term_memory: Optional[str]
     turn_count: int
     info_score: float
     summary: str
