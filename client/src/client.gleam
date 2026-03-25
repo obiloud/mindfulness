@@ -3,7 +3,7 @@ import api.{type AgentResponse, send_message}
 import gleam/string
 import meditation
 
-import auth.{AuthSuccess, LoginScreen}
+import auth.{AuthSuccess}
 import cartesia.{Connected}
 import dom
 import gleam/dynamic/decode
@@ -79,7 +79,7 @@ fn init(_flags) -> #(Model, Effect(Msg)) {
       pending_chunks: [],
       current_context_index: 0,
     )
-  let #(auth, _) = auth.auth_init()
+  let #(auth, eff) = auth.auth_init()
   #(
     Model(
       chat_history: [],
@@ -92,10 +92,10 @@ fn init(_flags) -> #(Model, Effect(Msg)) {
       tts: tts,
       answer: None,
       transcript: None,
-      auth: auth.AuthState(..auth, auth_screen: Some(LoginScreen)),
+      auth: auth,
       access_token: None,
     ),
-    effect.none(),
+    effect.map(eff, AuthMsg),
   )
 }
 

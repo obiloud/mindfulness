@@ -2,6 +2,7 @@
 
 import api.{type AuthResponse, login, register}
 import gleam/option.{type Option, None, Some}
+import local_storage
 import lustre/attribute
 import lustre/effect.{type Effect}
 import lustre/element.{type Element}
@@ -42,10 +43,21 @@ pub fn auth_init() -> #(AuthState, Effect(AuthMsg)) {
     AuthState(
       email: "",
       password: "",
-      auth_screen: None,
+      auth_screen: Some(LoginScreen),
       validation_error: None,
     ),
-    effect.none(),
+    effect.from(fn(dispatch) {
+      let access_token = local_storage.get_item("access_token")
+      case echo access_token {
+        Some(token) ->
+          dispatch(
+            OnResult(
+              Ok(api.AuthResponse(access_token: token, token_type: "Bearer")),
+            ),
+          )
+        None -> Nil
+      }
+    }),
   )
 }
 
@@ -110,7 +122,14 @@ pub fn update_auth_state(
 
     OnResult(Ok(response)) -> #(
       AuthState(..state, auth_screen: None, validation_error: None),
-      effect.from(fn(dispatch) { dispatch(AuthSuccess(response.access_token)) }),
+      effect.from(fn(dispatch) {
+        let success =
+          local_storage.set_item("access_token", response.access_token)
+        case echo success {
+          True -> dispatch(AuthSuccess(response.access_token))
+          False -> Nil
+        }
+      }),
     )
 
     OnResult(Error(_)) -> #(
