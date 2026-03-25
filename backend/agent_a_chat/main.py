@@ -33,7 +33,6 @@ from a2a.types import (
     PushNotificationConfig,
     Message, Role, Part, TextPart, DataPart
 )
-from a2a.utils import get_data_parts
 from a2a.utils.constants import (
     AGENT_CARD_WELL_KNOWN_PATH,
     EXTENDED_AGENT_CARD_PATH,
@@ -41,6 +40,7 @@ from a2a.utils.constants import (
 
 from shared.settings import get_settings
 from agent_a_chat.state import GraphContext, print_state
+import traceback
 
 # === AUTHENTICATION ===
 SECRET_KEY = "your-super-secret-key"  # In production, use environment variable
@@ -212,8 +212,7 @@ async def lifespan(app: FastAPI):
 
             context = GraphContext(
                 logger=logger,
-                llm=get_llm(s.hf_token),
-                user_id=None
+                llm=get_llm(s.hf_token)
             )
 
             app.state.db_pool = pool
@@ -320,7 +319,8 @@ async def register(user: User):
                 )
 
             # Create token
-            token = create_access_token(data={"sub": new_user_id})
+            token = create_access_token(
+                data={"sub": new_user_id}, expires_delta=timedelta(days=1))
             return {"access_token": token, "token_type": "bearer"}
     except Exception as e:
         raise HTTPException(
@@ -348,7 +348,8 @@ async def login(user: User):
             raise HTTPException(status_code=400, detail="Invalid credentials")
 
         # Create token
-        token = create_access_token(data={"sub": str(row["id"])})
+        token = create_access_token(
+            data={"sub": str(row["id"])}, expires_delta=timedelta(days=1))
         return {"access_token": token, "token_type": "bearer"}
 
 
@@ -410,14 +411,13 @@ async def chat_endpoint(body: ChatRequest, request: Request, bg_tasks: Backgroun
     thread_id = str(uuid4()) if body.thread_id is None else body.thread_id
     user_id = current_user.get("user_id")
 
+    context = app.state.context
+
     # Validate user_id (in real app, verify user exists)
     if not user_id:
         raise HTTPException(status_code=400, detail="User ID is required")
 
-    context = request.app.state.context
-    context.user_id = user_id
-
-    config = {"configurable": {"thread_id": thread_id}}
+    config = {"configurable": {"thread_id": thread_id, "user_id": user_id}}
 
     try:
         # Advance the graph state with the new user message
@@ -467,6 +467,7 @@ async def chat_endpoint(body: ChatRequest, request: Request, bg_tasks: Backgroun
         )
 
     except Exception as e:
+        traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
 
 

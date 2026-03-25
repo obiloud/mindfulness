@@ -67,6 +67,8 @@ async def node_conversation(state: ChatState, runtime: Runtime[GraphContext]) ->
     # Trim the messages to keep only the most relevant ones
     trimmed_messages = get_trimmed_messages(state)
 
+    logger.info(f"TRIMMED MESSAGES: {trimmed_messages}")
+
     # Create a prompt that combines the entire conversation history
     # This prompt asks the LLM to evaluate if the conversation is mature enough
     maturity_prompt = inspect.cleandoc("""
@@ -94,6 +96,13 @@ async def node_conversation(state: ChatState, runtime: Runtime[GraphContext]) ->
         
         Conversation history:
         {conversation_history}
+                                       
+        ### OUTPUT FORMAT:
+        You must return a valid JSON object ONLY. Do not include any preamble.
+        {{
+            "summary": str,
+            "info_score": float
+        }}
     """).strip()
 
     clarification_prompt = inspect.cleandoc("""

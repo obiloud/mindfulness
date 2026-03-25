@@ -41,18 +41,6 @@ def classify_safety(llm: ChatHuggingFace, text: str) -> str:
     return result.strip().lower() if result else "safe"
 
 
-def retrieve_from_store(query: str, store: BaseStore) -> List[Dict[str, Any]]:
-    """Retrieve relevant long-term memory entries using semantic search."""
-    # This would use the store's retrieval capabilities
-    # For now, we'll simulate a basic retrieval
-    if not query:
-        return []
-
-    # In a real implementation, this would use the store's vector search capabilities
-    # to find relevant past conversations or memories
-    return store.search(query, k=3)  # Return top 3 results
-
-
 def node_user_input(state: ChatState, runtime: Runtime[GraphContext]) -> ChatState:
     """
     Process user input with safety classification and long-term memory retrieval.

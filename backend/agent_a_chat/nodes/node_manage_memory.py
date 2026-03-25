@@ -1,5 +1,10 @@
-from typing import Any, Dict, Optional
-from typing import Any, Dict
+from typing import List, Optional
+from enum import Enum
+from typing import Optional, List
+from langchain_core.language_models.chat_models import BaseChatModel
+from langchain_core.prompts import ChatPromptTemplate
+from pydantic import BaseModel, Field, field_validator
+from typing import Optional
 from ..state import ChatState, GraphContext
 from langgraph.runtime import Runtime
 from langgraph.config import RunnableConfig
@@ -11,123 +16,146 @@ async def node_manage_memory(state: ChatState, runtime: Runtime[GraphContext], c
     """
     llm = runtime.context.llm
 
-    # 1. Get user ID from config to ensure we save to the right drawer
     user_id = config["configurable"].get("user_id")
-    namespace = ("memories", user_id)
+    namespace = ("preferences", user_id)
 
-    # 2. Look at the last message.
-    # Usually, you'd use a small LLM call here to "extract_preferences"
     last_msg = state["messages"][-1].content
 
-    # Pseudo-logic: If LLM identifies a preference (e.g., "I hate cilantro")
-    extracted_preference = extract_facts_with_llm(llm, last_msg)
+    item = await runtime.store.aget(namespace, "voice_blueprint")
+    existing_blueprint = item.value if item else None
 
-    if extracted_preference:
-        # 3. Store the fact permanently
-        # store.put(namespace, key, value)
-        await runtime.store.put(namespace, "food_preferences", {"dislikes": "cilantro"})
+    voice_blueprint = await update_voice_blueprint(llm, last_msg, existing_blueprint)
 
-    return {"messages": []}  # No change to message history needed
+    if voice_blueprint:
+        await runtime.store.aput(namespace, "voice_blueprint", voice_blueprint)
+
+    return {}  # No change to message history needed
 
 
-def extract_facts_with_llm(llm, message: str) -> Optional[Dict[str, Any]]:
+# ==========================================
+# 1. Core Data Models
+# ==========================================
+
+
+class VoiceGender(str, Enum):
+    MALE = "male"
+    FEMALE = "female"
+    NEUTRAL = "neutral"
+    NO_PREFERENCE = "no_preference"
+
+
+class VoiceAge(str, Enum):
+    YOUNG = "young"     # Energetic, bright
+    MATURE = "mature"   # Grounded, authoritative
+    ELDER = "elder"     # Wise, slow, textured
+
+
+class VoiceTexture(str, Enum):
+    SOFT = "soft"
+    DEEP = "deep"
+    BREATHY = "breathy"
+    CRISP = "crisp"
+    WARM = "warm"
+
+
+class VoiceBlueprint(BaseModel):
+    """Semantic description of the user's ideal guide voice."""
+    gender: VoiceGender = Field(
+        default=VoiceGender.NO_PREFERENCE,
+        description="The preferred gender of the voice."
+    )
+    age: VoiceAge = Field(
+        default=VoiceAge.MATURE,
+        description="The perceived age or maturity of the voice."
+    )
+    textures: List[VoiceTexture] = Field(
+        default_factory=list,
+        description="Textural qualities like 'soft', 'warm', or 'deep' mentioned by the user."
+    )
+
+    @field_validator('textures', mode='before')
+    @classmethod
+    def filter_invalid_textures(cls, v):
+        if not isinstance(v, list):
+            return v
+        # Only keep items that actually exist in our Enum
+        allowed = {t.value for t in VoiceTexture}
+        return [item for item in v if item in allowed]
+
+# ==========================================
+# 2. Extraction Wrapper
+# ==========================================
+
+
+class VoiceBlueprintExtraction(BaseModel):
+    """Wrapper to safely determine if extraction was actually successful."""
+    has_voice_preference: bool = Field(
+        description="Set to True ONLY if the user explicitly mentions preferences related to voice gender, age, or tone/texture."
+    )
+    blueprint: Optional[VoiceBlueprint] = Field(
+        default=None,
+        description="The extracted voice blueprint. Leave null if has_voice_preference is False."
+    )
+
+# ==========================================
+# 3. Extraction Function
+# ==========================================
+
+
+async def update_voice_blueprint(
+    llm: BaseChatModel,
+    message: str,
+    existing_blueprint: Optional[dict] = None
+) -> VoiceBlueprint:
     """
-    Extract personal preferences from a user message using an LLM.
-
-    Args:
-        llm: The language model instance to use for analysis
-        message: The user message to analyze
-
-    Returns:
-        A dictionary of extracted preferences if found, otherwise None
+    Refines the voice blueprint by comparing the user's new message 
+    with the existing stored preferences.
     """
-    # Prompt template to guide the LLM to extract preferences
-    prompt = (
-        "Analyze the following message and extract personal preferences. "
-        "Return only a JSON object with the preferences in the format:\n"
-        "{\n"
-        "  \"food\": [\"favorite\", \"dislikes\"],\n"
-        "  \"colors\": [\"favorite\", \"dislikes\"],\n"
-        "  \"music\": [\"favorite\", \"dislikes\"],\n"
-        "  \"time_of_day\": [\"favorite\", \"dislikes\"],\n"
-        "  \"other\": [\"favorite\", \"dislikes\"]\n"
-        "}\n\n"
-        "If no preferences are mentioned, return an empty object.\n"
-        "Do not add any explanations or additional text.\n\n"
-        "Message: {message}\n"
-    ).format(message=message)
 
-    # Call the LLM to get a response
-    try:
-        # In a real implementation, this would call the actual LLM API
-        # For now, we'll simulate the LLM response with a simple heuristic
-        # In production, this would be a real LLM call via the llm interface
+    # Format the existing state for the LLM
+    current_state_str = "None"
+    if existing_blueprint:
+        if isinstance(existing_blueprint, dict):
+            clean_data = {k: v for k,
+                          v in existing_blueprint.items() if v is not None}
 
-        # Simulate LLM response - in real implementation, this would be:
-        # response = llm.invoke([HumanMessage(content=prompt)])
+            if "textures" in clean_data and isinstance(clean_data["textures"], list):
+                allowed = {t.value for t in VoiceTexture}
+                clean_data["textures"] = [
+                    t for t in clean_data["textures"] if t in allowed]
+            existing_blueprint = VoiceBlueprint(**clean_data)
 
-        # Heuristic-based extraction for demonstration
-        preferences = {}
+        current_state_str = existing_blueprint.model_dump_json(indent=2)
+        current_state_str = current_state_str.replace(
+            "{", "{{").replace("}", "}}")
 
-        # Extract food preferences
-        if "food" in message.lower() or "like" in message.lower() or "dislike" in message.lower():
-            food_keywords = ["favorite", "like", "love",
-                             "hate", "dislike", "don't like", "can't stand"]
-            food_matches = []
-            for kw in food_keywords:
-                if kw in message.lower():
-                    food_matches.append(kw)
-            if food_matches:
-                preferences["food"] = food_matches
+    allowed_textures = [t.value for t in VoiceTexture]
 
-        # Extract color preferences
-        if "color" in message.lower() or "color" in message.lower():
-            color_keywords = ["favorite", "like", "love",
-                              "hate", "dislike", "dislike", "can't stand"]
-            color_matches = []
-            for kw in color_keywords:
-                if kw in message.lower():
-                    color_matches.append(kw)
-            if color_matches:
-                preferences["colors"] = color_matches
+    system_prompt = (
+        "You are a state-management assistant for an AI voice system.\n"
+        f"CURRENT VOICE PREFERENCES:\n{current_state_str}\n\n"
+        "USER INPUT: \"{message}\"\n\n"
+        "TASK:\n"
+        "1. Analyze the USER INPUT for any changes to voice gender, age, or texture.\n"
+        "2. If the user specifies a new attribute (e.g., 'more breathy'), UPDATE the current preferences.\n"
+        "3. If the user contradicts a current preference, REPLACE it.\n"
+        "4. Keep all other existing preferences UNCHANGED if they are not mentioned.\n"
+        "5. Return the full, updated VoiceBlueprint object."
 
-        # Extract music preferences
-        if "music" in message.lower() or "sound" in message.lower():
-            music_keywords = ["favorite", "like", "love",
-                              "hate", "dislike", "dislike", "can't stand"]
-            music_matches = []
-            for kw in music_keywords:
-                if kw in message.lower():
-                    music_matches.append(kw)
-            if music_matches:
-                preferences["music"] = music_matches
+        f"IMPORTANT: For 'textures', you MUST ONLY use these exact values: {allowed_textures}. "
+        "Do not use synonyms like 'soothing' or 'calming'. Map them to the closest allowed value."
+    )
 
-        # Extract time of day preferences
-        if "day" in message.lower() or "night" in message.lower():
-            time_keywords = ["favorite", "like", "love",
-                             "hate", "dislike", "dislike", "can't stand"]
-            time_matches = []
-            for kw in time_keywords:
-                if kw in message.lower():
-                    time_matches.append(kw)
-            if time_matches:
-                preferences["time_of_day"] = time_matches
+    prompt = ChatPromptTemplate.from_messages([
+        ("system", system_prompt),
+        ("human", "{message}")
+    ])
 
-        # Extract other preferences
-        if any(k in message.lower() for k in ["prefer", "like", "love", "hate", "dislike"]):
-            other_keywords = ["prefer", "like", "love",
-                              "hate", "dislike", "can't stand"]
-            other_matches = []
-            for kw in other_keywords:
-                if kw in message.lower():
-                    other_matches.append(kw)
-            if other_matches:
-                preferences["other"] = other_matches
+    # We use the full VoiceBlueprint here, not the extraction wrapper,
+    # because we want the LLM to always return a complete state.
+    structured_llm = llm.with_structured_output(
+        VoiceBlueprint, method="json_schema")
 
-        # Return only if we have actual preferences
-        return preferences if preferences else None
-
-    except Exception as e:
-        # Log error (in production)
-        # print(f"Error extracting preferences: {e}")
-        return None
+    # The LLM now returns the "New Truth"
+    updated_blueprint = await (prompt | structured_llm).ainvoke({"message": message})
+    return updated_blueprint

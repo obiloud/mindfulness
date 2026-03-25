@@ -11,7 +11,6 @@ import json
 class GraphContext:
     logger: logging.Logger
     llm: ChatHuggingFace
-    user_id: Optional[str]
 
 
 class ChatState(TypedDict):
