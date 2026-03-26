@@ -8,7 +8,7 @@ async def node_hydrate(state: ChatState,  runtime: Runtime[GraphContext], config
     Fetches stored facts and formats them for the LLM.
     """
     user_id = config["configurable"].get("user_id")
-    namespace = ("memories", user_id)
+    namespace = ("preferences", user_id)
 
     # Search the store for all memories in this user's namespace
     # You can search by semantic similarity or just get all keys

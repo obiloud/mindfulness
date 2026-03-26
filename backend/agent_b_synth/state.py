@@ -1,6 +1,6 @@
 from typing import TypedDict
 from dataclasses import dataclass
-from langchain_huggingface import ChatHuggingFace
+from langchain.chat_models import BaseChatModel
 import logging
 import json
 
@@ -8,7 +8,7 @@ import json
 @dataclass
 class GraphContext:
     logger: logging.Logger
-    llm: ChatHuggingFace
+    llm: BaseChatModel
 
 
 class SynthState(TypedDict):

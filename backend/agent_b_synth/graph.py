@@ -11,8 +11,10 @@ from .nodes.node_supervisor_agent import node_reflection
 
 from .state import SynthState
 
+from langchain_ollama import ChatOllama
 
-def get_heavy_llm() -> ChatHuggingFace:
+
+def _get_heavy_llm() -> ChatHuggingFace:
     """Create the heavy reflection model for Agent B."""
     hf_token = os.getenv("HUGGINGFACEHUB_API_TOKEN")
     repo_id = "meta-llama/Meta-Llama-3-70B-Instruct"  # Or Qwen for synthesis
@@ -24,6 +26,14 @@ def get_heavy_llm() -> ChatHuggingFace:
         huggingfacehub_api_token=hf_token,
     )
     return ChatHuggingFace(llm=llm)
+
+
+def get_heavy_llm() -> ChatOllama:
+    llm = ChatOllama(
+        model="qwen3-long:latest",
+        temperature=0.4
+    )
+    return llm
 
 
 def build_synth_graph():

@@ -1,7 +1,8 @@
+FROM ghcr.io/astral-sh/uv:latest AS uv_builder
+
 FROM python:3.11-slim
 
-
-COPY --from=ghcr.io/astral-sh/uv:latest /uv /bin/uv
+COPY --from=uv_builder /uv /usr/local/bin/uv
 
 WORKDIR /app
 

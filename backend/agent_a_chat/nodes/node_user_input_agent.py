@@ -1,18 +1,17 @@
 # agents/user_input_agent.py
 
-from typing import List, Dict, Any
-from langchain_core.messages import HumanMessage, AIMessage, AnyMessage
+from langchain_core.messages import AIMessage
 from langchain_core.runnables import Runnable
 from langchain_core.prompts import PromptTemplate
 from langchain_core.output_parsers import StrOutputParser
 from langgraph.runtime import Runtime
-from langgraph.store.base import BaseStore
-from langchain_huggingface import ChatHuggingFace
+
+from langchain_core.language_models.chat_models import BaseChatModel
 
 from ..state import ChatState, GraphContext, print_state
 
 
-def create_safety_classifier(llm: ChatHuggingFace) -> Runnable:
+def create_safety_classifier(llm: BaseChatModel) -> Runnable:
     """Create an LLM-based safety classifier for detecting unsafe content."""
     # Prompt template for safety classification
     safety_prompt = PromptTemplate.from_template(
@@ -28,7 +27,7 @@ def create_safety_classifier(llm: ChatHuggingFace) -> Runnable:
     return safety_prompt | llm | StrOutputParser()
 
 
-def classify_safety(llm: ChatHuggingFace, text: str) -> str:
+def classify_safety(llm: BaseChatModel, text: str) -> str:
     """Classify text as safe or unsafe using an LLM."""
     if not text or not text.strip():
         return "safe"

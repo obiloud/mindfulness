@@ -1,4 +1,5 @@
 # agent_a_chat/graph.py
+import os
 from typing import Literal
 from langchain_huggingface import ChatHuggingFace, HuggingFaceEndpoint
 from langgraph.checkpoint.base import BaseCheckpointSaver
@@ -13,9 +14,13 @@ from .nodes.node_hydrate import node_hydrate
 from .nodes.node_manage_memory import node_manage_memory
 from .nodes.node_summary import summarization_node
 from .state import ChatState, GraphContext
+from shared.settings import get_settings
+from langchain_ollama import ChatOllama
+
+s = get_settings()
 
 
-def get_llm(hf_token: str) -> ChatHuggingFace:
+def _get_llm() -> ChatHuggingFace:
     """Create the fast chat model for Agent A."""
     repo_id = "meta-llama/Meta-Llama-3-70B-Instruct"
     llm = HuggingFaceEndpoint(
@@ -23,9 +28,17 @@ def get_llm(hf_token: str) -> ChatHuggingFace:
         task="text-generation",
         max_new_tokens=512,  # Shorter context for fast replies
         temperature=0.7,
-        huggingfacehub_api_token=hf_token,
+        huggingfacehub_api_token=s.hf_token,
     )
     return ChatHuggingFace(llm=llm)
+
+
+def get_llm() -> ChatOllama:
+    llm = ChatOllama(
+        model="qwen3-long:latest",
+        temperature=0.3
+    )
+    return llm
 
 
 def should_trigger_synth(state: ChatState) -> ChatState:

@@ -42,6 +42,8 @@ from shared.settings import get_settings
 from agent_a_chat.state import GraphContext, print_state
 import traceback
 
+os.environ["OLLAMA_HOST"] = "http://host.docker.internal:11434"
+
 # === AUTHENTICATION ===
 SECRET_KEY = "your-super-secret-key"  # In production, use environment variable
 ALGORITHM = "HS256"
@@ -212,7 +214,7 @@ async def lifespan(app: FastAPI):
 
             context = GraphContext(
                 logger=logger,
-                llm=get_llm(s.hf_token)
+                llm=get_llm()
             )
 
             app.state.db_pool = pool

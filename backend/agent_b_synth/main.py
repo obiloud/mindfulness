@@ -1,3 +1,4 @@
+import os
 import uvicorn
 from fastapi import FastAPI
 from a2a.server.apps import A2AFastAPIApplication
@@ -8,7 +9,9 @@ from a2a.server.tasks import InMemoryTaskStore
 from .agent_executor import PulseSynthExecutor
 from .agent_card import PULSE_SYNTH_CARD
 
-# 2. Set up the required A2A server components
+os.environ["OLLAMA_HOST"] = "http://host.docker.internal:11434"
+
+# Set up the required A2A server components
 task_store = InMemoryTaskStore()
 
 request_handler = DefaultRequestHandler(
@@ -16,13 +19,13 @@ request_handler = DefaultRequestHandler(
     task_store=task_store
 )
 
-# 3. Initialize the A2A FastAPI Wrapper
+# Initialize the A2A FastAPI Wrapper
 a2a_app = A2AFastAPIApplication(
     agent_card=PULSE_SYNTH_CARD,
     http_handler=request_handler
 )
 
-# 4. Attach the A2A routes to a standard FastAPI app
+# Attach the A2A routes to a standard FastAPI app
 app = FastAPI()
 a2a_app.add_routes_to_app(app)
 

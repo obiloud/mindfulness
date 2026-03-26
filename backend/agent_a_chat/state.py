@@ -2,7 +2,7 @@ from dataclasses import dataclass
 from typing import Annotated, TypedDict, Literal, Optional, List
 from langchain_core.messages import AnyMessage, messages_to_dict
 from langgraph.graph.message import add_messages
-from langchain_huggingface import ChatHuggingFace
+from langchain_core.language_models.chat_models import BaseChatModel
 import logging
 import json
 
@@ -10,7 +10,7 @@ import json
 @dataclass
 class GraphContext:
     logger: logging.Logger
-    llm: ChatHuggingFace
+    llm: BaseChatModel
 
 
 class ChatState(TypedDict):

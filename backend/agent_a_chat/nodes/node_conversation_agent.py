@@ -1,5 +1,4 @@
 import inspect
-import json
 from pydantic import BaseModel, Field
 from langchain_core.messages import (
     SystemMessage,
@@ -98,11 +97,13 @@ async def node_conversation(state: ChatState, runtime: Runtime[GraphContext]) ->
         {conversation_history}
                                        
         ### OUTPUT FORMAT:
-        You must return a valid JSON object ONLY. Do not include any preamble.
+        You MUST return a valid JSON object ONLY. Do not include any preamble.
+        ```
         {{
             "summary": str,
             "info_score": float
         }}
+        ```
     """).strip()
 
     clarification_prompt = inspect.cleandoc("""
@@ -136,10 +137,10 @@ async def node_conversation(state: ChatState, runtime: Runtime[GraphContext]) ->
     )
 
     eval_output = await structured_llm.ainvoke(maturity_message)
-    logger.info(f"evaluation: {json.dumps(eval_output, indent=2)}")
 
-    if isinstance(eval_output, list):
-        eval_output = eval_output[0]
+    logger.info(f"EVALUATION: {eval_output.model_dump_json()}")
+
+    eval_output = eval_output.model_dump()
 
     if not isinstance(eval_output, dict):
         eval_output = {

@@ -46,10 +46,9 @@ async def node_reflection(state: SynthState, runtime: Runtime[GraphContext]) -> 
         ReflectionOutput, method="json_schema")
     reflection = await structured_llm.ainvoke([SystemMessage(content=reflection_prompt)])
 
-    logger.info(f"reflection: {json.dumps(reflection, indent=2)}")
+    logger.info(f"reflection: {reflection.model_dump_json()}")
 
-    if isinstance(reflection, list):
-        reflection = reflection[0]
+    reflection = reflection.model_dump()
 
     if not isinstance(reflection, dict):
         reflection = {
