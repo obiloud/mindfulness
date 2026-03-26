@@ -9,8 +9,6 @@ from a2a.server.tasks import InMemoryTaskStore
 from .agent_executor import PulseSynthExecutor
 from .agent_card import PULSE_SYNTH_CARD
 
-os.environ["OLLAMA_HOST"] = "http://host.docker.internal:11434"
-
 # Set up the required A2A server components
 task_store = InMemoryTaskStore()
 

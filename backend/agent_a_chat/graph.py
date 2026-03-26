@@ -14,31 +14,6 @@ from .nodes.node_hydrate import node_hydrate
 from .nodes.node_manage_memory import node_manage_memory
 from .nodes.node_summary import summarization_node
 from .state import ChatState, GraphContext
-from shared.settings import get_settings
-from langchain_ollama import ChatOllama
-
-s = get_settings()
-
-
-def _get_llm() -> ChatHuggingFace:
-    """Create the fast chat model for Agent A."""
-    repo_id = "meta-llama/Meta-Llama-3-70B-Instruct"
-    llm = HuggingFaceEndpoint(
-        repo_id=repo_id,
-        task="text-generation",
-        max_new_tokens=512,  # Shorter context for fast replies
-        temperature=0.7,
-        huggingfacehub_api_token=s.hf_token,
-    )
-    return ChatHuggingFace(llm=llm)
-
-
-def get_llm() -> ChatOllama:
-    llm = ChatOllama(
-        model="qwen3-long:latest",
-        temperature=0.3
-    )
-    return llm
 
 
 def should_trigger_synth(state: ChatState) -> ChatState:

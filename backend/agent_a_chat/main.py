@@ -21,7 +21,8 @@ from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
 from langgraph.store.postgres.aio import AsyncPostgresStore, PostgresIndexConfig
 from langgraph.store.postgres.base import ANNIndexConfig
 from fastembed import TextEmbedding
-from .graph import get_llm, create_chat_graph
+from .graph import create_chat_graph
+from shared.model_factory import get_fast_ollama_llm, get_fast_hf_llm
 
 # A2A SDK
 from a2a.client import A2AClient, A2ACardResolver
@@ -41,8 +42,6 @@ from a2a.utils.constants import (
 from shared.settings import get_settings
 from agent_a_chat.state import GraphContext, print_state
 import traceback
-
-os.environ["OLLAMA_HOST"] = "http://host.docker.internal:11434"
 
 # === AUTHENTICATION ===
 SECRET_KEY = "your-super-secret-key"  # In production, use environment variable
@@ -100,7 +99,7 @@ s = get_settings()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    async with httpx.AsyncClient(timeout=60.0) as httpx_client:
+    async with httpx.AsyncClient(timeout=90.0) as httpx_client:
 
         resolver = A2ACardResolver(
             httpx_client=httpx_client,
@@ -212,9 +211,15 @@ async def lifespan(app: FastAPI):
             await checkpointer.setup()
             await store.setup()
 
+            llm = None
+            if s.inference_provider == "ollama":
+                llm = get_fast_ollama_llm()
+            elif s.inference_provider == "huggingface":
+                llm = get_fast_hf_llm()
+
             context = GraphContext(
                 logger=logger,
-                llm=get_llm()
+                llm=llm
             )
 
             app.state.db_pool = pool

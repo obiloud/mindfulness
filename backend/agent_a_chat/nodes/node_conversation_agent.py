@@ -66,7 +66,7 @@ async def node_conversation(state: ChatState, runtime: Runtime[GraphContext]) ->
     # Trim the messages to keep only the most relevant ones
     trimmed_messages = get_trimmed_messages(state)
 
-    logger.info(f"TRIMMED MESSAGES: {trimmed_messages}")
+    logger.debug(f"TRIMMED MESSAGES: {trimmed_messages}")
 
     # Create a prompt that combines the entire conversation history
     # This prompt asks the LLM to evaluate if the conversation is mature enough

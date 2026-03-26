@@ -6,7 +6,10 @@ from a2a.types import DataPart, TaskState, Part
 from a2a.utils import new_task, new_agent_text_message, get_data_parts
 
 from agent_b_synth.state import GraphContext
-from agent_b_synth.graph import get_heavy_llm, build_synth_graph
+from agent_b_synth.graph import build_synth_graph
+
+from shared.settings import get_settings
+from shared.model_factory import get_heavy_hf_llm, get_heavy_ollama_llm
 
 import logging
 import asyncio
@@ -19,8 +22,15 @@ logger = logging.getLogger(__name__)
 class PulseSynthExecutor(AgentExecutor):
     def __init__(self):
         super().__init__()
+
+        llm = None
+        if get_settings().inference_provider == "ollama":
+            llm = get_heavy_ollama_llm()
+        elif get_settings().inference_provider == "huggingface":
+            llm = get_heavy_hf_llm()
+
         self.dependencies = GraphContext(
-            llm=get_heavy_llm(),
+            llm=llm,
             logger=logger
         )
         self.synth_graph = build_synth_graph()
