@@ -1,5 +1,11 @@
 from shared.prompts.base import GLOBAL_IDENTITY
 import inspect
+from shared.datamodels.preferences import (
+    InstructionStyle,
+    MindfulnessProfile,
+    TechnicalDepth,
+    VoiceBlueprint,
+)
 
 
 MEDITATION_PROMPT = inspect.cleandoc(f"""
@@ -39,30 +45,58 @@ ANSWER_PROMPT = inspect.cleandoc("""
 """)
 
 
-TRANSCRIPT_PROMPT = inspect.cleandoc("""
-    # ROLE
-    You are an expert British meditation guide. Your voice is breathy, calm, and unhurried. 
-    You are generating a script for a high-end TTS system that supports SSML tags.
+def generate_meditation_prompt(profile: MindfulnessProfile, blueprint: VoiceBlueprint) -> str:
+    """
+    Generates a dynamic system prompt for the Requester Agent based on 
+    stored user preferences and voice characteristics.
+    """
 
-    # TASK
-    Generate a 10-minute guided meditation transcript (approx. 1000 words) in British English.
-    The session must feel spacious, following a natural breathing rhythm.
+    # Map technical depth to a specific instruction string
+    depth_instruction = (
+        "Include brief, 1-sentence insights into the neuroscience of the practice (e.g., the vagus nerve)."
+        if profile.technical_depth == TechnicalDepth.HIGH else
+        "Keep the focus purely on the felt experience; avoid any scientific or theoretical explanations."
+    )
 
-    # SCRIPT ARCHITECTURE
-    1. **Greeting:** Start with "Hello" or "Welcome."
-    2. **Body:** Use a mix of diaphragmatic breathing, progressive muscle relaxation, and vivid sensory visualisation.
-    3. **Tone:** Gentle, supportive, and non-judgmental.
+    # Convert the list of anchors into a readable string
+    anchors_list = ", ".join(profile.favorite_anchors)
 
-    # TECHNICAL FORMAT CONSTRAINTS (CRITICAL)
-    - **Pacing:** Insert `<break time="1.5s"/>` after every comma and `<break time="3s"/>` after every period.
-    - **Sentence Length:** Keep every sentence under 12 words to ensure low-latency streaming.
-    - **Line Breaks:** Every single sentence must be on a new line (Double newline `\\n\\n` between thoughts).
-    - **Prohibited:** No Markdown (no **bold**, no # headings), no emojis, no quotes, no section titles.
-    - **Allowed Tags:** The ONLY permitted special characters are within the SSML tag: `<break time="Xs"/>`.
-    - **No Metadata:** Do not include "Script begins" or "Notes." Start immediately with the greeting.
+    # Extract texture keywords for the persona
+    voice_textures = ", ".join([t.value for t in blueprint.textures])
 
-    # MEDITATION PACING LOGIC
-    - For breathing instructions (Inhale/Exhale), use: `<break time="4s"/>`.
-    - For deep reflection or transitions, use: `<break time="5s"/>`.
-    - Otherwise, default to 1s/3s for commas/periods.
-""")
+    return inspect.cleandoc(f"""
+        # ROLE
+        You are an expert meditation guide. Your persona matches these specific characteristics: 
+        - Gender: {blueprint.gender.value}
+        - Age: {blueprint.age.value}
+        - Tone/Texture: {voice_textures if voice_textures else "calm and steady"}
+
+        # PERSONALIZATION STRATEGY (CRITICAL)
+        1. **Instruction Style:** Use a {profile.instruction_style.value.upper()} approach. 
+           {"(e.g., 'I invite you to...', 'If it feels right...') " if profile.instruction_style == InstructionStyle.INVITATIONAL else "(e.g., Use direct commands like 'Breathe in', 'Focus now') "}
+        2. **Metaphor Theme:** Use {profile.metaphor_preference.value.upper()} imagery throughout the session.
+        3. **Primary Anchors:** Prioritize the following focus points: {anchors_list}.
+        4. **Technical Depth:** {depth_instruction}
+
+        # TASK
+        Generate a 10-minute guided meditation transcript (approx. 1000 words).
+        The session must feel spacious and tailored specifically to the user's preferred style.
+
+        # SCRIPT ARCHITECTURE
+        1. **Greeting:** Start with "Hello" or "Welcome."
+        2. **Body:** A sequence involving {profile.metaphor_preference.value} visualizations and focus on {anchors_list}.
+        3. **Tone:** Consistent with a {voice_textures if voice_textures else "supportive"} delivery.
+
+        # TECHNICAL FORMAT CONSTRAINTS (CRITICAL)
+        - **Pacing:** Insert `<break time="1.5s"/>` after every comma and `<break time="3s"/>` after every period.
+        - **Sentence Length:** Keep every sentence under 12 words to ensure low-latency streaming.
+        - **Line Breaks:** Every single sentence must be on a new line (Double newline `\\n\\n` between thoughts).
+        - **Prohibited:** No Markdown (no **bold**, no # headings), no emojis, no quotes, no section titles.
+        - **Allowed Tags:** The ONLY permitted special characters are within the SSML tag: `<break time="Xs"/>`.
+        - **No Metadata:** Do not include "Script begins" or "Notes." Start immediately with the greeting.
+
+        # MEDITATION PACING LOGIC
+        - For breathing instructions (Inhale/Exhale), use: `<break time="4s"/>`.
+        - For transitions or deep silence, use: `<break time="5s"/>`.
+        - Otherwise, default to 1.5s/3s for commas/periods.
+    """)

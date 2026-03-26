@@ -31,6 +31,8 @@ services:
     build:
       context: .
       dockerfile: ./backend/agent_b_synth/Dockerfile
+    volumes:
+      - ./fastembed_cache:/app/model_cache
     container_name: pulse-synth-agent
     develop:
       watch:

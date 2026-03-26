@@ -113,7 +113,7 @@ def create_heavy_ollama_llm() -> MindfulnessChatModel:
     """Create an Ollama LLM for use with Qwen3-long model."""
     return MindfulnessChatModel({
         'type': 'ollama',
-        'model_name': 'qwen3-long:latest',
+        'model_name': 'llama3.1:8b',
         'max_new_tokens': 2048,
         'temperature': 0.3
     })
