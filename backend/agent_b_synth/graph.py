@@ -12,20 +12,6 @@ from .nodes.node_supervisor_agent import node_reflection
 from .state import SynthState
 
 
-def get_heavy_llm() -> ChatHuggingFace:
-    """Create the heavy reflection model for Agent B."""
-    hf_token = os.getenv("HUGGINGFACEHUB_API_TOKEN")
-    repo_id = "meta-llama/Meta-Llama-3-70B-Instruct"  # Or Qwen for synthesis
-    llm = HuggingFaceEndpoint(
-        repo_id=repo_id,
-        task="text-generation",
-        max_new_tokens=2048,  # Larger context for deep reflection
-        temperature=0.4,     # Lower temp for more analytical reflection
-        huggingfacehub_api_token=hf_token,
-    )
-    return ChatHuggingFace(llm=llm)
-
-
 def build_synth_graph():
     """
     Builds the asynchronous 3-turn reflection graph.

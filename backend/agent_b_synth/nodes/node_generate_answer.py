@@ -1,14 +1,17 @@
+import logging
 from langchain_core.messages import SystemMessage, HumanMessage
 from langchain_tavily import TavilySearch
 from langgraph.runtime import Runtime
 from ..state import SynthState, GraphContext, print_state
 from ..prompts.meditation import ANSWER_PROMPT, MEDITATION_PROMPT
 
+logger = logging.getLogger(__name__)
+
 
 async def node_generate_answer(state: SynthState, runtime: Runtime[GraphContext]) -> dict:
     llm = runtime.context.llm
 
-    runtime.context.logger.info(f"ANSWERING: {print_state(state)}")
+    logger.info(f"ANSWERING: {print_state(state)}")
 
     messages = state.get("messages", [])
     context_text = ""
@@ -27,7 +30,7 @@ async def node_generate_answer(state: SynthState, runtime: Runtime[GraphContext]
         # Extract just the content/snippets to save context window
         quotes_context = "\n".join([res for res in search_results])
     except Exception as e:
-        runtime.context.logger.warning(f"Tavily search failed: {e}")
+        logger.warning(f"Tavily search failed: {e}")
         quotes_context = "Fallback quote: 'Peace comes from within. Do not seek it without.' - Buddha"
 
     # Prepare context with the injected search results

@@ -1,0 +1,1 @@
+export const is_null = (v) => v === null || v === undefined;

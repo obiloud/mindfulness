@@ -3,6 +3,7 @@ import api.{type AgentResponse, send_message}
 import gleam/string
 import meditation
 
+import auth.{AuthSuccess}
 import cartesia.{Connected}
 import dom
 import gleam/dynamic/decode
@@ -38,6 +39,8 @@ pub type Model {
     tts: cartesia.Model,
     answer: Option(String),
     transcript: Option(String),
+    access_token: Option(String),
+    auth: auth.AuthState,
   )
 }
 
@@ -53,6 +56,7 @@ pub type Msg {
   HideMeditationScreen
   CartesiaMsg(cartesia.Msg)
   ShowMeditationScreen
+  AuthMsg(auth.AuthMsg)
 }
 
 // --- FFI (Foreign Function Interface) ---
@@ -75,6 +79,7 @@ fn init(_flags) -> #(Model, Effect(Msg)) {
       pending_chunks: [],
       current_context_index: 0,
     )
+  let #(auth, eff) = auth.auth_init()
   #(
     Model(
       chat_history: [],
@@ -87,8 +92,10 @@ fn init(_flags) -> #(Model, Effect(Msg)) {
       tts: tts,
       answer: None,
       transcript: None,
+      auth: auth,
+      access_token: None,
     ),
-    effect.none(),
+    effect.map(eff, AuthMsg),
   )
 }
 
@@ -179,7 +186,11 @@ fn update(model: Model, msg: Msg) -> #(Model, Effect(Msg)) {
               // dom.scroll_to_bottom_delayed("chat-ancor"),
               effect.from(fn(_) { reset_height("user-input") }),
               effect.map(
-                send_message(user_message, model.thread_id),
+                send_message(
+                  user_message,
+                  model.thread_id,
+                  option.unwrap(model.access_token, ""),
+                ),
                 ReceiveChatResponse,
               ),
             ]),
@@ -200,6 +211,16 @@ fn update(model: Model, msg: Msg) -> #(Model, Effect(Msg)) {
       Model(..model, show_meditation: False),
       effect.none(),
     )
+
+    AuthMsg(AuthSuccess(token)) -> #(
+      Model(..model, access_token: Some(token)),
+      effect.none(),
+    )
+
+    AuthMsg(submsg) -> {
+      let #(auth, eff) = auth.update_auth_state(model.auth, submsg)
+      #(Model(..model, auth: auth), effect.map(eff, AuthMsg))
+    }
   }
 }
 
@@ -294,180 +315,185 @@ fn view_message(m: Message) -> Element(Msg) {
 }
 
 fn view(model: Model) -> Element(Msg) {
-  case model.show_meditation, model.answer {
-    True, Some(answer) -> {
-      meditation.view_meditation_screen(
-        answer,
-        UserRequestedAudio,
-        HideMeditationScreen,
-      )
+  case model.auth.auth_screen {
+    Some(_) -> element.map(auth.view_auth_screen(model.auth), AuthMsg)
+    None -> {
+      case model.show_meditation, model.answer {
+        True, Some(answer) -> {
+          meditation.view_meditation_screen(
+            answer,
+            UserRequestedAudio,
+            HideMeditationScreen,
+          )
+        }
+        _, _ -> chat_view(model)
+      }
     }
-    _, _ ->
+  }
+}
+
+fn chat_view(model: Model) -> Element(Msg) {
+  html.div(
+    [
+      attribute.class(
+        "min-h-screen bg-bg-main font-body text-text-base transition-colors duration-500 "
+        <> "lg:flex lg:items-center lg:justify-center lg:p-4",
+        // Centering only on large screens
+      ),
+    ],
+    [
       html.div(
         [
           attribute.class(
-            "min-h-screen bg-bg-main font-body text-text-base transition-colors duration-500 "
-            <> "lg:flex lg:items-center lg:justify-center lg:p-4",
-            // Centering only on large screens
+            // MOBILE: Full width/height, no corners, no border
+            "flex flex-col w-full h-svh bg-bg-header/90 backdrop-blur-md shadow-2xl "
+            // DESKTOP (lg): Fixed size, rounded corners, border
+            <> "lg:h-[850px] lg:max-w-md lg:rounded-[3rem] lg:border lg:border-deep-moss/10 lg:relative",
           ),
         ],
         [
-          html.div(
+          // FIXED HEADER: Pinned to top
+          html.header(
             [
               attribute.class(
-                // MOBILE: Full width/height, no corners, no border
-                "flex flex-col w-full h-svh bg-bg-header/90 backdrop-blur-md shadow-2xl "
-                // DESKTOP (lg): Fixed size, rounded corners, border
-                <> "lg:h-[850px] lg:max-w-md lg:rounded-[3rem] lg:border lg:border-deep-moss/10 lg:relative",
+                "flex flex-col items-center justify-center pt-8 pb-4 px-6 text-center border-b border-deep-moss/5 bg-bg-header/50 lg:rounded-[3rem]",
               ),
             ],
             [
-              // FIXED HEADER: Pinned to top
-              html.header(
-                [
-                  attribute.class(
-                    "flex flex-col items-center justify-center pt-8 pb-4 px-6 text-center border-b border-deep-moss/5 bg-bg-header/50 lg:rounded-[3rem]",
-                  ),
-                ],
-                [
-                  html.div(
-                    [
-                      attribute.class(
-                        "text-warm-sand text-8xl leading-none h-[60px] flex col items-center justify-center",
-                      ),
-                    ],
-                    [
-                      html.i(
-                        [attribute.class("icon-pulse-lotus inline-flex")],
-                        [],
-                      ),
-                    ],
-                  ),
-                  html.p(
-                    [
-                      attribute.class(
-                        "text-[10px] font-semibold tracking-[0.2em] text-gold-leaf mb-1",
-                      ),
-                    ],
-                    [
-                      element.text("PULSE LOTUS"),
-                    ],
-                  ),
-                  html.h1(
-                    [
-                      attribute.class(
-                        "text-xl font-header font-extralight text-deep-moss tracking-tight",
-                      ),
-                    ],
-                    [element.text("TAILOR YOUR SESSION")],
-                  ),
-                ],
-              ),
-
-              // SCROLLABLE MESSAGES: Fills all remaining space
               html.div(
                 [
                   attribute.class(
-                    "flex-1 overflow-hidden bg-tactile-nature shadow-inner transition-colors duration-500",
-                    // Fills gap between header and footer
+                    "text-warm-sand text-8xl leading-none h-[60px] flex col items-center justify-center",
                   ),
                 ],
                 [
-                  case model.chat_history {
-                    [] ->
-                      html.p(
-                        [
-                          attribute.class(
-                            "text-welcome-text text-sm text-center italic mt-20",
-                          ),
-                        ],
-                        [
-                          element.text("How are you feeling in this moment?"),
-                        ],
-                      )
-                    _ -> html.text("")
-                  },
-
-                  html.div(
-                    [
-                      attribute.class(
-                        "flex flex-col-reverse gap-y-6 p-6 overflow-y-auto max-h-full scrollbar-hide scroll-smooth",
-                      ),
-                    ],
-                    model.chat_history
-                      |> list.reverse
-                      |> list.map(view_message)
-                      |> list.prepend(case model.loading {
-                        True -> view_loading_indicator()
-                        False -> html.text("")
-                      }),
-                  ),
+                  html.i([attribute.class("icon-pulse-lotus inline-flex")], []),
                 ],
               ),
-
-              // FIXED FOOTER (INPUT): Pinned to bottom
-              html.footer(
+              html.p(
                 [
                   attribute.class(
-                    "p-4 pb-8 lg:pb-6 bg-bg-header/80 backdrop-blur-lg border-t border-deep-moss/5 lg:rounded-[3rem]",
+                    "text-[10px] font-semibold tracking-[0.2em] text-gold-leaf mb-1",
                   ),
                 ],
                 [
-                  html.div(
-                    [
-                      attribute.class(
-                        "flex gap-2 bg-bg-main border border-gold-leaf/20 p-1.5 rounded-[1rem] shadow-inner focus-within:border-gold-leaf/50 transition-colors",
-                      ),
-                    ],
-                    [
-                      html.textarea(
-                        [
-                          attribute.id("user-input"),
-                          attribute.placeholder(
-                            "Tell me more about your feelings...",
-                          ),
-                          attribute.class(
-                            "flex-1 bg-transparent px-5 py-3 text-sm outline-none resize-none",
-                          ),
-                          attribute.rows(1),
-                          event.on_input(UserTyped),
-                          event.advanced("keydown", {
-                            use key <- decode.field("key", decode.string)
-                            use shift <- decode.field("shiftKey", decode.bool)
-                            let handler =
-                              event.handler(
-                                dispatch: SendMessage,
-                                prevent_default: True,
-                                stop_propagation: False,
-                              )
-                            case shift, key {
-                              False, "Enter" -> decode.success(handler)
-                              _, _ -> decode.failure(handler, "SendMessage")
-                            }
-                          }),
-                        ],
-                        model.input_text,
-                      ),
-                      html.button(
-                        [
-                          event.on_click(SendMessage),
-                          attribute.disabled(model.loading),
-                          attribute.class(
-                            "icon-paper-plane rounded-[.7rem] text-gold-leaf cursor-pointer text-4xl hover:shadow-xl hover:text-off-white transition-all bg-bubble-user-bg text-bubble-user-text",
-                          ),
-                        ],
-                        [],
-                      ),
-                    ],
-                  ),
-                  // view_theme_toggle(model.theme, fn(theme) { SetTheme(theme) }),
+                  element.text("PULSE LOTUS"),
                 ],
+              ),
+              html.h1(
+                [
+                  attribute.class(
+                    "text-xl font-header font-extralight text-deep-moss tracking-tight",
+                  ),
+                ],
+                [element.text("TAILOR YOUR SESSION")],
               ),
             ],
           ),
+
+          // SCROLLABLE MESSAGES: Fills all remaining space
+          html.div(
+            [
+              attribute.class(
+                "flex-1 overflow-hidden bg-tactile-nature shadow-inner transition-colors duration-500",
+                // Fills gap between header and footer
+              ),
+            ],
+            [
+              case model.chat_history {
+                [] ->
+                  html.p(
+                    [
+                      attribute.class(
+                        "text-welcome-text text-sm text-center italic mt-20",
+                      ),
+                    ],
+                    [
+                      element.text("How are you feeling in this moment?"),
+                    ],
+                  )
+                _ -> html.text("")
+              },
+
+              html.div(
+                [
+                  attribute.class(
+                    "flex flex-col-reverse gap-y-6 p-6 overflow-y-auto max-h-full scrollbar-hide scroll-smooth",
+                  ),
+                ],
+                model.chat_history
+                  |> list.reverse
+                  |> list.map(view_message)
+                  |> list.prepend(case model.loading {
+                    True -> view_loading_indicator()
+                    False -> html.text("")
+                  }),
+              ),
+            ],
+          ),
+
+          // FIXED FOOTER (INPUT): Pinned to bottom
+          html.footer(
+            [
+              attribute.class(
+                "p-4 pb-8 lg:pb-6 bg-bg-header/80 backdrop-blur-lg border-t border-deep-moss/5 lg:rounded-[3rem]",
+              ),
+            ],
+            [
+              html.div(
+                [
+                  attribute.class(
+                    "flex gap-2 bg-bg-main border border-gold-leaf/20 p-1.5 rounded-[1rem] shadow-inner focus-within:border-gold-leaf/50 transition-colors",
+                  ),
+                ],
+                [
+                  html.textarea(
+                    [
+                      attribute.id("user-input"),
+                      attribute.placeholder(
+                        "Tell me more about your feelings...",
+                      ),
+                      attribute.class(
+                        "flex-1 bg-transparent px-5 py-3 text-sm outline-none resize-none",
+                      ),
+                      attribute.rows(1),
+                      event.on_input(UserTyped),
+                      event.advanced("keydown", {
+                        use key <- decode.field("key", decode.string)
+                        use shift <- decode.field("shiftKey", decode.bool)
+                        let handler =
+                          event.handler(
+                            dispatch: SendMessage,
+                            prevent_default: True,
+                            stop_propagation: False,
+                          )
+                        case shift, key {
+                          False, "Enter" -> decode.success(handler)
+                          _, _ -> decode.failure(handler, "SendMessage")
+                        }
+                      }),
+                    ],
+                    model.input_text,
+                  ),
+                  html.button(
+                    [
+                      event.on_click(SendMessage),
+                      attribute.disabled(model.loading),
+                      attribute.class(
+                        "icon-paper-plane rounded-[.7rem] text-gold-leaf cursor-pointer text-4xl hover:shadow-xl hover:text-off-white transition-all bg-bubble-user-bg text-bubble-user-text",
+                      ),
+                    ],
+                    [],
+                  ),
+                ],
+              ),
+              // view_theme_toggle(model.theme, fn(theme) { SetTheme(theme) }),
+            ],
+          ),
         ],
-      )
-  }
+      ),
+    ],
+  )
 }
 
 pub fn main() {

@@ -29,6 +29,8 @@ class Settings(BaseSettings):
         env="POSTGRES_CONNECTION_STRING"
     )
 
+    inference_provider: str = Field("huggingface", env="INFERENCE_PROVIDER")
+
     class Config:
         env_file = ".env"
         case_sensitive = False

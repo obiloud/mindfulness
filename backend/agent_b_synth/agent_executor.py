@@ -6,11 +6,21 @@ from a2a.types import DataPart, TaskState, Part
 from a2a.utils import new_task, new_agent_text_message, get_data_parts
 
 from agent_b_synth.state import GraphContext
-from agent_b_synth.graph import get_heavy_llm, build_synth_graph
+from agent_b_synth.graph import build_synth_graph
 
+from shared.settings import get_settings
+from shared.model_factory import get_heavy_hf_llm, get_heavy_ollama_llm
+from shared.datamodels.preferences import VoiceBlueprint, MindfulnessProfile
 import logging
 import asyncio
 import httpx
+
+import os
+from psycopg_pool import AsyncConnectionPool
+from psycopg.rows import dict_row
+from langgraph.store.postgres.aio import AsyncPostgresStore, PostgresIndexConfig
+from langgraph.store.postgres.base import ANNIndexConfig
+from fastembed import TextEmbedding
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -19,9 +29,16 @@ logger = logging.getLogger(__name__)
 class PulseSynthExecutor(AgentExecutor):
     def __init__(self):
         super().__init__()
+
+        llm = None
+        if get_settings().inference_provider == "ollama":
+            llm = get_heavy_ollama_llm()
+        elif get_settings().inference_provider == "huggingface":
+            llm = get_heavy_hf_llm()
+
         self.dependencies = GraphContext(
-            llm=get_heavy_llm(),
-            logger=logger
+            llm=llm,
+            logger=logger,
         )
         self.synth_graph = build_synth_graph()
 
@@ -31,6 +48,7 @@ class PulseSynthExecutor(AgentExecutor):
         query = context.get_user_input()
         data = get_data_parts(context.message.parts)[-1]
         thread_id = data.get("thread_id", "")
+        user_id = data.get("user_id", "")
 
         task = context.current_task or new_task(context.message)
         callback_url = None
@@ -46,7 +64,60 @@ class PulseSynthExecutor(AgentExecutor):
         task_updater = TaskUpdater(event_queue, task.id, task.context_id)
 
         try:
-            final_state = await self.synth_graph.ainvoke({"context": query}, context=self.dependencies)
+
+            # Initialize the connection pool
+            async with AsyncConnectionPool(
+                get_settings().postgres_connection_string,
+                max_size=10,
+                kwargs={"autocommit": True, "row_factory": dict_row}
+            ) as pool:
+
+                cache_path = os.getenv("FASTEMBED_CACHE_PATH", "./local_cache")
+
+                embedding_model = TextEmbedding(
+                    model_name="BAAI/bge-small-en-v1.5",
+                    cache_dir=cache_path
+                )
+
+                def bge_embed_wrapper(input_data):
+                    # Ensure input is a list (FastEmbed requirement)
+                    if isinstance(input_data, str):
+                        input_data = [input_data]
+
+                    # Generate embeddings (returns a generator of ndarrays)
+                    embeddings_generator = embedding_model.embed(input_data)
+
+                    # Convert ndarrays to lists (Postgres requirement)
+                    # and return the results
+                    return [e.tolist() for e in embeddings_generator]
+
+                store = AsyncPostgresStore(
+                    pool,
+                    index=PostgresIndexConfig(
+                        dims=384,
+                        embed=bge_embed_wrapper,
+                        fields=["content"],
+                        ann_index_config=ANNIndexConfig(kind="hnsw"),
+                        distance_type="cosine"
+                    )
+                )
+
+                namespace = ("preferences", user_id)
+                voice_blueprint_item = await store.aget(namespace, "voice_blueprint")
+                existing_blueprint = VoiceBlueprint(
+                    **voice_blueprint_item.value) if voice_blueprint_item else VoiceBlueprint()
+
+                logger.info(f"VOICE BLUEPRINT: {existing_blueprint}")
+
+                minfulness_profile_item = await store.aget(namespace, "mindfulness_profile")
+                existing_profile = MindfulnessProfile(
+                    **minfulness_profile_item.value) if minfulness_profile_item else MindfulnessProfile()
+
+                logger.info(f"MINDFULNESS PROFILE: {existing_profile}")
+
+            config = {"configurable": {
+                "voice_blueprint": existing_blueprint, "mindfulness_profile": existing_profile}}
+            final_state = await self.synth_graph.ainvoke({"context": query}, context=self.dependencies, config=config)
 
             answer = final_state.get("answer", "No answer generated.")
             transcript = final_state.get(

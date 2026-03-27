@@ -1,18 +1,19 @@
 # agents/user_input_agent.py
-
-from typing import List, Dict, Any
-from langchain_core.messages import HumanMessage, AIMessage, AnyMessage
+import logging
+from langchain_core.messages import AIMessage
 from langchain_core.runnables import Runnable
 from langchain_core.prompts import PromptTemplate
 from langchain_core.output_parsers import StrOutputParser
 from langgraph.runtime import Runtime
-from langgraph.store.base import BaseStore
-from langchain_huggingface import ChatHuggingFace
+
+from langchain_core.language_models.chat_models import BaseChatModel
 
 from ..state import ChatState, GraphContext, print_state
 
+logger = logging.getLogger(__name__)
 
-def create_safety_classifier(llm: ChatHuggingFace) -> Runnable:
+
+def create_safety_classifier(llm: BaseChatModel) -> Runnable:
     """Create an LLM-based safety classifier for detecting unsafe content."""
     # Prompt template for safety classification
     safety_prompt = PromptTemplate.from_template(
@@ -28,7 +29,7 @@ def create_safety_classifier(llm: ChatHuggingFace) -> Runnable:
     return safety_prompt | llm | StrOutputParser()
 
 
-def classify_safety(llm: ChatHuggingFace, text: str) -> str:
+def classify_safety(llm: BaseChatModel, text: str) -> str:
     """Classify text as safe or unsafe using an LLM."""
     if not text or not text.strip():
         return "safe"
@@ -39,18 +40,6 @@ def classify_safety(llm: ChatHuggingFace, text: str) -> str:
 
     # Ensure the result is one of the expected values
     return result.strip().lower() if result else "safe"
-
-
-def retrieve_from_store(query: str, store: BaseStore) -> List[Dict[str, Any]]:
-    """Retrieve relevant long-term memory entries using semantic search."""
-    # This would use the store's retrieval capabilities
-    # For now, we'll simulate a basic retrieval
-    if not query:
-        return []
-
-    # In a real implementation, this would use the store's vector search capabilities
-    # to find relevant past conversations or memories
-    return store.search(query, k=3)  # Return top 3 results
 
 
 def node_user_input(state: ChatState, runtime: Runtime[GraphContext]) -> ChatState:
@@ -69,7 +58,6 @@ def node_user_input(state: ChatState, runtime: Runtime[GraphContext]) -> ChatSta
     Returns:
         Updated conversation state
     """
-    logger = runtime.context.logger
     llm = runtime.context.llm
 
     logger.debug(f"Safety check: state='{print_state(state)}'")
@@ -89,7 +77,6 @@ def node_user_input(state: ChatState, runtime: Runtime[GraphContext]) -> ChatSta
 
         # Update state with refusal
         return {
-            **state,
             "messages": [AIMessage(content=refusal_message)],
             "status": "done",
             "safety_flag": "unsafe",
@@ -97,7 +84,6 @@ def node_user_input(state: ChatState, runtime: Runtime[GraphContext]) -> ChatSta
         }
 
     return {
-        **state,
         "status": "answering",
         "safety_flag": "safe",
     }
