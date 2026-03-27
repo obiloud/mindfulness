@@ -7,6 +7,9 @@ from shared.datamodels.preferences import (
     update_voice_blueprint,
     update_mindfulness_profile,
 )
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 async def node_manage_memory(state: ChatState, runtime: Runtime[GraphContext], config: RunnableConfig) -> ChatState:
@@ -14,7 +17,6 @@ async def node_manage_memory(state: ChatState, runtime: Runtime[GraphContext], c
     Logic for saving facts cross-session.
     """
     llm = runtime.context.llm
-    logger = runtime.context.logger
 
     user_id = config["configurable"].get("user_id")
     namespace = ("preferences", user_id)

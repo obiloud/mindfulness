@@ -4,9 +4,6 @@ from typing import Dict, Any
 from langchain_huggingface import ChatHuggingFace, HuggingFaceEndpoint
 from langchain_ollama import ChatOllama
 from shared.settings import get_settings
-import os
-
-os.environ["OLLAMA_HOST"] = "http://host.docker.internal:11434"
 
 
 class MindfulnessChatModel:
@@ -105,7 +102,7 @@ def create_fast_ollama_llm() -> MindfulnessChatModel:
         'type': 'ollama',
         'model_name': 'qwen3-long:latest',
         'max_new_tokens': 512,
-        'temperature': 0.5
+        'temperature': 0.7
     })
 
 
@@ -113,9 +110,9 @@ def create_heavy_ollama_llm() -> MindfulnessChatModel:
     """Create an Ollama LLM for use with Qwen3-long model."""
     return MindfulnessChatModel({
         'type': 'ollama',
-        'model_name': 'llama3.1:8b',
+        'model_name': 'qwen3-long:latest',
         'max_new_tokens': 2048,
-        'temperature': 0.3
+        'temperature': 0.5
     })
 
 # Convenience functions to get models directly

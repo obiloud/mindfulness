@@ -1,9 +1,12 @@
 import re
+import logging
 from langchain_core.messages import HumanMessage, SystemMessage
 from langgraph.runtime import Runtime
 from langgraph.config import RunnableConfig
 from ..state import SynthState, GraphContext, print_state
 from ..prompts.meditation import generate_meditation_prompt
+
+logger = logging.getLogger(__name__)
 
 
 def fix_ssml(text: str) -> str:
@@ -29,7 +32,7 @@ def clean_escaped_newlines(text: str) -> str:
 
 async def node_generate_transcript(state: SynthState, runtime: Runtime[GraphContext], config: RunnableConfig) -> dict:
     llm = runtime.context.llm
-    runtime.context.logger.info(f"TRANSCRIPT: {print_state(state)}")
+    logger.info(f"TRANSCRIPT: {print_state(state)}")
 
     # Check if we are refining based on feedback
     feedback = state.get("transcript_feedback", "")

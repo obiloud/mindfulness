@@ -1,6 +1,9 @@
 from ..state import ChatState, GraphContext
 from langgraph.runtime import Runtime
 from langgraph.config import RunnableConfig
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 async def node_hydrate(state: ChatState,  runtime: Runtime[GraphContext], config: RunnableConfig) -> ChatState:
@@ -14,7 +17,7 @@ async def node_hydrate(state: ChatState,  runtime: Runtime[GraphContext], config
     # You can search by semantic similarity or just get all keys
     items = await runtime.store.asearch(namespace, query=state.get("summary"), limit=5)
 
-    runtime.context.logger.info(f"HYDRATE ITEMS: {items}")
+    logger.info(f"HYDRATE ITEMS: {items}")
 
     # Format the items into a readable block
     if items:

@@ -1,10 +1,12 @@
-import json
+import logging
 from langchain_core.messages import SystemMessage
 from langgraph.runtime import Runtime
 from typing import List
 from pydantic import BaseModel, Field
 from ..state import SynthState, GraphContext, print_state
 from ..prompts.supervisor import SUPERVISOR_PROMPT
+
+logger = logging.getLogger(__name__)
 
 
 class ReflectionOutput(BaseModel):
@@ -22,8 +24,6 @@ async def node_reflection(state: SynthState, runtime: Runtime[GraphContext]) -> 
     Iterative reflection: the model critiques and, if needed, refines
     its previous answer into a clearer, more soothing response.
     """
-
-    logger = runtime.context.logger
     llm = runtime.context.llm
 
     logger.info(f"REFLECTING ON STATE: {print_state(state)}")

@@ -1,4 +1,5 @@
 import inspect
+import logging
 from pydantic import BaseModel, Field
 from langchain_core.messages import (
     SystemMessage,
@@ -9,6 +10,8 @@ from langchain_core.messages import (
 from langgraph.runtime import Runtime
 from ..state import ChatState, GraphContext, print_state
 from ..prompts.conversation import CONVERSATION_PROMPT
+
+logger = logging.getLogger(__name__)
 
 
 class EvaluationOutput(BaseModel):
@@ -59,7 +62,6 @@ async def node_conversation(state: ChatState, runtime: Runtime[GraphContext]) ->
     The frontend is expected to include the resulting messages in the
     next request's history so the agent can continue the conversation.
     """
-    logger = runtime.context.logger
     llm = runtime.context.llm
 
     logger.debug(f"Conversation continued: state='{print_state(state)}'")

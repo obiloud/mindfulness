@@ -217,10 +217,7 @@ async def lifespan(app: FastAPI):
             elif s.inference_provider == "huggingface":
                 llm = get_fast_hf_llm()
 
-            context = GraphContext(
-                logger=logger,
-                llm=llm
-            )
+            context = GraphContext(llm=llm)
 
             app.state.db_pool = pool
             app.state.chat_graph = create_chat_graph(
@@ -497,18 +494,21 @@ async def handle_synthesis_complete(result: SynthesisResult, request: Request):
 
     config = {"configurable": {"thread_id": thread_id}}
 
-    await chat_graph.aupdate_state(
-        config,
-        {
-            "answer": answer,
-            "transcript": transcript,
-            "synth_status": "completed",
-            "is_synthesis_ready": True
-        },
-    )
+    try:
+        await chat_graph.aupdate_state(
+            config,
+            {
+                "answer": answer,
+                "transcript": transcript,
+                "synth_status": "completed",
+                "is_synthesis_ready": True
+            },
+        )
 
-    logger.info(
-        f"Received transcript for thread {thread_id}: {transcript[:100]}...")
+        logger.info(
+            f"Received transcript for thread {thread_id}: {transcript[:100]}...")
+    except Exception as e:
+        logger.error(f"Failed to update state: {e}")
 
     return {"status": "acknowledged"}
 

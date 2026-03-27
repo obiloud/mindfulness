@@ -1,5 +1,5 @@
 # agents/user_input_agent.py
-
+import logging
 from langchain_core.messages import AIMessage
 from langchain_core.runnables import Runnable
 from langchain_core.prompts import PromptTemplate
@@ -9,6 +9,8 @@ from langgraph.runtime import Runtime
 from langchain_core.language_models.chat_models import BaseChatModel
 
 from ..state import ChatState, GraphContext, print_state
+
+logger = logging.getLogger(__name__)
 
 
 def create_safety_classifier(llm: BaseChatModel) -> Runnable:
@@ -56,7 +58,6 @@ def node_user_input(state: ChatState, runtime: Runtime[GraphContext]) -> ChatSta
     Returns:
         Updated conversation state
     """
-    logger = runtime.context.logger
     llm = runtime.context.llm
 
     logger.debug(f"Safety check: state='{print_state(state)}'")
@@ -76,7 +77,6 @@ def node_user_input(state: ChatState, runtime: Runtime[GraphContext]) -> ChatSta
 
         # Update state with refusal
         return {
-            **state,
             "messages": [AIMessage(content=refusal_message)],
             "status": "done",
             "safety_flag": "unsafe",
@@ -84,7 +84,6 @@ def node_user_input(state: ChatState, runtime: Runtime[GraphContext]) -> ChatSta
         }
 
     return {
-        **state,
         "status": "answering",
         "safety_flag": "safe",
     }

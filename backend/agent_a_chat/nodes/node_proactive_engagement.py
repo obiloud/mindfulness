@@ -1,7 +1,10 @@
+import logging
 from langchain_core.messages import SystemMessage, HumanMessage
 from langgraph.runtime import Runtime
 from ..state import ChatState, GraphContext, print_state
 from ..prompts.conversation import CONVERSATION_PROMPT
+
+logger = logging.getLogger(__name__)
 
 
 def node_proactive_engagement(state: ChatState, runtime: Runtime[GraphContext]) -> ChatState:
@@ -11,7 +14,6 @@ def node_proactive_engagement(state: ChatState, runtime: Runtime[GraphContext]) 
     The frontend is expected to include the resulting messages in the
     next request's history so the agent can continue the conversation.
     """
-    logger = runtime.context.logger
     llm = runtime.context.llm
 
     logger.info(f"Proactive continued: state='{print_state(state)}'")
@@ -29,7 +31,6 @@ def node_proactive_engagement(state: ChatState, runtime: Runtime[GraphContext]) 
     ai_msg = llm.invoke([system] + messages + [human])
 
     return {
-        **state,
         "messages": [ai_msg],
         "awaiting_confirmation": True
     }

@@ -3,13 +3,11 @@ from typing import Annotated, TypedDict, Literal, Optional, List
 from langchain_core.messages import AnyMessage, messages_to_dict
 from langgraph.graph.message import add_messages
 from langchain_core.language_models.chat_models import BaseChatModel
-import logging
 import json
 
 
 @dataclass
 class GraphContext:
-    logger: logging.Logger
     llm: BaseChatModel
 
 
@@ -29,7 +27,6 @@ class ChatState(TypedDict):
 def print_state(state: ChatState) -> str:
     print_data = {
         **state,
-        # "messages": messages_to_dict(state["messages"])
-        "messages": []
+        "messages": messages_to_dict(state["messages"])
     }
     return json.dumps(print_data, indent=2)
