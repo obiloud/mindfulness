@@ -1,11 +1,12 @@
 # agent_a_chat/graph.py
-import os
+import inspect
 from typing import Literal
-from langchain_huggingface import ChatHuggingFace, HuggingFaceEndpoint
 from langgraph.checkpoint.base import BaseCheckpointSaver
 from langgraph.store.base import BaseStore
 from langgraph.graph import StateGraph, END
+from langgraph.runtime import Runtime
 from langchain.messages import AIMessage
+from langchain_core.prompts import ChatPromptTemplate
 
 from .nodes.node_user_input_agent import node_user_input
 from .nodes.node_conversation_agent import node_conversation
@@ -58,13 +59,24 @@ def create_chat_graph(checkpointer: BaseCheckpointSaver = None, store: BaseStore
 
     workflow.set_entry_point("user")
 
-    def route_after_user(state: ChatState) -> Literal["safe_to_proceed", "deliver_transcript", "end"]:
+    async def route_after_user(state: ChatState, runtime: Runtime[GraphContext]) -> Literal["safe_to_proceed", "deliver_transcript", "end"]:
         if state.get("safety_flag") == "unsafe":
             return "end"
         # If we were waiting for a confirmation, check if they said "Yes"
         if state.get("awaiting_confirmation"):
+            llm = runtime.context.llm
             user_input = state["messages"][-1].content.lower()
-            if any(word in user_input for word in ["yes", "start", "sure", "let's do it"]):
+
+            intent_prompt = ChatPromptTemplate.from_template(inspect.cleandoc("""
+                The user was asked if they want to start their mindfulness session. 
+                Based on their reply, do they want to proceed? 
+                Reply 'START' to proceed or 'WAIT' to stay in conversation.
+
+                User: {text}
+            """))
+
+            response = await (intent_prompt | llm).ainvoke({"text": user_input})
+            if "START" in response.content.upper():
                 return "deliver_transcript"
 
         return "safe_to_proceed"
