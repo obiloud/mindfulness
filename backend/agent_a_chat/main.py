@@ -433,6 +433,15 @@ async def chat_endpoint(body: ChatRequest, request: Request, bg_tasks: Backgroun
 
         if synth_status == "requested":
             summary = state.get("summary", "")
+            namespace = ("preferences", user_id)
+
+            data = {"thread_id": thread_id, "user_id": user_id}
+
+            items = await app.state.store.asearch(namespace)
+            if items:
+                for item in items:
+                    data[item.key] = item.value
+
             bg_tasks.add_task(
                 a2a_client.send_message,
                 SendMessageRequest(id=str(uuid4()), params=MessageSendParams(
@@ -445,8 +454,7 @@ async def chat_endpoint(body: ChatRequest, request: Request, bg_tasks: Backgroun
                         role=Role('user'),
                         parts=[
                             Part(root=TextPart(text=summary)),
-                            Part(root=DataPart(
-                                data={"thread_id": thread_id, "user_id": user_id}))
+                            Part(root=DataPart(data=data))
                         ])
                 ))
             )
@@ -479,10 +487,11 @@ async def chat_endpoint(body: ChatRequest, request: Request, bg_tasks: Backgroun
 @app.post("/internal/v1/synthesis-callback")
 async def handle_synthesis_complete(result: SynthesisResult, request: Request):
     """
-    Receives the finished transcript from the synthesis agent and updates the session state.
-    Also triggers a proactive message to the user via WebSocket.
+    Receives the finished transcript and writes it to the BaseStore.
+    This avoids the LangGraph checkpointer lock during active graph runs.
     """
-    chat_graph = request.app.state.chat_graph
+    store = request.app.state.store  # Ensure the store is registered in app.state
+
     thread_id = result.thread_id
     answer = result.answer
     transcript = result.transcript
@@ -492,28 +501,38 @@ async def handle_synthesis_complete(result: SynthesisResult, request: Request):
         logger.error(f"Synthesis failed for thread {thread_id}")
         return {"status": "error"}
 
-    config = {"configurable": {"thread_id": thread_id}}
+    # Define the same namespace used by the hydrate_node
+    namespace = ("a2a", thread_id, "pending_updates")
+    # Unique key for this specific artifact
+    item_key = f"synth_{result.task_id}" if hasattr(
+        result, 'task_id') else "latest_synthesis"
 
     try:
-        await chat_graph.aupdate_state(
-            config,
+        # Instead of updating graph state directly, we store the artifact
+        await store.aput(
+            namespace,
+            item_key,
             {
                 "answer": answer,
                 "transcript": transcript,
                 "synth_status": "completed",
                 "is_synthesis_ready": True
-            },
+            }
         )
 
         logger.info(
-            f"Received transcript for thread {thread_id}: {transcript[:100]}...")
+            f"Artifact stored in BaseStore for thread {thread_id}. Bypassed checkpointer lock."
+        )
+
     except Exception as e:
-        logger.error(f"Failed to update state: {e}")
+        logger.error(f"Failed to write to BaseStore: {e}")
+        return {"status": "error", "message": str(e)}
 
     return {"status": "acknowledged"}
 
-
 # --- Health Check ---
+
+
 @app.get("/health")
 async def health_check():
     return {"status": "healthy", "service": "agent_a_chat"}
