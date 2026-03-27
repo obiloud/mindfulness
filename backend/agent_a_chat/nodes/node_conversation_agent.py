@@ -3,6 +3,7 @@ from pydantic import BaseModel, Field
 from langchain_core.messages import (
     SystemMessage,
     HumanMessage,
+    RemoveMessage,
     trim_messages
 )
 from langgraph.runtime import Runtime
@@ -94,6 +95,7 @@ async def node_conversation(state: ChatState, runtime: Runtime[GraphContext]) ->
         Evaluate the conversation based on these criteria. Provide only the score from 0 to 1.
         
         Conversation history:
+        {conversation_summary}
         {conversation_history}
                                        
         ### OUTPUT FORMAT:
@@ -132,6 +134,7 @@ async def node_conversation(state: ChatState, runtime: Runtime[GraphContext]) ->
 
     # Use the trimmed messages in the maturity evaluation
     maturity_message = maturity_prompt.format(
+        conversation_summary=state.get("summary", ""),
         conversation_history="\n".join(
             [msg.content for msg in trimmed_messages])
     )
@@ -156,9 +159,19 @@ async def node_conversation(state: ChatState, runtime: Runtime[GraphContext]) ->
     human = HumanMessage(content=clarification_message)
     ai_msg = llm.invoke([system] + trimmed_messages + [human])
 
+    messages_to_keep = 6
+    all_messages = state["messages"]
+
+    prune_updates = []
+    if len(all_messages) > messages_to_keep:
+        # Identify the IDs of the messages that exceed our window
+        # and create RemoveMessage commands for them
+        to_remove = all_messages[:-messages_to_keep]
+        prune_updates = [RemoveMessage(id=m.id) for m in to_remove if m.id]
+
     return {
         **state,
-        "messages": [ai_msg],
+        "messages": [ai_msg] + prune_updates,
         "info_score": float(eval_output.get("info_score")),
         "turn_count": turn_count + 1,
         "status": "conversation",
