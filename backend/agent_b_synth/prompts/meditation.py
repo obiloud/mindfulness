@@ -94,6 +94,7 @@ def generate_meditation_prompt(profile: MindfulnessProfile, blueprint: VoiceBlue
         - **Prohibited:** No Markdown (no **bold**, no # headings), no emojis, no quotes, no section titles.
         - **Allowed Tags:** The ONLY permitted special characters are within the SSML tag: `<break time="Xs"/>`.
         - **No Metadata:** Do not include "Script begins" or "Notes." Start immediately with the greeting.
+        - **OUTPUT GUARDRAILS (ABSOLUTE):** Output ONLY the raw meditation transcript text. Do NOT include any headers, footers, labels, or meta-commentary. Do NOT output the words "Script:", "## Transcript:", or any similar markers. Do NOT include backticks (\`) around the text. Do NOT include markdown code block fences (```). The output must be the plain text of the meditation itself, starting directly with the greeting and ending with the closing line.
 
         # MEDITATION PACING LOGIC
         - For breathing instructions (Inhale/Exhale), use: `<break time="4s"/>`.

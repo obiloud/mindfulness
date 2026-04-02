@@ -46,9 +46,16 @@ async def node_reflection(state: SynthState, runtime: Runtime[GraphContext]) -> 
         ReflectionOutput, method="json_schema")
     reflection = await structured_llm.ainvoke([SystemMessage(content=reflection_prompt)])
 
-    logger.info(f"reflection: {reflection.model_dump_json()}")
+    if hasattr(reflection, "model_dump_json"):
+        logger.info(f"reflection: {reflection.model_dump_json()}")
+    else:
+        logger.info(f"reflection: {reflection}")
 
-    reflection = reflection.model_dump()
+    if hasattr(reflection, "model_dump"):
+        reflection = reflection.model_dump()
+    else:
+        # Fallback for dict output from HuggingFace models
+        pass
 
     if not isinstance(reflection, dict):
         reflection = {
