@@ -22,6 +22,7 @@ pub type Model {
     ws: Option(ws.WebSocket),
     is_connected: Bool,
     input_text: String,
+    chapters: Option(List(String)),
     status_message: String,
     pending_chunks: List(String),
     current_context_index: Int,
@@ -273,7 +274,12 @@ pub fn update(model: Model, msg: Msg) -> #(Model, Effect(Msg)) {
     }
 
     GenerateAudio -> {
-      let chunks = split_into_chapters(model.input_text)
+      let chunks =
+        case model.chapters {
+          Some(ch) -> ch
+          None -> split_into_chapters(model.input_text)
+        }
+        |> list.filter(fn(s) { string.length(s) > 0 })
 
       case chunks {
         [first, ..rest] -> {

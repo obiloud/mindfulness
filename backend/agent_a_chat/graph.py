@@ -13,6 +13,7 @@ from .nodes.node_conversation_agent import node_conversation
 from .nodes.node_proactive_engagement import node_proactive_engagement
 from .nodes.node_hydrate import node_hydrate
 from .nodes.node_manage_memory import node_manage_memory
+from .nodes.node_deliver_transcript import node_deliver_transcript
 from .state import ChatState, GraphContext
 
 
@@ -24,20 +25,6 @@ def should_trigger_synth(state: ChatState) -> ChatState:
         return {"synth_status": "requested"}
 
     return {}
-
-
-def node_deliver_transcript(state: ChatState) -> ChatState:
-    return {
-        "messages": [
-            AIMessage(
-                content="Excellent. Let's begin.",
-                additional_kwargs={
-                    "answer": state["answer"], "transcript": state["transcript"]}
-            )
-        ],
-        "awaiting_confirmation": False,
-        "is_synthesis_ready": False  # Reset the flag
-    }
 
 
 def create_chat_graph(checkpointer: BaseCheckpointSaver = None, store: BaseStore = None):

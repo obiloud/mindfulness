@@ -31,12 +31,11 @@ class PulseSynthExecutor(AgentExecutor):
 
         self.dependencies = GraphContext(
             llm=llm,
-            logger=logger,
         )
         self.synth_graph = build_synth_graph()
 
     async def execute(self, context: RequestContext, event_queue: EventQueue) -> None:
-        self.dependencies.logger.info(f"THE REQUEST CONTEXT: {context}")
+        logger.info(f"THE REQUEST CONTEXT: {context}")
 
         query = context.get_user_input()
         data = get_data_parts(context.message.parts)[-1]
@@ -68,6 +67,7 @@ class PulseSynthExecutor(AgentExecutor):
             answer = final_state.get("answer", "No answer generated.")
             transcript = final_state.get(
                 "transcript", "No transcript generated.")
+            chapters = final_state.get("chapters", [])
 
             if final_state.get("is_answer_valid") and final_state.get("is_transcript_valid"):
                 # Use add_artifact for the long transcript and complete the task
@@ -76,6 +76,7 @@ class PulseSynthExecutor(AgentExecutor):
                         Part(root=DataPart(data={
                             "answer": answer,
                             "transcript": transcript,
+                            "chapters": chapters,
                         })),
 
                     ],
@@ -85,11 +86,11 @@ class PulseSynthExecutor(AgentExecutor):
                 await task_updater.update_status(TaskState.completed)
 
                 if callback_url:
-                    self.dependencies.logger.info(
+                    logger.info(
                         f"Firing callback to {callback_url} for thread {thread_id}")
                     # Use create_task to fire-and-forget, preventing the executor from hanging
                     asyncio.create_task(self._send_webhook(
-                        callback_url, thread_id,  answer, transcript))
+                        callback_url, thread_id, answer, transcript, chapters))
             else:
                 await task_updater.update_status(
                     TaskState.failed,
@@ -105,22 +106,23 @@ class PulseSynthExecutor(AgentExecutor):
                 new_agent_text_message(f"Synthesis failed: {str(e)}")
             )
 
-    async def _send_webhook(self, url: str, thread_id: str, answer: str, transcript: str):
+    async def _send_webhook(self, url: str, thread_id: str, answer: str, transcript: str, chapters: list):
         """Helper method to push the result back to the orchestrator."""
         payload = {
             "thread_id": thread_id,
             "answer": answer,
             "transcript": transcript,
+            "chapters": chapters,
             "status": "completed"
         }
         try:
             async with httpx.AsyncClient(timeout=10.0) as client:
                 response = await client.post(url, json=payload)
                 response.raise_for_status()
-                self.dependencies.logger.info(
+                logger.info(
                     f"Callback successfully delivered: HTTP {response.status_code}")
         except Exception as e:
-            self.dependencies.logger.error(
+            logger.error(
                 f"Failed to send callback to {url}: {e}")
 
     async def cancel(self, context: RequestContext, event_queue: EventQueue) -> None:

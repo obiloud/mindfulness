@@ -39,6 +39,7 @@ pub type Model {
     tts: cartesia.Model,
     answer: Option(String),
     transcript: Option(String),
+    chapters: Option(List(String)),
     access_token: Option(String),
     auth: auth.AuthState,
   )
@@ -75,6 +76,7 @@ fn init(_flags) -> #(Model, Effect(Msg)) {
       ws: None,
       is_connected: False,
       input_text: "",
+      chapters: None,
       status_message: "Disconnected",
       pending_chunks: [],
       current_context_index: 0,
@@ -92,6 +94,7 @@ fn init(_flags) -> #(Model, Effect(Msg)) {
       tts: tts,
       answer: None,
       transcript: None,
+      chapters: None,
       auth: auth,
       access_token: None,
     ),
@@ -126,7 +129,11 @@ fn update(model: Model, msg: Msg) -> #(Model, Effect(Msg)) {
         Some(transcript) -> {
           let #(tts, eff) =
             cartesia.update(
-              cartesia.Model(..model.tts, input_text: transcript),
+              cartesia.Model(
+                ..model.tts,
+                input_text: transcript,
+                chapters: model.chapters,
+              ),
               cartesia.Connect,
             )
           #(Model(..model, tts: tts), effect.map(eff, CartesiaMsg))
@@ -151,6 +158,7 @@ fn update(model: Model, msg: Msg) -> #(Model, Effect(Msg)) {
           thread_id: Some(msg.thread_id),
           answer: msg.answer,
           transcript: msg.transcript,
+          chapters: msg.chapters,
         ),
         // dom.scroll_to_bottom_delayed("chat-ancor"),
         case msg.transcript {

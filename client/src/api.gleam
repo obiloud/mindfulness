@@ -28,6 +28,7 @@ pub type AgentResponse {
     reply: String,
     answer: Option(String),
     transcript: Option(String),
+    chapters: Option(List(String)),
   )
 }
 
@@ -37,12 +38,17 @@ fn decode_agent_response() -> decode.Decoder(AgentResponse) {
   use reply <- decode.field("reply", decode.string)
   use answer <- decode.field("answer", decode.optional(decode.string))
   use transcript <- decode.field("transcript", decode.optional(decode.string))
+  use chapters <- decode.field(
+    "chapters",
+    decode.optional(decode.list(decode.string)),
+  )
   decode.success(AgentResponse(
     thread_id:,
     user_id:,
     reply:,
     answer:,
     transcript:,
+    chapters:,
   ))
 }
 
