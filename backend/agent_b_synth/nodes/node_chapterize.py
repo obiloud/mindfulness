@@ -1,5 +1,6 @@
 import logging
 import json
+import re
 from langchain_core.messages import SystemMessage, HumanMessage
 from langgraph.runtime import Runtime
 from langgraph.config import RunnableConfig
@@ -7,6 +8,50 @@ from ..state import SynthState, GraphContext, print_state
 from ..prompts.chapterize import CHAPTERIZER_PROMPT
 
 logger = logging.getLogger(__name__)
+
+
+def normalize_chapters(chapters: list[str]) -> list[str]:
+    """
+    Post-process chapters to enforce prompt rules:
+    1. Every chapter must start with <emotion value="serene" />
+    2. Break tags must be at the END of a chapter, never standalone
+    3. Merge standalone break tags with preceding chapter
+    4. Ensure each chapter ends with a break tag (append if missing)
+    """
+    normalized = []
+    current_chapter = ""
+
+    for chapter in chapters:
+        chapter = chapter.strip()
+
+        # Handle standalone break tags - merge with previous chapter
+        if chapter.startswith("<break") or chapter == "<break":
+            if current_chapter:
+                # Append break to current chapter
+                current_chapter += " " + chapter
+            # else: ignore orphaned break at start
+        else:
+            # Save previous chapter if exists
+            if current_chapter:
+                # Ensure chapter ends with break tag
+                if not re.search(r"<break.*time=", current_chapter):
+                    current_chapter += " <break time=\"1.5s\" />"
+                normalized.append(current_chapter)
+
+            # Start new chapter with emotion tag
+            if not chapter.startswith("<emotion"):
+                chapter = "<emotion value=\"serene\" />" + chapter
+
+            current_chapter = chapter
+
+    # Don't forget the last chapter
+    if current_chapter:
+        # Ensure last chapter ends with break tag
+        if not re.search(r"<break.*time=", current_chapter):
+            current_chapter += " <break time=\"1.5s\" />"
+        normalized.append(current_chapter)
+
+    return normalized
 
 
 async def node_chapterize(state: SynthState, runtime: Runtime[GraphContext], config: RunnableConfig) -> dict:
@@ -45,6 +90,9 @@ async def node_chapterize(state: SynthState, runtime: Runtime[GraphContext], con
         chapters = [ch.strip() for ch in raw_chapters if ch.strip()]
         logger.warning(
             f"Fallback to naive split, got {len(chapters)} chapters")
+
+    # Post-process to enforce prompt rules
+    chapters = normalize_chapters(chapters)
 
     # Ensure we have at least one chapter
     if not chapters:

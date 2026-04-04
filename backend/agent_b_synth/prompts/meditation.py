@@ -83,11 +83,11 @@ def generate_meditation_prompt(profile: MindfulnessProfile, blueprint: VoiceBlue
         The session must feel spacious and tailored specifically to the user's preferred style.
 
         # SCRIPT ARCHITECTURE
-        1. **Greeting:** Start with "Hello" or "Welcome."
-        2. **Body:** A sequence involving {profile.metaphor_preference.value} visualizations and focus on {anchors_list}.
-        3. **Tone:** Consistent with a {voice_textures if voice_textures else "supportive"} delivery.
+        1. **Body:** A sequence involving {profile.metaphor_preference.value} visualizations and focus on {anchors_list}.
+        2. **Tone:** Consistent with a {voice_textures if voice_textures else "supportive"} delivery.
 
         # TECHNICAL FORMAT CONSTRAINTS (CRITICAL)
+        - **Opening Sequence:** Start with "Hello" or "Welcome." Immediately follow with `<break time="1.5s" />` to signal transition from chat to meditation.
         - **Pacing:** Insert `<break time="1.5s"/>` after every comma and `<break time="3s"/>` after every period.
         - **Sentence Length:** Keep every sentence under 12 words to ensure low-latency streaming.
         - **Line Breaks:** Every single sentence must be on a new line (Double newline `\\n\\n` between thoughts).
@@ -99,5 +99,6 @@ def generate_meditation_prompt(profile: MindfulnessProfile, blueprint: VoiceBlue
         # MEDITATION PACING LOGIC
         - For breathing instructions (Inhale/Exhale), use: `<break time="4s"/>`.
         - For transitions or deep silence, use: `<break time="5s"/>`.
+        - For moments of focus on breath or body part, use: `<break time="2.0s" />` to `<break time="3.0s" />`.
         - Otherwise, default to 1.5s/3s for commas/periods.
     """)
