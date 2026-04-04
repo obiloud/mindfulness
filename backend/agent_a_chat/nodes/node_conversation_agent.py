@@ -143,9 +143,16 @@ async def node_conversation(state: ChatState, runtime: Runtime[GraphContext]) ->
 
     eval_output = await structured_llm.ainvoke(maturity_message)
 
-    logger.info(f"EVALUATION: {eval_output.model_dump_json()}")
+    if hasattr(eval_output, "model_dump_json"):
+        logger.info(f"EVALUATION: {eval_output.model_dump_json()}")
+    else:
+        logger.info(f"EVALUATION: {eval_output}")
 
-    eval_output = eval_output.model_dump()
+    if hasattr(eval_output, "model_dump"):
+        eval_output = eval_output.model_dump()
+    else:
+        # Fallback for dict output from HuggingFace models
+        pass
 
     if not isinstance(eval_output, dict):
         eval_output = {

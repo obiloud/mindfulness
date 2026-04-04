@@ -226,7 +226,10 @@ async def update_mindfulness_profile(
     # Format the existing state for the LLM
     current_state_json = "{}"
     if existing_profile:
-        current_state_json = existing_profile.model_dump_json(indent=2)
+        if hasattr(existing_profile, "model_dump_json"):
+            current_state_json = existing_profile.model_dump_json(indent=2)
+        else:
+            current_state_json = str(existing_profile)
 
     allowed_metaphor = [m.value for m in ScriptMetaphor]
     allowed_style = [s.value for s in InstructionStyle]

@@ -20,6 +20,14 @@ CONVERSATION_PROMPT = inspect.cleandoc(f"""
     {{memories}}
     </context>
 
+    # MEMORY INTEGRATION INSTRUCTIONS
+    If relevant memories are provided above, weave them in naturally as if they are part of your shared history.
+    - Do NOT list them explicitly
+    - Do NOT say "I remember you said"
+    - Mention them conversationally: "I noticed you mentioned ..." or "You were feeling anxious about ... last time"
+    - Only reference memories that are directly relevant to the current conversation
+    - If no memories are relevant, proceed naturally without mentioning them
+    
     # RECENT CONVERSATION SUMMARY
     {{summary}}
 """)

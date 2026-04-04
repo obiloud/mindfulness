@@ -80,7 +80,7 @@ def create_fast_hf_llm() -> MindfulnessChatModel:
     """Create a fast LLM for Agent A (lightweight, fast responses)."""
     return MindfulnessChatModel({
         'type': 'huggingface',
-        'model_name': 'meta-llama/Meta-Llama-3-70B-Instruct',
+        'model_name': 'meta-llama/Meta-Llama-3-8B-Instruct:novita',
         'max_new_tokens': 512,
         'temperature': 0.7
     })
@@ -90,7 +90,7 @@ def create_heavy_hf_llm() -> MindfulnessChatModel:
     """Create a heavy LLM for Agent B (deep reflection, analysis)."""
     return MindfulnessChatModel({
         'type': 'huggingface',
-        'model_name': 'meta-llama/Meta-Llama-3-70B-Instruct',
+        'model_name': 'meta-llama/Meta-Llama-3-8B-Instruct:novita',
         'max_new_tokens': 2048,
         'temperature': 0.4
     })
