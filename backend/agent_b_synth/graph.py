@@ -8,6 +8,7 @@ from langgraph.types import Send
 from .nodes.node_generate_answer import node_generate_answer
 from .nodes.node_generate_transcript import node_generate_transcript
 from .nodes.node_supervisor_agent import node_reflection
+from .nodes.node_chapterize import node_chapterize
 
 from .state import SynthState
 
@@ -37,6 +38,7 @@ def build_synth_graph():
     workflow.add_node("generate_transcript", node_generate_transcript)
     workflow.add_node("generate_answer", node_generate_answer)
     workflow.add_node("reflection", node_reflection)
+    workflow.add_node("chapterize", node_chapterize)
 
     # Entry point relies on the dynamic router immediately
     # Assuming initial state has valid flags as False
@@ -52,6 +54,9 @@ def build_synth_graph():
         router,
         ["generate_answer", "generate_transcript", END]
     )
+
+    # After reflection succeeds, add chapterization
+    workflow.add_edge("reflection", "chapterize")
 
     # Compiling without a checkpointer here if state is strictly ephemeral per A2A task
     # (If you want to resume failed synthesis, you can attach postgres here as well)

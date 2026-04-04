@@ -7,7 +7,6 @@ import json
 
 @dataclass
 class GraphContext:
-    logger: logging.Logger
     llm: BaseChatModel
 
 
@@ -17,6 +16,9 @@ class SynthState(TypedDict):
     answer: str
     is_transcript_valid: bool
     is_answer_valid: bool
+    chapters: list
+    chapter_count: int
+    is_chapterized: bool
 
 
 def print_state(state: SynthState) -> str:

@@ -259,12 +259,14 @@ class ChatResponse(BaseModel):
     user_id: str
     answer: Optional[str] = None
     transcript: Optional[str] = None
+    chapters: Optional[list] = None
 
 
 class SynthesisResult(BaseModel):
     thread_id: str
     answer: str
     transcript: str
+    chapters: Optional[list] = None
     status: str = "completed"
 
 # === Message Saving Helper ===
@@ -465,6 +467,7 @@ async def chat_endpoint(body: ChatRequest, request: Request, bg_tasks: Backgroun
         reply = last_message.content
         answer = last_message.additional_kwargs.get("answer")
         transcript = last_message.additional_kwargs.get("transcript")
+        chapters = last_message.additional_kwargs.get("chapters")
 
         # Save user and AI messages
         await save_message(thread_id, user_id, "user", body.message)
@@ -475,7 +478,8 @@ async def chat_endpoint(body: ChatRequest, request: Request, bg_tasks: Backgroun
             user_id=user_id,
             thread_id=thread_id,
             answer=answer,
-            transcript=transcript
+            transcript=transcript,
+            chapters=chapters
         )
 
     except Exception as e:
@@ -495,6 +499,7 @@ async def handle_synthesis_complete(result: SynthesisResult, request: Request):
     thread_id = result.thread_id
     answer = result.answer
     transcript = result.transcript
+    chapters = result.chapters
     status = result.status
 
     if status != "completed":
@@ -515,6 +520,7 @@ async def handle_synthesis_complete(result: SynthesisResult, request: Request):
             {
                 "answer": answer,
                 "transcript": transcript,
+                "chapters": chapters,
                 "synth_status": "completed",
                 "is_synthesis_ready": True
             }

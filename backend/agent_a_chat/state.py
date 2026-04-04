@@ -19,6 +19,7 @@ class ChatState(TypedDict):
     summary: str
     answer: Optional[str]
     transcript: Optional[str]
+    chapters: Optional[list] = None
     synth_status: Literal["idle", "requested", "in_progress", "completed"]
     is_synthesis_ready: bool
     awaiting_confirmation: bool
