@@ -73,61 +73,65 @@ async def node_conversation(state: ChatState, runtime: Runtime[GraphContext]) ->
 
     # Create a prompt that combines the entire conversation history
     # This prompt asks the LLM to evaluate if the conversation is mature enough
-    maturity_prompt = inspect.cleandoc("""
-        You are a mindfulness conversation evaluator. Your task is to determine if the conversation
-        between the user and the agent has reached a mature state where we can proceed to generating
-        a response (answering) or wait for the user to respond.
-        
-        Summarize and analyze the following conversation history. Consider the following criteria:
-        
-        1. Topic coherence: Are the topics related and meaningful? Does the conversation flow naturally
-           from one topic to another without jumping between unrelated subjects?
-        2. Conversation length: Is the conversation too long? Consider that sometimes it takes multiple
-           messages to express an idea, and sometimes a single message can express multiple ideas.
-           As a fallback, if the total number of messages exceeds 10, the conversation is considered
-           too long and should proceed to answering.
-        3. User context: Does the conversation provide sufficient context about the user's current
-           mood and state of mind? Does the user express clear needs, goals, or emotional states?
-        4. Verify that the latest agent's message is not asking any follow up questions. 
-        
-        The conversation is allowed to transition between topics naturally, as long as they are
-        related and meaningful. However, if the conversation has drifted too far from the core
-        topic or has become excessively long, it should proceed to answering.
-        
-        Evaluate the conversation based on these criteria. Provide only the score from 0 to 1.
-        
-        Conversation history:
-        {conversation_summary}
-        {conversation_history}
-                                       
-        ### OUTPUT FORMAT:
-        You MUST return a valid JSON object ONLY. Do not include any preamble.
-        ```
-        {{
-            "summary": str,
-            "info_score": float
-        }}
-        ```
+    maturity_prompt = inspect.cleandoc(
+        """
+    You are a mindfulness conversation evaluator. Your task is to determine if the conversation
+    between the user and the agent has reached a mature state where we can proceed to generating
+    a response (answering) or wait for the user to respond.
+    
+    Summarize and analyze the following conversation history. Consider the following criteria:
+    
+    1. Topic coherence: Are the topics related and meaningful? Does the conversation flow naturally
+        from one topic to another without jumping between unrelated subjects?
+    2. Conversation length: Is the conversation too long? Consider that sometimes it takes multiple
+        messages to express an idea, and sometimes a single message can express multiple ideas.
+        As a fallback, if the total number of messages exceeds 10, the conversation is considered
+        too long and should proceed to answering.
+    3. User context: Does the conversation provide sufficient context about the user's current
+        mood and state of mind? Does the user express clear needs, goals, or emotional states?
+    4. Verify that the latest agent's message is not asking any follow up questions. 
+    
+    The conversation is allowed to transition between topics naturally, as long as they are
+    related and meaningful. However, if the conversation has drifted too far from the core
+    topic or has become excessively long, it should proceed to answering.
+    
+    Evaluate the conversation based on these criteria. Provide only the score from 0 to 1.
+    
+    Conversation history:
+    {conversation_summary}
+    {conversation_history}
+                                    
+    ### OUTPUT FORMAT:
+    You MUST return a valid JSON object ONLY. Do not include any preamble.
+    ```
+    {{
+        "summary": str,
+        "info_score": float
+    }}
+    ```
     """).strip()
 
-    clarification_prompt = inspect.cleandoc("""
-        Be agreeable with the user. 
-        If appropriate, make a short statement to reinforce or confirm the user's beliefs or claims without repeating the user's exact words.
-        Ask the user a short, compassionate follow-up question to gather information about their mood, state of mind, insecurities, or doubts.
+    clarification_prompt = inspect.cleandoc(
+        """
+    Be agreeable with the user. 
+    If appropriate, make a short statement to reinforce or confirm the user's beliefs or claims without repeating the user's exact words.
+    Ask the user a short, compassionate follow-up question to gather information about their mood, state of mind, insecurities, or doubts.
 
-        # IMPORTANT: 
-        Do NOT repeat the user's exact words.
-        Do NOT repeat the questions you already asked.
-        If the user has clearly described what he expects from this session, simply acknowledge it and Do NOT ask any further questions.
+    # IMPORTANT: 
+    Do NOT repeat the user's exact words.
+    Do NOT repeat the questions you already asked.
+    If the user has clearly described what he expects from this session, simply acknowledge it and Do NOT ask any further questions.
 
-        Conversation history:
-        {conversation_history}
+    Conversation history:
+    {conversation_history}
     """).strip()
 
     system_prompt = CONVERSATION_PROMPT.format(
         memories=state.get("long_term_memory", "No history available."),
         summary=state.get("summary", "New conversation.")
     )
+
+    logger.info(f"CONVERSATION SETTINGS: {system_prompt}")
 
     turn_count = state.get("turn_count", 0)
 

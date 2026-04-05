@@ -1,11 +1,18 @@
 import logging
 import json
 import re
+from pydantic import BaseModel
 from langchain_core.messages import SystemMessage, HumanMessage
 from langgraph.runtime import Runtime
 from langgraph.config import RunnableConfig
 from ..state import SynthState, GraphContext, print_state
 from ..prompts.chapterize import CHAPTERIZER_PROMPT
+
+
+class ChapterizationOutput(BaseModel):
+    """Pydantic model for chapterization output."""
+    chapters: list[str]
+
 
 logger = logging.getLogger(__name__)
 
@@ -76,20 +83,21 @@ async def node_chapterize(state: SynthState, runtime: Runtime[GraphContext], con
         HumanMessage(content=full_transcript)
     ]
 
-    # Invoke LLM with JSON schema output
-    response = await llm.ainvoke(messages)
+    # Create structured output schema
+    structured_llm = llm.with_structured_output(
+        ChapterizationOutput, method="json_schema")
 
-    # Parse JSON output
-    try:
-        chapters_data = json.loads(response.content)
-        chapters = chapters_data.get("chapters", [])
-    except json.JSONDecodeError as e:
-        logger.error(f"Failed to parse chapterization response: {e}")
-        # Fallback: split by double newlines if JSON parsing fails
-        raw_chapters = full_transcript.split("\n\n")
-        chapters = [ch.strip() for ch in raw_chapters if ch.strip()]
-        logger.warning(
-            f"Fallback to naive split, got {len(chapters)} chapters")
+    # Invoke LLM with structured output
+    response = await structured_llm.ainvoke(messages)
+
+    # Parse response - handle both dict (HuggingFace) and Pydantic model (Ollama)
+    if isinstance(response, dict):
+        chapters_data = response
+    else:
+        # Pydantic model instance - convert to dict
+        chapters_data = response.model_dump()
+
+    chapters = chapters_data.get("chapters", [])
 
     # Post-process to enforce prompt rules
     chapters = normalize_chapters(chapters)
