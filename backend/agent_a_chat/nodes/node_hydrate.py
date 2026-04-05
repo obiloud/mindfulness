@@ -1,6 +1,7 @@
 from ..state import ChatState, GraphContext
 from langgraph.runtime import Runtime
 from langgraph.config import RunnableConfig
+from langchain_core.messages import HumanMessage
 import logging
 
 logger = logging.getLogger(__name__)
@@ -18,15 +19,13 @@ async def node_hydrate(state: ChatState, runtime: Runtime[GraphContext], config:
 
     # Search for memorable facts with metadata filter
     # Filter by type='memorable_fact' to separate from preferences
-    query = state.get("summary", "")
+    all_messages = state.get("messages", [])
+    query = [m for m in all_messages if isinstance(
+        m, HumanMessage)][-1].content
 
     try:
         # Search with metadata filter for memorable facts only
-        items = await runtime.store.asearch(("memories", user_id),
-                                            query=query,
-                                            limit=5,
-                                            filter={"type": "memorable_fact"}
-                                            )
+        items = await runtime.store.asearch(("memories", user_id), query=query, limit=5)
 
         logger.info(f"HYDRATE MEMORIES: Found {len(items)} memorable facts")
 
@@ -35,15 +34,17 @@ async def node_hydrate(state: ChatState, runtime: Runtime[GraphContext], config:
             # Sort by confidence and timestamp (most recent first)
             sorted_items = sorted(
                 items,
-                key=lambda x: (x.value.confidence, x.value.timestamp),
+                key=lambda x: (x.value["metadata"]["confidence"],
+                               x.value["metadata"]["timestamp"]),
                 reverse=True
             )
 
             memory_strings = []
             for item in sorted_items:
                 # Only include if confidence is high enough
-                if item.value.confidence >= 0.5:
-                    memory_strings.append(f"- {item.value.content}")
+                if item.value["metadata"]["confidence"] >= 0.5:
+                    content = item.value["content"]
+                    memory_strings.append(f"- {content}")
 
             formatted_memories = "\n".join(
                 memory_strings) if memory_strings else "No memorable facts to share."

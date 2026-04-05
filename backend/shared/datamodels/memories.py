@@ -3,9 +3,15 @@ Data models for Memorable Facts memory system.
 These capture biographical/anecdotal information for natural conversation.
 """
 from enum import Enum
-from typing import List, Optional
+from typing import List
 from pydantic import BaseModel, Field, field_validator
 from datetime import datetime
+import logging
+import inspect
+from langchain_core.language_models import BaseChatModel
+from langchain_core.stores import BaseStore
+
+logger = logging.getLogger(__name__)
 
 
 class MemoryCategory(str, Enum):
@@ -95,3 +101,177 @@ class MemorySearchResult(BaseModel):
         if v < 0.35:  # Friendship threshold
             return None  # Filter out low-confidence matches
         return v
+
+
+class Memories(BaseModel):
+    """Container for a list of memorable facts."""
+    memorable_facts: List[MemorableFact] = Field(
+        description="List of memorable facts about the user."
+    )
+
+
+async def extract_memorable_facts(llm: BaseChatModel, memory: str, message: str) -> List[MemorableFact]:
+    """
+    Extract memorable facts from conversation history.
+
+    This function analyzes the conversation and identifies:
+    - Biographical information
+    - Anecdotes and life events
+    - Important people in user's life
+    - Recurring goals and interests
+    - Significant obstacles or challenges
+
+    Args:
+        llm: The LLM instance to use for extraction
+        memory: Already stored memory
+        message: The user message to analyze
+
+    Returns:
+        List of MemorableFact objects extracted from the message
+    """
+
+    allowed_categories = [c for c in MemoryCategory]
+    allowed_valence = [v for v in MemoryValence]
+
+    # Create extraction prompt
+    memory_extraction_prompt = inspect.cleandoc("""
+        You are a memory extraction assistant for an empathetic AI companion.
+        Your task is to identify memorable facts from user input that would help
+        create a natural, friend-like experience.
+        
+        STORED MEMORIES: 
+        ```
+        {memory}
+        ```
+
+        USER INPUT: "{message}"
+        
+        Focus on extracting:
+        1. Biographical information (hobbies, interests, background)
+        2. Anecdotes and life events (recent experiences, achievements)
+        3. Important people (family, friends, colleagues mentioned)
+        4. Recurring goals and interests (what they care about)
+        5. Significant obstacles or challenges (struggles, fears)
+        
+        IMPORTANT: Do NOT extract:
+        - Temporary preferences (voice settings, TTS configuration)
+        - One-off statements without significance
+        - Generic statements that anyone could make
+        - Information already stored in preferences
+        
+        CRITICAL: For each fact, provide:
+        - category: One of {allowed_categories}
+        - content: The memorable fact itself
+        - valence: One of {allowed_valence}
+        - timestamp: ISO 8601 timestamp (use current time if unknown)
+        - confidence: Score from 0.0 to 1.0 indicating how memorable this is
+        
+        ### OUTPUT FORMAT:
+        You must return a valid JSON object ONLY. Do not include any preamble.
+        {{
+            "memorable_facts": list[...]
+        }}
+        """).strip()
+
+    memory_extraction_message = memory_extraction_prompt.format(
+        memories=memory,
+        message=message,
+        allowed_categories=allowed_categories,
+        allowed_valence=allowed_valence,
+    )
+
+    # Create LLM chain for extraction using structured output
+    structured_llm = llm.with_structured_output(Memories, method="json_schema")
+
+    # Run extraction
+    try:
+        # Extract facts using structured output
+        # The LLM will return a list of MemorableFact objects
+        memories = await structured_llm.ainvoke(memory_extraction_message)
+
+        if isinstance(memories, dict):
+            memories = Memories(**memories)
+
+        logger.info(f"MEMORIES {memories.model_dump_json()}")
+
+        facts = memories.memorable_facts
+
+        logger.info(f"Facts extraction output: {facts[:200]}...")
+
+        if facts:
+            logger.info(f"Extracted {len(facts)} memorable facts")
+        else:
+            logger.info("No memorable facts extracted from this conversation")
+
+        return facts
+
+    except Exception as e:
+        logger.error(f"Error extracting memorable facts: {e}")
+        return []
+
+
+async def store_memorable_fact(fact: MemorableFact, user_id: str, store: BaseStore) -> bool:
+    """
+    Store a memorable fact in the vector store.
+
+    Args:
+        fact: The memorable fact to store
+        user_id: The user ID for the fact
+        store: The vector store to use for storage
+
+    Returns:
+        True if storage was successful
+    """
+
+    # Create content for embedding
+    content = f"{fact.content} | {fact.category} | {fact.valence}"
+
+    # Convert datetime to ISO string for JSON serialization
+    timestamp_str = fact.timestamp.isoformat(
+    ) if fact.timestamp else datetime.utcnow().isoformat()
+
+    # Create metadata with type filter
+    metadata = {
+        "type": "memorable_fact",
+        "category": fact.category,
+        "valence": fact.valence,
+        "timestamp": timestamp_str,
+        "confidence": fact.confidence,
+        "user_id": user_id
+    }
+
+    try:
+        # Store the fact
+        await store.aput(
+            ("memories", user_id),
+            f"fact_{user_id}_{timestamp_str}",
+            {"content": content, "metadata": metadata}
+        )
+
+        logger.info(f"Stored memorable fact: {fact.content[:100]}...")
+        return True
+
+    except Exception as e:
+        logger.error(f"Failed to store memorable fact: {e}")
+        return False
+
+
+async def store_memorable_facts(facts: List[MemorableFact], user_id: str, store: BaseStore) -> int:
+    """
+    Store multiple memorable facts in the vector store.
+
+    Args:
+        facts: List of memorable facts to store
+        user_id: The user ID for the facts
+        store: The vector store to use for storage
+
+    Returns:
+        Number of facts successfully stored
+    """
+    stored_count = 0
+
+    for fact in facts:
+        if await store_memorable_fact(fact, user_id, store):
+            stored_count += 1
+
+    return stored_count

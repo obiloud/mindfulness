@@ -1,4 +1,5 @@
 from ..state import ChatState, GraphContext
+from langchain_core.messages import HumanMessage
 from langgraph.runtime import Runtime
 from langgraph.config import RunnableConfig
 from shared.datamodels.preferences import (
@@ -7,7 +8,7 @@ from shared.datamodels.preferences import (
     update_voice_blueprint,
     update_mindfulness_profile,
 )
-from .node_extract_memories import extract_memorable_facts, store_memorable_facts
+from shared.datamodels.memories import extract_memorable_facts, store_memorable_facts
 import logging
 
 logger = logging.getLogger(__name__)
@@ -26,7 +27,9 @@ async def node_manage_memory(state: ChatState, runtime: Runtime[GraphContext], c
     user_id = config["configurable"].get("user_id")
     namespace = ("preferences", user_id)
 
-    summary = state.get("summary", "")
+    all_messages = state.get("messages", [])
+    message = [m for m in all_messages if isinstance(
+        m, HumanMessage)][-1].content
 
     voice_blueprint_item = await runtime.store.aget(namespace, "voice_blueprint")
     existing_blueprint = voice_blueprint_item.value if voice_blueprint_item else None
@@ -34,9 +37,9 @@ async def node_manage_memory(state: ChatState, runtime: Runtime[GraphContext], c
     minfulness_profile_item = await runtime.store.aget(namespace, "mindfulness_profile")
     existing_profile = minfulness_profile_item.value if minfulness_profile_item else None
 
-    voice_blueprint = await update_voice_blueprint(llm, summary, existing_blueprint)
+    voice_blueprint = await update_voice_blueprint(llm, message, existing_blueprint)
 
-    mindfulness_profile = await update_mindfulness_profile(llm, summary, existing_profile)
+    mindfulness_profile = await update_mindfulness_profile(llm, message, existing_profile)
 
     if isinstance(voice_blueprint, VoiceBlueprint):
         logger.info(f"Voice blueprint: {voice_blueprint}")
@@ -55,19 +58,13 @@ async def node_manage_memory(state: ChatState, runtime: Runtime[GraphContext], c
     # Extract and store memorable facts
     try:
         # Extract memorable facts from conversation
-        extraction_result = await extract_memorable_facts({
-            "messages": state.get("messages", []),
-            "summary": summary,
-            "user_id": user_id
-        }, runtime)
-
-        facts = extraction_result.get("memorable_facts", [])
+        facts = await extract_memorable_facts(llm, state.get("long_term_memory"), message)
 
         if facts:
             logger.info(f"Extracted {len(facts)} memorable facts")
 
             # Store the facts with metadata filter
-            await store_memorable_facts(facts, user_id, runtime)
+            await store_memorable_facts(facts, user_id, runtime.store)
 
             logger.info(
                 f"Stored {len(facts)} memorable facts for user {user_id}")

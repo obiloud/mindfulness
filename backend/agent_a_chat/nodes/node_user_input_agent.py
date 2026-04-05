@@ -17,7 +17,8 @@ def create_safety_classifier(llm: BaseChatModel) -> Runnable:
     """Create an LLM-based safety classifier for detecting unsafe content."""
     # Prompt template for safety classification
     safety_prompt = PromptTemplate.from_template(
-        """You are a safety filter for a wellbeing assistant. 
+        """
+        You are a safety filter for a wellbeing assistant. 
         Classify the following text as safe or unsafe based on profanity, hate speech, or insults.
         
         Text: {text}
