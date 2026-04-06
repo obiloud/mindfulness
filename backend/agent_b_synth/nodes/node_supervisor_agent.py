@@ -43,8 +43,8 @@ async def node_reflection(state: SynthState, runtime: Runtime[GraphContext]) -> 
     )
 
     structured_llm = llm.with_structured_output(
-        ReflectionOutput, method="json_schema")
-    reflection = await structured_llm.ainvoke([SystemMessage(content=reflection_prompt)])
+        ReflectionOutput, include_raw=False, method="json_schema")
+    reflection: ReflectionOutput = await structured_llm.ainvoke([SystemMessage(content=reflection_prompt)])
 
     if hasattr(reflection, "model_dump_json"):
         logger.info(f"reflection: {reflection.model_dump_json()}")

@@ -10,6 +10,7 @@ from shared.datamodels.preferences import (
 )
 from shared.datamodels.memories import extract_memorable_facts, store_memorable_facts
 import logging
+import traceback
 
 logger = logging.getLogger(__name__)
 
@@ -58,7 +59,7 @@ async def node_manage_memory(state: ChatState, runtime: Runtime[GraphContext], c
     # Extract and store memorable facts
     try:
         # Extract memorable facts from conversation
-        facts = await extract_memorable_facts(llm, state.get("long_term_memory"), message)
+        facts = await extract_memorable_facts(llm, state.get("long_term_memory", ""), message)
 
         if facts:
             logger.info(f"Extracted {len(facts)} memorable facts")

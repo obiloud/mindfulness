@@ -1,6 +1,7 @@
 import logging
 from langchain_core.messages import SystemMessage, HumanMessage
 from langgraph.runtime import Runtime
+from datetime import datetime, timezone
 from ..state import ChatState, GraphContext, print_state
 from ..prompts.conversation import CONVERSATION_PROMPT
 
@@ -21,6 +22,8 @@ def node_proactive_engagement(state: ChatState, runtime: Runtime[GraphContext]) 
     messages = state["messages"]
 
     system_prompt = CONVERSATION_PROMPT.format(
+        current_time=datetime.now(timezone.utc).isoformat(),
+        user_timezone="Europe/Belgrade",
         memories=state.get("long_term_memory", "No history available."),
         summary=state.get("summary", "New conversation.")
     )

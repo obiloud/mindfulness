@@ -39,15 +39,10 @@ async def node_hydrate(state: ChatState, runtime: Runtime[GraphContext], config:
                 reverse=True
             )
 
-            memory_strings = []
-            for item in sorted_items:
-                # Only include if confidence is high enough
-                if item.value["metadata"]["confidence"] >= 0.5:
-                    content = item.value["content"]
-                    memory_strings.append(f"- {content}")
-
-            formatted_memories = "\n".join(
-                memory_strings) if memory_strings else "No memorable facts to share."
+            formatted_memories = [
+                {**item.value, "memory_id": item.key}
+                for item in sorted_items
+            ]
         else:
             formatted_memories = "No memorable facts to share."
 

@@ -128,11 +128,11 @@ async def update_voice_blueprint(
     # We use the full VoiceBlueprint here, not the extraction wrapper,
     # because we want the LLM to always return a complete state.
     structured_llm = llm.with_structured_output(
-        VoiceBlueprint, method="json_schema")
+        VoiceBlueprint, include_raw=False, method="json_schema")
 
     # The LLM now returns the "New Truth"
     try:
-        updated_blueprint = await structured_llm.ainvoke(voice_blueprint_message)
+        updated_blueprint: VoiceBlueprint = await structured_llm.ainvoke(voice_blueprint_message)
     except Exception as e:
         print(f"Failed to update voice blueprint: {e}")
         updated_blueprint = existing_blueprint
@@ -277,10 +277,10 @@ async def update_mindfulness_profile(
 
     # Bind to the extraction wrapper
     structured_llm = llm.with_structured_output(
-        MindfulnessProfile, method="json_schema")
+        MindfulnessProfile, include_raw=False, method="json_schema")
 
     try:
-        updated_profile = await structured_llm.ainvoke(mindfulness_profile_message)
+        updated_profile: MindfulnessProfile = await structured_llm.ainvoke(mindfulness_profile_message)
     except Exception as e:
         print(f"Failed to update profile: {e}")
         updated_profile = existing_profile
