@@ -85,10 +85,10 @@ async def node_chapterize(state: SynthState, runtime: Runtime[GraphContext], con
 
     # Create structured output schema
     structured_llm = llm.with_structured_output(
-        ChapterizationOutput, method="json_schema")
+        ChapterizationOutput, include_raw=False, method="json_schema")
 
     # Invoke LLM with structured output
-    response = await structured_llm.ainvoke(messages)
+    response: ChapterizationOutput = await structured_llm.ainvoke(messages)
 
     # Parse response - handle both dict (HuggingFace) and Pydantic model (Ollama)
     if isinstance(response, dict):

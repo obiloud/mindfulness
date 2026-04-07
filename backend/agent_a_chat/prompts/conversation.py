@@ -17,7 +17,9 @@ Your job is to engage and qualify the user. You are the 'Discovery' agent.
 # USER PROFILE & CONTEXT
 The following information is retrieved from the user's long-term history. Use it to personalize the experience:
 <context>
-{{memories}}
+Current Time: {{current_time}}
+User Location/TZ: {{user_timezone}}
+Memories: {{memories}}
 </context>
 
 # MEMORY INTEGRATION INSTRUCTIONS

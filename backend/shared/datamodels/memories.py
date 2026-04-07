@@ -5,9 +5,10 @@ These capture biographical/anecdotal information for natural conversation.
 from enum import Enum
 from typing import List
 from pydantic import BaseModel, Field, field_validator
-from datetime import datetime
+from datetime import datetime, timezone
 import logging
 import inspect
+import hashlib
 from langchain_core.language_models import BaseChatModel
 from langchain_core.stores import BaseStore
 
@@ -57,8 +58,9 @@ class MemorableFact(BaseModel):
         default=MemoryValence.NEUTRAL,
         description="Emotional tone of the memory."
     )
+    reasoning: str = Field(..., description="Why this was deemed memorable.")
     timestamp: datetime = Field(
-        default_factory=datetime.utcnow,
+        default_factory=lambda: datetime.now(timezone.utc),
         description="When this fact was learned (prioritizes recent updates)."
     )
     confidence: float = Field(
@@ -67,6 +69,13 @@ class MemorableFact(BaseModel):
         le=1.0,
         description="LLM's confidence in this fact (0.0-1.0)."
     )
+
+    @property
+    def memory_id(self) -> str:
+        """Generate a stable unique ID based on content hash."""
+        content_hash = hashlib.md5(self.content.encode()).hexdigest()[:8]
+        ts = self.timestamp.strftime("%Y%m%d_%H%M%S")
+        return f"fact_{ts}_{content_hash}"
 
     @field_validator('content')
     @classmethod
@@ -79,7 +88,7 @@ class MemorableFact(BaseModel):
     @classmethod
     def validate_timestamp(cls, v):
         if v is None:
-            return datetime.utcnow()
+            return datetime.now(timezone.utc)
         return v
 
 
@@ -130,6 +139,8 @@ async def extract_memorable_facts(llm: BaseChatModel, memory: str, message: str)
         List of MemorableFact objects extracted from the message
     """
 
+    now = datetime.now(timezone.utc).isoformat()
+
     allowed_categories = [c for c in MemoryCategory]
     allowed_valence = [v for v in MemoryValence]
 
@@ -139,6 +150,8 @@ async def extract_memorable_facts(llm: BaseChatModel, memory: str, message: str)
         Your task is to identify memorable facts from user input that would help
         create a natural, friend-like experience.
         
+        CURRENT_TIME: {now}
+                                                
         STORED MEMORIES: 
         ```
         {memory}
@@ -163,6 +176,7 @@ async def extract_memorable_facts(llm: BaseChatModel, memory: str, message: str)
         - category: One of {allowed_categories}
         - content: The memorable fact itself
         - valence: One of {allowed_valence}
+        - resoning: The reasoning to deem this fact memorable
         - timestamp: ISO 8601 timestamp (use current time if unknown)
         - confidence: Score from 0.0 to 1.0 indicating how memorable this is
         
@@ -174,20 +188,22 @@ async def extract_memorable_facts(llm: BaseChatModel, memory: str, message: str)
         """).strip()
 
     memory_extraction_message = memory_extraction_prompt.format(
-        memories=memory,
+        now=now,
+        memory=memory,
         message=message,
         allowed_categories=allowed_categories,
         allowed_valence=allowed_valence,
     )
 
     # Create LLM chain for extraction using structured output
-    structured_llm = llm.with_structured_output(Memories, method="json_schema")
+    structured_llm = llm.with_structured_output(
+        Memories, include_raw=False, method="json_schema")
 
     # Run extraction
     try:
         # Extract facts using structured output
         # The LLM will return a list of MemorableFact objects
-        memories = await structured_llm.ainvoke(memory_extraction_message)
+        memories: Memories = await structured_llm.ainvoke(memory_extraction_message)
 
         if isinstance(memories, dict):
             memories = Memories(**memories)
@@ -223,12 +239,9 @@ async def store_memorable_fact(fact: MemorableFact, user_id: str, store: BaseSto
         True if storage was successful
     """
 
-    # Create content for embedding
-    content = f"{fact.content} | {fact.category} | {fact.valence}"
-
     # Convert datetime to ISO string for JSON serialization
     timestamp_str = fact.timestamp.isoformat(
-    ) if fact.timestamp else datetime.utcnow().isoformat()
+    ) if fact.timestamp else datetime.now(timezone.utc)
 
     # Create metadata with type filter
     metadata = {
@@ -241,12 +254,17 @@ async def store_memorable_fact(fact: MemorableFact, user_id: str, store: BaseSto
     }
 
     try:
+        # Clean metadata for JSON serialization
+        val = {
+            "content": fact.content,
+            "metadata": {
+                **fact.model_dump(exclude={'content'}),
+                "timestamp": fact.timestamp.isoformat(),
+                "user_id": user_id
+            }
+        }
         # Store the fact
-        await store.aput(
-            ("memories", user_id),
-            f"fact_{user_id}_{timestamp_str}",
-            {"content": content, "metadata": metadata}
-        )
+        await store.aput(("memories", user_id), fact.memory_id, val)
 
         logger.info(f"Stored memorable fact: {fact.content[:100]}...")
         return True

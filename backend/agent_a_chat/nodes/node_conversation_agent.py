@@ -10,6 +10,7 @@ from langchain_core.messages import (
 from langgraph.runtime import Runtime
 from ..state import ChatState, GraphContext, print_state
 from ..prompts.conversation import CONVERSATION_PROMPT
+from datetime import datetime, timezone
 
 logger = logging.getLogger(__name__)
 
@@ -127,6 +128,8 @@ async def node_conversation(state: ChatState, runtime: Runtime[GraphContext]) ->
     """).strip()
 
     system_prompt = CONVERSATION_PROMPT.format(
+        current_time=datetime.now(timezone.utc).isoformat(),
+        user_timezone="Europe/Belgrade",
         memories=state.get("long_term_memory", "No history available."),
         summary=state.get("summary", "New conversation.")
     )
@@ -136,7 +139,7 @@ async def node_conversation(state: ChatState, runtime: Runtime[GraphContext]) ->
     turn_count = state.get("turn_count", 0)
 
     structured_llm = llm.with_structured_output(
-        EvaluationOutput, method="json_schema")
+        EvaluationOutput, include_raw=False, method="json_schema")
 
     # Use the trimmed messages in the maturity evaluation
     maturity_message = maturity_prompt.format(
@@ -145,7 +148,7 @@ async def node_conversation(state: ChatState, runtime: Runtime[GraphContext]) ->
             [msg.content for msg in trimmed_messages])
     )
 
-    eval_output = await structured_llm.ainvoke(maturity_message)
+    eval_output: EvaluationOutput = await structured_llm.ainvoke(maturity_message)
 
     if hasattr(eval_output, "model_dump_json"):
         logger.info(f"EVALUATION: {eval_output.model_dump_json()}")
