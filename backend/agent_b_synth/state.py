@@ -19,6 +19,7 @@ class SynthState(TypedDict):
     chapters: list
     chapter_count: int
     is_chapterized: bool
+    reflection_count: int
 
 
 def print_state(state: SynthState) -> str:

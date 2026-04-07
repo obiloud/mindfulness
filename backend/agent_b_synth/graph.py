@@ -20,7 +20,7 @@ def build_synth_graph():
     """
     def router(state: SynthState):
         # If both components passed reflection, terminate the loop
-        if state.get("is_answer_valid") and state.get("is_transcript_valid"):
+        if state.get("is_transcript_valid") and state.get("is_answer_valid"):
             return END
 
         # Dynamic Fan-Out based on what failed reflection

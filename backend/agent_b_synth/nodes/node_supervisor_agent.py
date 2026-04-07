@@ -61,25 +61,25 @@ async def node_reflection(state: SynthState, runtime: Runtime[GraphContext]) -> 
         reflection = {
             "is_answer_valid": False,
             "is_transcript_valid": False,
-            "answer_feedback": "try again",
-            "transcript_feedback": "try again"
+            "answer_feedback": ["try again"],
+            "transcript_feedback": ["try again"]
         }
 
-    is_ans_valid = reflection.get("is_answer_valid")
-    is_tra_valid = reflection.get("is_transcript_valid")
+    is_answer_valid = reflection.get("is_answer_valid")
+    is_transcript_valid = reflection.get("is_transcript_valid")
 
     current_count = state.get("reflection_count", 0)
     max_reflections = 3
 
     if current_count >= max_reflections:
-        is_ans_valid = True
-        is_tra_valid = True
+        is_answer_valid = True
+        is_transcript_valid = True
 
     return {
-        "is_answer_valid": is_ans_valid,
-        "is_transcript_valid": is_tra_valid,
-        "answer_feedback": "\n".join(reflection.get("answer_feedback")) if not is_ans_valid else None,
-        "transcript_feedback": "\n".join(reflection.get("transcript_feedback")) if not is_ans_valid else None,
+        "is_answer_valid": is_answer_valid,
+        "is_transcript_valid": is_transcript_valid,
+        "answer_feedback": "\n".join(reflection.get("answer_feedback")) if not is_answer_valid else None,
+        "transcript_feedback": "\n".join(reflection.get("transcript_feedback")) if not is_transcript_valid else None,
         "reflection_count": current_count + 1,
-        "status": "done" if (is_ans_valid and is_tra_valid) else "reflecting"
+        "status": "done" if (is_answer_valid and is_transcript_valid) else "reflecting"
     }
