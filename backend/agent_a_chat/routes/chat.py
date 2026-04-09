@@ -9,7 +9,7 @@ from langchain.messages import HumanMessage
 from uuid import uuid4
 from pydantic import BaseModel
 from agent_a_chat.state import print_state
-from agent_a_chat.routes.authentication import get_current_user_dict
+from agent_a_chat.routes.authentication import get_current_user
 from a2a.types import (
     SendMessageRequest,
     MessageSendConfiguration,
@@ -69,7 +69,7 @@ async def save_message(thread_id: str, user_id: str, role: str, content: str, db
 
 
 @router.get("/messages/history/{thread_id}")
-async def get_message_history(thread_id: str, request: Request = None, current_user: dict = Depends(get_current_user_dict)):
+async def get_message_history(thread_id: str, request: Request = None, current_user: dict = Depends(get_current_user)):
     """
     Retrieve conversation history for a thread.
     """
@@ -102,7 +102,7 @@ async def get_message_history(thread_id: str, request: Request = None, current_u
 
 
 @router.post("/chat", response_model=ChatResponse)
-async def chat_endpoint(body: ChatRequest, request: Request, bg_tasks: BackgroundTasks, current_user: dict = Depends(get_current_user_dict)):
+async def chat_endpoint(body: ChatRequest, request: Request, bg_tasks: BackgroundTasks, current_user: dict = Depends(get_current_user)):
     """
     Handles user messages, advances the fast chat graph, and evaluates
     the patience loop to trigger the heavy-compute synthesis graph.

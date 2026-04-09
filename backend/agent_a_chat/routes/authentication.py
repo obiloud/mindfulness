@@ -105,13 +105,6 @@ async def register(user: User, request: Request):
             # Create token pair (access + refresh)
             access_token, refresh_token = create_token_pair(new_user_id)
 
-            # Store refresh token in DB
-            refresh_token_obj = create_refresh_token(
-                user_id=new_user_id,
-                ip_address=request.client.host if request.client else None,
-                user_agent=request.headers.get("user-agent")
-            )
-
             return {
                 "access_token": access_token,
                 "refresh_token": refresh_token,
@@ -146,13 +139,6 @@ async def login(user: User, request: Request):
 
             # Create token pair (access + refresh)
             access_token, refresh_token = create_token_pair(str(row["id"]))
-
-            # Store refresh token in DB
-            refresh_token_obj = create_refresh_token(
-                user_id=str(row["id"]),
-                ip_address=request.client.host if request.client else None,
-                user_agent=request.headers.get("user-agent")
-            )
 
             return {
                 "access_token": access_token,
@@ -192,13 +178,6 @@ async def refresh_tokens(refresh_token: str, request: Request):
         # Create new token pair (rotation)
         new_access_token, new_refresh_token = create_token_pair(rt.user_id)
 
-        # Store new refresh token
-        new_refresh_token_obj = create_refresh_token(
-            user_id=rt.user_id,
-            ip_address=request.client.host if request.client else None,
-            user_agent=request.headers.get("user-agent")
-        )
-
         # Revoke old refresh token
         revoke_refresh_token(refresh_token)
 
@@ -234,20 +213,6 @@ async def logout(refresh_token: str = None, request: Request = None):
 async def get_current_user(token: str = Depends(oauth2_scheme)):
     """
     Get current authenticated user.
-    """
-    try:
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        user_id: str = payload.get("sub")
-        if user_id is None:
-            raise HTTPException(status_code=401, detail="Invalid token")
-        return {"user_id": user_id}
-    except JWTError:
-        raise HTTPException(status_code=401, detail="Invalid token")
-
-
-def get_current_user_dict(token: str = Depends(oauth2_scheme)):
-    """
-    Get current authenticated user as dict for dependency injection.
     """
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])

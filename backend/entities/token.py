@@ -24,15 +24,15 @@ def hash_token(token: str) -> str:
     return hashlib.sha256(token.encode()).hexdigest()
 
 
-def create_token_pair(user_id: str) -> tuple[str, str]:
-    """Create a new access token and refresh token pair"""
+def create_token_pair(user_id: str, ip_address: Optional[str] = None, user_agent: Optional[str] = None) -> tuple[str, str]:
+    """Create a new access token and refresh token pair, storing refresh token in DB"""
     access_token = jwt.encode(
         {"sub": user_id, "exp": datetime.utcnow(
         ) + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)},
         SECRET_KEY,
         algorithm=ALGORITHM
     )
-    refresh_token = secrets.token_urlsafe(256)
+    _, refresh_token = create_refresh_token(user_id, ip_address, user_agent)
     return access_token, refresh_token
 
 
@@ -92,7 +92,7 @@ def revoke_user_refresh_tokens(user_id: str) -> int:
         return result.rowcount
 
 
-def create_refresh_token(user_id: str, ip_address: Optional[str] = None, user_agent: Optional[str] = None) -> RefreshToken:
+def create_refresh_token(user_id: str, ip_address: Optional[str] = None, user_agent: Optional[str] = None) -> tuple[RefreshToken, str]:
     """Create and store a new refresh token"""
     refresh_token = secrets.token_urlsafe(256)
     token_hash = hash_token(refresh_token)
@@ -123,7 +123,7 @@ def create_refresh_token(user_id: str, ip_address: Optional[str] = None, user_ag
             "user_agent": token.user_agent
         })
         conn.commit()
-        return token
+        return token, refresh_token
 
 
 def get_refresh_token_by_id(token_id: str) -> Optional[RefreshToken]:
