@@ -103,7 +103,7 @@ async def register(user: User, request: Request):
                 )
 
             # Create token pair (access + refresh)
-            access_token, refresh_token = create_token_pair(new_user_id)
+            access_token, refresh_token = await create_token_pair(new_user_id)
 
             return {
                 "access_token": access_token,
@@ -138,7 +138,7 @@ async def login(user: User, request: Request):
                     status_code=400, detail="Invalid credentials")
 
             # Create token pair (access + refresh)
-            access_token, refresh_token = create_token_pair(str(row["id"]))
+            access_token, refresh_token = await create_token_pair(str(row["id"]))
 
             return {
                 "access_token": access_token,
@@ -158,7 +158,7 @@ async def refresh_tokens(refresh_token: str, request: Request):
     """
     try:
         # Validate refresh token against DB
-        rt = validate_refresh_token(refresh_token)
+        rt = await validate_refresh_token(refresh_token)
         if not rt:
             raise HTTPException(
                 status_code=401, detail="Invalid or expired refresh token"
@@ -168,7 +168,7 @@ async def refresh_tokens(refresh_token: str, request: Request):
         if rt.used_at is not None and rt.used_at != datetime.utcnow():
             logger.warning(f"Token reuse detected for user {rt.user_id}")
             # Revoke all tokens for this user (security breach protocol)
-            revoked_count = revoke_user_refresh_tokens(rt.user_id)
+            revoked_count = await revoke_user_refresh_tokens(rt.user_id)
             logger.warning(
                 f"Revoked {revoked_count} tokens for user {rt.user_id}")
             raise HTTPException(
@@ -176,10 +176,10 @@ async def refresh_tokens(refresh_token: str, request: Request):
             )
 
         # Create new token pair (rotation)
-        new_access_token, new_refresh_token = create_token_pair(rt.user_id)
+        new_access_token, new_refresh_token = await create_token_pair(rt.user_id)
 
         # Revoke old refresh token
-        revoke_refresh_token(refresh_token)
+        await revoke_refresh_token(refresh_token)
 
         return {
             "access_token": new_access_token,
@@ -200,7 +200,7 @@ async def logout(refresh_token: str = None, request: Request = None):
     """
     try:
         if refresh_token:
-            revoke_refresh_token(refresh_token)
+            await revoke_refresh_token(refresh_token)
         # If called without refresh token (e.g., from client), just log out
         logger.info("User logged out")
         return {"message": "Logged out successfully"}

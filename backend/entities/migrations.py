@@ -1,12 +1,13 @@
+from sqlalchemy.engine import create_engine
+from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 from sqlalchemy import text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import DeclarativeBase
 from sqlalchemy.pool import QueuePool
-from sqlalchemy.engine import create_engine
 from datetime import datetime
 from typing import Optional
 from pydantic import BaseModel
-import os
+from shared.settings import get_settings
 
 
 class RefreshToken(BaseModel):
@@ -29,21 +30,22 @@ class RefreshToken(BaseModel):
         from_attributes = True
 
 
-def init_db():
+async def init_db():
     """Initialize database tables"""
-    engine = get_engine()
-    DeclarativeBase.metadata.create_all(bind=engine)
+    async_engine = get_async_engine()
+    async with async_engine.begin() as conn:
+        await conn.run_sync(DeclarativeBase.metadata.create_all)
     print("Database tables created/initialized.")
 
 
-def init_db_with_migrations():
+async def init_db_with_migrations():
     """Initialize database with migrations"""
-    engine = get_engine()
+    async_engine = get_async_engine()
 
     # Run migrations
-    with engine.connect() as conn:
+    async with async_engine.begin() as conn:
         # Create refresh_tokens table if not exists
-        conn.execute(text("""
+        await conn.run_sync(text("""
             CREATE TABLE IF NOT EXISTS refresh_tokens (
                 id VARCHAR(255) PRIMARY KEY,
                 user_id UUID NOT NULL,
@@ -58,22 +60,40 @@ def init_db_with_migrations():
         """))
 
         # Create indexes
-        conn.execute(text("""
+        await conn.run_sync(text("""
             CREATE INDEX IF NOT EXISTS ix_refresh_tokens_user_id ON refresh_tokens(user_id)
         """))
 
-        conn.execute(text("""
+        await conn.run_sync(text("""
             CREATE INDEX IF NOT EXISTS ix_refresh_tokens_expires ON refresh_tokens(expires_at)
         """))
-
-        conn.commit()
 
     print("Database initialized with migrations.")
 
 
 def get_engine():
-    """Create database engine from connection string"""
-    connection_string = os.getenv("POSTGRES_CONNECTION_STRING")
+    """Create database engine from connection string (sync, for metadata)"""
+    settings = get_settings()
+    connection_string = settings.postgres_connection_string
     if not connection_string:
         raise ValueError("POSTGRES_CONNECTION_STRING not set")
-    return create_engine(connection_string, poolclass=QueuePool, pool_size=10, max_overflow=20)
+    return create_engine(
+        connection_string,
+        pool_size=settings.database_pool_size,
+        max_overflow=settings.database_max_overflow,
+        echo=settings.database_echo
+    )
+
+
+def get_async_engine():
+    """Create async database engine from connection string"""
+    settings = get_settings()
+    connection_string = settings.async_postgres_connection_string
+    if not connection_string:
+        raise ValueError("ASYNC_POSTGRES_CONNECTION_STRING not set")
+    return create_async_engine(
+        connection_string,
+        pool_size=settings.database_pool_size,
+        max_overflow=settings.database_max_overflow,
+        echo=settings.database_echo
+    )

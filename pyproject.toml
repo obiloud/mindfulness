@@ -88,4 +88,5 @@ dependencies = [
     "yarl==1.23.0",
     "zstandard==0.25.0",
     "psycopg2-binary>=2.9.11",
+    "asyncpg>=0.31.0",
 ]

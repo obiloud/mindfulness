@@ -1,7 +1,7 @@
 import os
 from functools import lru_cache
 
-from pydantic import Field
+from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings
 
 
@@ -28,6 +28,23 @@ class Settings(BaseSettings):
         "postgresql://user:password@localhost:5432/dbname",
         env="POSTGRES_CONNECTION_STRING"
     )
+    async_postgres_connection_string: str = Field(
+        "",
+        env="ASYNC_POSTGRES_CONNECTION_STRING"
+    )
+
+    @field_validator('async_postgres_connection_string', mode='before')
+    @classmethod
+    def ensure_async_protocol(cls, v):
+        if v == "":
+            v = os.getenv("POSTGRES_CONNECTION_STRING")
+        if isinstance(v, str) and v.startswith("postgresql://"):
+            return v.replace("postgresql://", "postgresql+asyncpg://")
+        return v
+
+    database_pool_size: int = Field(10, env="DATABASE_POOL_SIZE")
+    database_max_overflow: int = Field(20, env="DATABASE_MAX_OVERFLOW")
+    database_echo: bool = Field(False, env="DATABASE_ECHO")
 
     inference_provider: str = Field("huggingface", env="INFERENCE_PROVIDER")
 
