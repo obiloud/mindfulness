@@ -25,25 +25,25 @@
 - [x] Add `SECRET_KEY` environment variable requirement
 
 ### 1.4 Auth Endpoints
-- [ ] Create `POST /auth/register` endpoint:
-  - [ ] Generate access_token (15m) + refresh_token (7d)
-  - [ ] Store refresh_token in DB
-  - [ ] Return both tokens in response
-- [ ] Create `POST /auth/login` endpoint:
-  - [ ] Generate access_token (15m) + refresh_token (7d)
-  - [ ] Store refresh_token in DB
-  - [ ] Return both tokens in response
-- [ ] Create `POST /auth/refresh` endpoint:
-  - [ ] Accept refresh_token (cookie or JSON body)
-  - [ ] Validate token against DB
-  - [ ] Check for reuse (used_at is not null)
-  - [ ] If reused: revoke all user tokens (security breach)
-  - [ ] Create new token pair
-  - [ ] Delete old refresh token
-  - [ ] Return new tokens
-- [ ] Create `POST /auth/logout` endpoint:
-  - [ ] Revoke refresh token from DB
-  - [ ] Clear client-side tokens
+- [x] Create `POST /auth/register` endpoint:
+  - [x] Generate access_token (15m) + refresh_token (7d)
+  - [x] Store refresh_token in DB
+  - [x] Return both tokens in response
+- [x] Create `POST /auth/login` endpoint:
+  - [x] Generate access_token (15m) + refresh_token (7d)
+  - [x] Store refresh_token in DB
+  - [x] Return both tokens in response
+- [x] Create `POST /auth/refresh` endpoint:
+  - [x] Accept refresh_token (cookie or JSON body)
+  - [x] Validate token against DB
+  - [x] Check for reuse (used_at is not null)
+  - [x] If reused: revoke all user tokens (security breach)
+  - [x] Create new token pair
+  - [x] Delete old refresh token
+  - [x] Return new tokens
+- [x] Create `POST /auth/logout` endpoint:
+  - [x] Revoke refresh token from DB
+  - [x] Clear client-side tokens
 
 ### 1.5 Dependency Injection
 - [ ] Create `get_current_user()` sub-dependency for protected routes
