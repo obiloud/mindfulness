@@ -1,5 +1,5 @@
 from typing import Optional
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from entities.database import RefreshToken, User
 from entities.migrations import get_async_engine
 from sqlalchemy import text
@@ -26,8 +26,8 @@ async def hash_token(token: str) -> str:
 async def create_token_pair(user_id: str, ip_address: Optional[str] = None, user_agent: Optional[str] = None) -> tuple[str, str]:
     """Create a new access token and refresh token pair, storing refresh token in DB"""
     access_token = jwt.encode(
-        {"sub": user_id, "exp": datetime.utcnow(
-        ) + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)},
+        {"sub": user_id, "exp": datetime.now(timezone.utc
+                                             ) + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)},
         SECRET_KEY,
         algorithm=ALGORITHM
     )
@@ -96,14 +96,14 @@ async def create_refresh_token(user_id: str, ip_address: Optional[str] = None, u
     """Create and store a new refresh token"""
     refresh_token = secrets.token_urlsafe(256)
     token_hash = await hash_token(refresh_token)
-    expires_at = datetime.utcnow() + timedelta(days=7)
+    expires_at = datetime.now(timezone.utc) + timedelta(days=7)
 
     token = RefreshToken(
         id=secrets.token_urlsafe(32),
         user_id=user_id,
         token_hash=token_hash,
         expires_at=expires_at,
-        created_at=datetime.utcnow(),
+        created_at=datetime.now(timezone.utc),
         ip_address=ip_address,
         user_agent=user_agent
     )
