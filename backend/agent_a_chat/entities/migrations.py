@@ -1,7 +1,12 @@
-from sqlalchemy import Column, Integer, String, DateTime, Text, ForeignKey, Index, text
+from sqlalchemy import text
 from sqlalchemy.dialects.postgresql import JSONB
-from sqlalchemy.orm import relationship
+from sqlalchemy.orm import DeclarativeBase
+from sqlalchemy.pool import QueuePool
+from sqlalchemy.engine import create_engine
 from datetime import datetime
+from typing import Optional
+from pydantic import BaseModel
+import os
 
 
 class RefreshToken(BaseModel):
@@ -27,7 +32,7 @@ class RefreshToken(BaseModel):
 def init_db():
     """Initialize database tables"""
     engine = get_engine()
-    Base.metadata.create_all(bind=engine)
+    DeclarativeBase.metadata.create_all(bind=engine)
     print("Database tables created/initialized.")
 
 
@@ -41,7 +46,7 @@ def init_db_with_migrations():
         conn.execute(text("""
             CREATE TABLE IF NOT EXISTS refresh_tokens (
                 id VARCHAR(255) PRIMARY KEY,
-                user_id VARCHAR(255) NOT NULL,
+                user_id UUID NOT NULL,
                 token_hash VARCHAR(255) NOT NULL,
                 expires_at TIMESTAMP NOT NULL,
                 created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -71,4 +76,4 @@ def get_engine():
     connection_string = os.getenv("POSTGRES_CONNECTION_STRING")
     if not connection_string:
         raise ValueError("POSTGRES_CONNECTION_STRING not set")
-    return create_engine(connection_string, pool_size=10, max_overflow=20)
+    return create_engine(connection_string, poolclass=QueuePool, pool_size=10, max_overflow=20)

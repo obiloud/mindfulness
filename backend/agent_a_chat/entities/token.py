@@ -1,8 +1,7 @@
-from pydantic import BaseModel, Field
 from typing import Optional
 from datetime import datetime, timedelta
-from datamodels.database import RefreshToken, User
-from datamodels.migrations import get_engine
+from agent_a_chat.entities.database import RefreshToken, User
+from agent_a_chat.entities.migrations import get_engine
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 import hashlib
@@ -61,7 +60,7 @@ def validate_refresh_token(token: str, user_id: Optional[str] = None) -> Optiona
             WHERE rt.token_hash = :token_hash
             AND rt.expires_at > NOW()
             AND (rt.used_at IS NULL OR rt.used_at = NOW())
-        """, {"token_hash": token_hash}).fetchone())
+        """), {"token_hash": token_hash}).fetchone()
 
         if result:
             return RefreshToken(**result.dict())
@@ -114,7 +113,7 @@ def create_refresh_token(user_id: str, ip_address: Optional[str] = None, user_ag
         conn.execute(text("""
             INSERT INTO refresh_tokens (id, user_id, token_hash, expires_at, created_at, ip_address, user_agent)
             VALUES (:id, :user_id, :token_hash, :expires_at, :created_at, :ip_address, :user_agent)
-        """, {
+        """), {
             "id": token.id,
             "user_id": token.user_id,
             "token_hash": token.token_hash,
@@ -122,7 +121,7 @@ def create_refresh_token(user_id: str, ip_address: Optional[str] = None, user_ag
             "created_at": token.created_at,
             "ip_address": token.ip_address,
             "user_agent": token.user_agent
-        }))
+        })
         conn.commit()
         return token
 

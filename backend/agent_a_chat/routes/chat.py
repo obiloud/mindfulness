@@ -69,13 +69,15 @@ async def save_message(thread_id: str, user_id: str, role: str, content: str, db
 
 
 @router.get("/messages/history/{thread_id}")
-async def get_message_history(thread_id: str, user_id: str = None, request: Request = None):
+async def get_message_history(thread_id: str, request: Request = None, current_user: dict = Depends(get_current_user_dict)):
     """
     Retrieve conversation history for a thread.
     """
     if not request or not request.app.state.db_pool:
         raise HTTPException(
             status_code=500, detail="Database pool not available")
+
+    user_id = current_user.get("user_id")
 
     async with request.app.state.db_pool.connection() as conn:
         result = await conn.execute(

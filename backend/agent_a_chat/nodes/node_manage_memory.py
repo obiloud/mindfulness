@@ -2,13 +2,13 @@ from ..state import ChatState, GraphContext
 from langchain_core.messages import HumanMessage
 from langgraph.runtime import Runtime
 from langgraph.config import RunnableConfig
-from shared.datamodels.preferences import (
+from shared.memory.preferences import (
     MindfulnessProfile,
     VoiceBlueprint,
     update_voice_blueprint,
     update_mindfulness_profile,
 )
-from shared.datamodels.memories import extract_memorable_facts, store_memorable_facts
+from shared.memory.memories import extract_memorable_facts, store_memorable_facts
 import logging
 import traceback
 

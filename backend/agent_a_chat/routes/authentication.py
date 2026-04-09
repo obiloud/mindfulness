@@ -13,16 +13,26 @@ from jose import JWTError, jwt
 from uuid import uuid4
 
 from shared.settings import get_settings
+from agent_a_chat.entities.token import (
+    create_token_pair,
+    create_refresh_token,
+    validate_access_token,
+    validate_refresh_token,
+    revoke_refresh_token,
+    revoke_user_refresh_tokens,
+    hash_token,
+)
+from agent_a_chat.entities.database import RefreshToken, User
 
 router = APIRouter()
 
 # === Configuration ===
-SECRET_KEY = "your-super-secret-key"  # In production, use environment variable
+SECRET_KEY = get_settings().secret_key
 ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 30
+ACCESS_TOKEN_EXPIRE_MINUTES = 15  # Updated to 15 minutes
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login", auto_error=False)
 
 logger = logging.getLogger(__name__)
 
@@ -36,6 +46,7 @@ class User(BaseModel):
 
 class Token(BaseModel):
     access_token: str
+    refresh_token: str
     token_type: str = "bearer"
 
 
@@ -55,7 +66,7 @@ def get_password_hash(password: str) -> str:
 
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
     to_encode = data.copy()
-    expire = datetime.utcnow() + (expires_delta or timedelta(minutes=15))
+    expire = datetime.utcnow() + (expires_delta or timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES))
     to_encode.update({"exp": expire})
     return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
 
@@ -65,7 +76,7 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
 @router.post("/register")
 async def register(user: User, request: Request):
     """
-    Register a new user.
+    Register a new user and issue tokens.
     """
     try:
         db_pool = request.app.state.db_pool
@@ -86,14 +97,26 @@ async def register(user: User, request: Request):
                 await cur.execute(
                     """
                     INSERT INTO users(id, email, password_hash)
-                    VALUES ( % s, % s, % s)
+                    VALUES (%s, %s, %s)
                     """,
                     (new_user_id, user.email, hashed_password)
                 )
 
-            token = create_access_token(
-                data={"sub": new_user_id}, expires_delta=timedelta(days=1))
-            return {"access_token": token, "token_type": "bearer"}
+            # Create token pair (access + refresh)
+            access_token, refresh_token = create_token_pair(new_user_id)
+
+            # Store refresh token in DB
+            refresh_token_obj = create_refresh_token(
+                user_id=new_user_id,
+                ip_address=request.client.host if request.client else None,
+                user_agent=request.headers.get("user-agent")
+            )
+
+            return {
+                "access_token": access_token,
+                "refresh_token": refresh_token,
+                "token_type": "bearer"
+            }
     except Exception as e:
         logger.error(f"Registration error: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
@@ -102,7 +125,7 @@ async def register(user: User, request: Request):
 @router.post("/login")
 async def login(user: User, request: Request):
     """
-    Login user and return JWT token.
+    Login user and issue tokens.
     """
     try:
         db_pool = request.app.state.db_pool
@@ -121,16 +144,94 @@ async def login(user: User, request: Request):
                 raise HTTPException(
                     status_code=400, detail="Invalid credentials")
 
-            token = create_access_token(
-                data={"sub": str(row["id"])}, expires_delta=timedelta(days=1))
-            return {"access_token": token, "token_type": "bearer"}
+            # Create token pair (access + refresh)
+            access_token, refresh_token = create_token_pair(str(row["id"]))
+
+            # Store refresh token in DB
+            refresh_token_obj = create_refresh_token(
+                user_id=str(row["id"]),
+                ip_address=request.client.host if request.client else None,
+                user_agent=request.headers.get("user-agent")
+            )
+
+            return {
+                "access_token": access_token,
+                "refresh_token": refresh_token,
+                "token_type": "bearer"
+            }
     except Exception as e:
         logger.error(f"Login error: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@router.post("/refresh")
+async def refresh_tokens(refresh_token: str, request: Request):
+    """
+    Refresh access token using refresh token.
+    Implements token rotation and security breach detection.
+    """
+    try:
+        # Validate refresh token against DB
+        rt = validate_refresh_token(refresh_token)
+        if not rt:
+            raise HTTPException(
+                status_code=401, detail="Invalid or expired refresh token"
+            )
+
+        # Check for token reuse (security breach)
+        if rt.used_at is not None and rt.used_at != datetime.utcnow():
+            logger.warning(f"Token reuse detected for user {rt.user_id}")
+            # Revoke all tokens for this user (security breach protocol)
+            revoked_count = revoke_user_refresh_tokens(rt.user_id)
+            logger.warning(
+                f"Revoked {revoked_count} tokens for user {rt.user_id}")
+            raise HTTPException(
+                status_code=401, detail="Security breach: token reuse detected"
+            )
+
+        # Create new token pair (rotation)
+        new_access_token, new_refresh_token = create_token_pair(rt.user_id)
+
+        # Store new refresh token
+        new_refresh_token_obj = create_refresh_token(
+            user_id=rt.user_id,
+            ip_address=request.client.host if request.client else None,
+            user_agent=request.headers.get("user-agent")
+        )
+
+        # Revoke old refresh token
+        revoke_refresh_token(refresh_token)
+
+        return {
+            "access_token": new_access_token,
+            "refresh_token": new_refresh_token,
+            "token_type": "bearer"
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Refresh error: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/logout")
+async def logout(refresh_token: str = None, request: Request = None):
+    """
+    Logout user and revoke refresh token.
+    """
+    try:
+        if refresh_token:
+            revoke_refresh_token(refresh_token)
+        # If called without refresh token (e.g., from client), just log out
+        logger.info("User logged out")
+        return {"message": "Logged out successfully"}
+    except Exception as e:
+        logger.error(f"Logout error: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @router.get("/me")
-async def get_current_user(token: str = Depends(oauth2_scheme), request: Request = None):
+async def get_current_user(token: str = Depends(oauth2_scheme)):
     """
     Get current authenticated user.
     """

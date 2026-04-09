@@ -31,6 +31,8 @@ class Settings(BaseSettings):
 
     inference_provider: str = Field("huggingface", env="INFERENCE_PROVIDER")
 
+    secret_key: str = Field("your-super-secret-key", env="SECRET_KEY")
+
     class Config:
         env_file = ".env"
         case_sensitive = False

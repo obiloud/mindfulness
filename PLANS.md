@@ -19,10 +19,10 @@
 - [x] Implement `get_refresh_token_by_id()` for lookup
 
 ### 1.3 JWT Configuration
-- [ ] Update `ACCESS_TOKEN_EXPIRE_MINUTES` to 15 in `backend/agent_a_chat/routes/authentication.py`
-- [ ] Create `create_refresh_token()` function with 7-day expiry
-- [ ] Create `create_token_pair()` function returning both tokens
-- [ ] Add `SECRET_KEY` environment variable requirement
+- [x] Update `ACCESS_TOKEN_EXPIRE_MINUTES` to 15 in `backend/agent_a_chat/routes/authentication.py`
+- [x] Create `create_refresh_token()` function with 7-day expiry
+- [x] Create `create_token_pair()` function returning both tokens
+- [x] Add `SECRET_KEY` environment variable requirement
 
 ### 1.4 Auth Endpoints
 - [ ] Create `POST /auth/register` endpoint:
