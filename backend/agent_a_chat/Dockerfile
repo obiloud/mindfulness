@@ -23,6 +23,8 @@ COPY ./backend/agent_a_chat ./agent_a_chat
 
 COPY ./backend/shared ./shared
 
+COPY ./backend/entities ./entities
+
 EXPOSE 8000
 
 # Start the FastAPI gateway

@@ -26,6 +26,9 @@ from langgraph.store.postgres.aio import AsyncPostgresStore, PostgresIndexConfig
 from langgraph.store.postgres.base import ANNIndexConfig
 from fastembed import TextEmbedding
 import os
+import logging
+
+logging.basicConfig(level=logging.INFO)
 
 # === Lifespan Context Manager ===
 

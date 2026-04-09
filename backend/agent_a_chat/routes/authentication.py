@@ -13,7 +13,7 @@ from jose import JWTError, jwt
 from uuid import uuid4
 
 from shared.settings import get_settings
-from agent_a_chat.entities.token import (
+from entities.token import (
     create_token_pair,
     create_refresh_token,
     validate_access_token,
@@ -22,7 +22,7 @@ from agent_a_chat.entities.token import (
     revoke_user_refresh_tokens,
     hash_token,
 )
-from agent_a_chat.entities.database import RefreshToken, User
+from entities.database import RefreshToken, User
 
 router = APIRouter()
 

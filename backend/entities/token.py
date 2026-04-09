@@ -1,7 +1,7 @@
 from typing import Optional
 from datetime import datetime, timedelta
-from agent_a_chat.entities.database import RefreshToken, User
-from agent_a_chat.entities.migrations import get_engine
+from entities.database import RefreshToken, User
+from entities.migrations import get_engine
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 import hashlib
