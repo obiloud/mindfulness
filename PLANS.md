@@ -46,14 +46,14 @@
   - [x] Clear client-side tokens
 
 ### 1.5 Dependency Injection
-- [ ] Create `get_current_user()` sub-dependency for protected routes
-- [ ] Create `get_refresh_token()` sub-dependency for refresh endpoint
-- [ ] Add CORS headers for cookie-based auth
+- [x] Create `get_current_user()` sub-dependency for protected routes
+- [x] Create `get_refresh_token()` sub-dependency for refresh endpoint
+- [x] Add CORS headers for cookie-based auth
 
 ### 1.6 Security Hardening
-- [ ] Add `HttpOnly` cookie support for refresh tokens
-- [ ] Add IP address and user_agent tracking to refresh tokens
-- [ ] Implement token rotation validation
+- [x] Add `HttpOnly` cookie support for refresh tokens
+- [x] Add IP address and user_agent tracking to refresh tokens
+- [x] Implement token rotation validation
 - [ ] Add rate limiting to refresh endpoint
 
 ## Phase 2: Frontend (Gleam / Lustre) - The Orchestrator

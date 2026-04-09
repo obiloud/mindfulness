@@ -8,6 +8,11 @@ import secrets
 from jose import jwt
 from passlib.context import CryptContext
 import os
+from fastapi import Request, HTTPException
+import logging
+
+# Configure logger
+logger = logging.getLogger(__name__)
 
 # JWT Configuration
 # In production, use environment variable
@@ -44,7 +49,7 @@ async def validate_access_token(token: str) -> Optional[str]:
         return None
 
 
-async def validate_refresh_token(token: str, user_id: Optional[str] = None) -> Optional[RefreshToken]:
+async def validate_refresh_token(token: str, request: Optional[Request] = None) -> Optional[RefreshToken]:
     """
     Validate a refresh token and return the RefreshToken object if valid.
     Returns None if token is invalid, expired, or not found.
@@ -63,6 +68,36 @@ async def validate_refresh_token(token: str, user_id: Optional[str] = None) -> O
         row = await conn.fetchfirst(result)
 
         if row:
+            # Validate IP address and user agent if request is provided
+            if request:
+                current_ip = request.client.host if request.client else None
+                current_user_agent = request.headers.get("user-agent")
+
+                # Check if IP address or user agent has changed (potential token theft)
+                if row.ip_address and current_ip and row.ip_address != current_ip:
+                    logger.warning(
+                        f"IP address mismatch for token {row.id}: "
+                        f"expected {row.ip_address}, got {current_ip}"
+                    )
+                    # Revoke all tokens for this user (security breach protocol)
+                    await revoke_user_refresh_tokens(row.user_id)
+                    raise HTTPException(
+                        status_code=401,
+                        detail="Security breach: IP address mismatch detected"
+                    )
+
+                if row.user_agent and current_user_agent and row.user_agent != current_user_agent:
+                    logger.warning(
+                        f"User agent mismatch for token {row.id}: "
+                        f"expected {row.user_agent}, got {current_user_agent}"
+                    )
+                    # Revoke all tokens for this user (security breach protocol)
+                    await revoke_user_refresh_tokens(row.user_id)
+                    raise HTTPException(
+                        status_code=401,
+                        detail="Security breach: User agent mismatch detected"
+                    )
+
             return RefreshToken(**row.dict())
         return None
 

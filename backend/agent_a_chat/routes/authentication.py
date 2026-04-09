@@ -3,7 +3,7 @@ Authentication module for Agent A Chat API.
 Handles user registration, login, and JWT token management.
 """
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.security import OAuth2PasswordBearer
@@ -15,14 +15,11 @@ from uuid import uuid4
 from shared.settings import get_settings
 from entities.token import (
     create_token_pair,
-    create_refresh_token,
-    validate_access_token,
     validate_refresh_token,
     revoke_refresh_token,
     revoke_user_refresh_tokens,
-    hash_token,
 )
-from entities.database import RefreshToken, User
+from entities.database import User
 
 router = APIRouter()
 
@@ -66,7 +63,8 @@ def get_password_hash(password: str) -> str:
 
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
     to_encode = data.copy()
-    expire = datetime.utcnow() + (expires_delta or timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES))
+    expire = datetime.now(
+        timezone.utc) + (expires_delta or timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES))
     to_encode.update({"exp": expire})
     return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
 
@@ -158,14 +156,14 @@ async def refresh_tokens(refresh_token: str, request: Request):
     """
     try:
         # Validate refresh token against DB
-        rt = await validate_refresh_token(refresh_token)
+        rt = await validate_refresh_token(refresh_token, request)
         if not rt:
             raise HTTPException(
                 status_code=401, detail="Invalid or expired refresh token"
             )
 
         # Check for token reuse (security breach)
-        if rt.used_at is not None and rt.used_at != datetime.utcnow():
+        if rt.used_at is not None and rt.used_at != datetime.now(timezone.utc):
             logger.warning(f"Token reuse detected for user {rt.user_id}")
             # Revoke all tokens for this user (security breach protocol)
             revoked_count = await revoke_user_refresh_tokens(rt.user_id)
@@ -175,11 +173,12 @@ async def refresh_tokens(refresh_token: str, request: Request):
                 status_code=401, detail="Security breach: token reuse detected"
             )
 
-        # Create new token pair (rotation)
-        new_access_token, new_refresh_token = await create_token_pair(rt.user_id)
-
-        # Revoke old refresh token
-        await revoke_refresh_token(refresh_token)
+        # Create new token pair (rotation) with updated IP/user_agent
+        new_access_token, new_refresh_token = await create_token_pair(
+            rt.user_id,
+            ip_address=request.client.host if request.client else None,
+            user_agent=request.headers.get("user-agent")
+        )
 
         return {
             "access_token": new_access_token,
