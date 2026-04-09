@@ -23,6 +23,8 @@ pub type AuthState {
     password: String,
     auth_screen: Option(AuthScreen),
     validation_error: Option(String),
+    access_token: Option(String),
+    refresh_token: Option(String),
   )
 }
 
@@ -33,7 +35,12 @@ pub type AuthMsg {
   AttemptRegister
   OnResult(Result(AuthResponse, rsvp.Error))
   ToggleAuthScreen(AuthScreen)
-  AuthSuccess(String)
+  AuthSuccess(String, String)
+  RefreshStarted
+  RefreshCompleted(Result(AuthResponse, rsvp.Error))
+  RefreshSuccess(String, String)
+  LogoutRequested
+  LogoutSuccess
 }
 
 // --- AUTHENTICATION LOGIC ---
@@ -45,17 +52,24 @@ pub fn auth_init() -> #(AuthState, Effect(AuthMsg)) {
       password: "",
       auth_screen: Some(LoginScreen),
       validation_error: None,
+      access_token: None,
+      refresh_token: None,
     ),
     effect.from(fn(dispatch) {
       let access_token = local_storage.get_item("access_token")
-      case echo access_token {
-        Some(token) ->
+      let refresh_token = local_storage.get_item("refresh_token")
+      case echo access_token, refresh_token {
+        Some(access), Some(refresh) ->
           dispatch(
             OnResult(
-              Ok(api.AuthResponse(access_token: token, token_type: "Bearer")),
+              Ok(api.AuthResponse(
+                access_token: access,
+                refresh_token: refresh,
+                token_type: "Bearer",
+              )),
             ),
           )
-        None -> Nil
+        _, _ -> Nil
       }
     }),
   )
@@ -125,9 +139,12 @@ pub fn update_auth_state(
       effect.from(fn(dispatch) {
         let success =
           local_storage.set_item("access_token", response.access_token)
-        case echo success {
-          True -> dispatch(AuthSuccess(response.access_token))
-          False -> Nil
+        let refresh_success =
+          local_storage.set_item("refresh_token", response.refresh_token)
+        case success, refresh_success {
+          True, True ->
+            dispatch(AuthSuccess(response.access_token, response.refresh_token))
+          _, _ -> Nil
         }
       }),
     )
@@ -137,7 +154,73 @@ pub fn update_auth_state(
       effect.none(),
     )
 
-    AuthSuccess(_) -> #(state, effect.none())
+    AuthSuccess(_, _) -> #(state, effect.none())
+
+    RefreshStarted -> #(
+      AuthState(..state, access_token: None, refresh_token: None),
+      effect.from(fn(_) {
+        // Clear tokens during refresh
+        local_storage.remove_item("access_token")
+        local_storage.remove_item("refresh_token")
+        Nil
+      }),
+    )
+
+    RefreshCompleted(Ok(response)) -> #(
+      AuthState(..state, auth_screen: None, validation_error: None),
+      effect.from(fn(dispatch) {
+        let success =
+          local_storage.set_item("access_token", response.access_token)
+        let refresh_success =
+          local_storage.set_item("refresh_token", response.refresh_token)
+        case echo success, refresh_success {
+          True, True ->
+            dispatch(RefreshSuccess(
+              response.access_token,
+              response.refresh_token,
+            ))
+          _, _ -> Nil
+        }
+      }),
+    )
+
+    RefreshCompleted(_) -> #(
+      AuthState(
+        ..state,
+        access_token: None,
+        refresh_token: None,
+        auth_screen: Some(LoginScreen),
+      ),
+      effect.batch([
+        effect.from(fn(_) {
+          local_storage.remove_item("access_token")
+          local_storage.remove_item("refresh_token")
+          Nil
+        }),
+        effect.from(fn(dispatch) { dispatch(LogoutSuccess) }),
+      ]),
+    )
+
+    RefreshSuccess(_, _) -> #(state, effect.none())
+
+    LogoutRequested -> #(
+      AuthState(
+        ..state,
+        access_token: None,
+        refresh_token: None,
+        auth_screen: Some(LoginScreen),
+      ),
+      effect.batch([
+        effect.from(fn(_) {
+          local_storage.remove_item("access_token")
+          local_storage.remove_item("refresh_token")
+          Nil
+        }),
+        effect.from(fn(dispatch) { dispatch(LogoutSuccess) }),
+      ]),
+    )
+
+    LogoutSuccess -> #(state, effect.none())
   }
 }
 

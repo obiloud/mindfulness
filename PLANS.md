@@ -59,37 +59,37 @@
 ## Phase 2: Frontend (Gleam / Lustre) - The Orchestrator
 
 ### 2.1 Schema Updates
-- [ ] Add `refresh_token: String` to `AuthResponse` in `client/src/api.gleam`
-- [ ] Add `refresh_token: String` to `Model` in `client/src/client.gleam`
-- [ ] Add `is_refreshing: Bool` to `Model` for concurrency control
+- [x] Add `refresh_token: String` to `AuthResponse` in `client/src/api.gleam`
+- [x] Add `refresh_token: String` to `Model` in `client/src/client.gleam`
+- [x] Add `is_refreshing: Bool` to `Model` for concurrency control
 
 ### 2.2 State Management
-- [ ] Update `auth_init()` to load both tokens from localStorage
-- [ ] Update `update_auth_state()` to handle refresh token storage
-- [ ] Add `RefreshStarted` message type to `AuthMsg`
-- [ ] Add `RefreshCompleted` message type to `AuthMsg`
-- [ ] Add `LogoutRequired` message type to `AuthMsg`
+- [x] Update `auth_init()` to load both tokens from localStorage
+- [x] Update `update_auth_state()` to handle refresh token storage
+- [x] Add `RefreshStarted` message type to `AuthMsg`
+- [x] Add `RefreshCompleted` message type to `AuthMsg`
+- [x] Add `LogoutRequired` message type to `AuthMsg`
 
 ### 2.3 HTTP Client Interceptor
-- [ ] Create `send_authenticated_request()` helper function
-- [ ] Implement 401 error handling:
-  - [ ] Check `is_refreshing` flag
-  - [ ] If not refreshing: trigger refresh
-  - [ ] Queue original request
-  - [ ] On refresh success: re-dispatch queued requests
-  - [ ] On refresh failure: trigger logout
-- [ ] Implement request queuing mechanism
-- [ ] Implement retry logic for queued requests
+- [x] Update `send_message()` function
+- [x] Implement 401 error handling:
+  - [x] Check `is_refreshing` flag
+  - [x] If not refreshing: trigger refresh
+  - [x] Queue original request
+  - [x] On refresh success: re-dispatch queued requests
+  - [x] On refresh failure: trigger logout
+- [x] Implement request queuing mechanism
+- [x] Implement retry logic for queued requests
 
 ### 2.4 Effect Handling
-- [ ] Wrap refresh logic in `effect.from()` for async handling
-- [ ] Handle refresh promise resolution in Lustre update cycle
-- [ ] Implement concurrent refresh prevention
+- [x] Wrap refresh logic in `effect.from()` for async handling
+- [x] Handle refresh promise resolution in Lustre update cycle
+- [x] Implement concurrent refresh prevention
 
 ### 2.5 Logout Flow
-- [ ] Update logout to clear both tokens from localStorage
-- [ ] Update logout to clear queued requests
-- [ ] Update logout to transition to `LoggedOut` state
+- [x] Update logout to clear both tokens from localStorage
+- [x] Update logout to clear queued requests
+- [x] Update logout to transition to `LoggedOut` state
 
 ### 2.6 UI Updates
 - [ ] Add loading state during refresh

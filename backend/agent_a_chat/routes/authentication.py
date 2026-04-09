@@ -50,6 +50,10 @@ class Token(BaseModel):
 class TokenData(BaseModel):
     user_id: Optional[str] = None
 
+
+class RefreshTokenRequest(BaseModel):
+    refresh_token: str
+
 # === Helper Functions ===
 
 
@@ -149,14 +153,14 @@ async def login(user: User, request: Request):
 
 
 @router.post("/refresh")
-async def refresh_tokens(refresh_token: str, request: Request):
+async def refresh_tokens(refresh_token_request: RefreshTokenRequest, request: Request):
     """
     Refresh access token using refresh token.
     Implements token rotation and security breach detection.
     """
     try:
         # Validate refresh token against DB
-        rt = await validate_refresh_token(refresh_token, request)
+        rt = await validate_refresh_token(refresh_token_request.refresh_token, request)
         if not rt:
             raise HTTPException(
                 status_code=401, detail="Invalid or expired refresh token"
@@ -175,7 +179,7 @@ async def refresh_tokens(refresh_token: str, request: Request):
 
         # Create new token pair (rotation) with updated IP/user_agent
         new_access_token, new_refresh_token = await create_token_pair(
-            rt.user_id,
+            str(rt.user_id),
             ip_address=request.client.host if request.client else None,
             user_agent=request.headers.get("user-agent")
         )

@@ -50,9 +50,9 @@ async def init_db_with_migrations():
                 id VARCHAR(255) PRIMARY KEY,
                 user_id UUID NOT NULL,
                 token_hash VARCHAR(255) NOT NULL,
-                expires_at TIMESTAMP NOT NULL,
-                created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                used_at TIMESTAMP,
+                expires_at TIMESTAMPTZ NOT NULL,
+                created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                used_at TIMESTAMPTZ,
                 ip_address VARCHAR(45),
                 user_agent VARCHAR(255),
                 FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE

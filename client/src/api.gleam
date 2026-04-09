@@ -4,6 +4,7 @@ import gleam/http
 import gleam/http/request
 import gleam/json
 import gleam/option.{type Option, None, Some}
+import gleam/result
 import lustre/effect
 import rsvp
 
@@ -12,13 +13,14 @@ pub type User {
 }
 
 pub type AuthResponse {
-  AuthResponse(access_token: String, token_type: String)
+  AuthResponse(access_token: String, refresh_token: String, token_type: String)
 }
 
 fn decode_auth_response() -> decode.Decoder(AuthResponse) {
   use access_token <- decode.field("access_token", decode.string)
+  use refresh_token <- decode.field("refresh_token", decode.string)
   use token_type <- decode.field("token_type", decode.string)
-  decode.success(AuthResponse(access_token:, token_type:))
+  decode.success(AuthResponse(access_token:, refresh_token:, token_type:))
 }
 
 pub type AgentResponse {
@@ -30,6 +32,11 @@ pub type AgentResponse {
     transcript: Option(String),
     chapters: Option(List(String)),
   )
+}
+
+pub type ResponseError {
+  RefreshRequired(String, Option(String))
+  RsvpError(rsvp.Error)
 }
 
 fn decode_agent_response() -> decode.Decoder(AgentResponse) {
@@ -56,7 +63,7 @@ pub fn send_message(
   content: String,
   thread_id: Option(String),
   access_token: String,
-) -> effect.Effect(Result(AgentResponse, rsvp.Error)) {
+) -> effect.Effect(Result(AgentResponse, ResponseError)) {
   let payload = case thread_id {
     Some(sid) ->
       json.object([
@@ -67,7 +74,22 @@ pub fn send_message(
     None -> json.object([#("message", json.string(content))])
   }
 
-  let handler = rsvp.expect_json(decode_agent_response(), function.identity)
+  let handler =
+    rsvp.expect_any_response(fn(result) {
+      case result {
+        Ok(response) if response.status == 401 -> {
+          // INTERCEPTOR LOGIC: Handle 401 RefreshRequired
+          Error(RefreshRequired(content, thread_id))
+        }
+        Ok(response) -> {
+          // Decode the response body
+          response.body
+          |> json.parse(decode_agent_response())
+          |> result.map_error(fn(e) { RsvpError(rsvp.JsonError(e)) })
+        }
+        Error(error) -> Error(RsvpError(error))
+      }
+    })
 
   request.new()
   |> request.set_method(http.Post)
@@ -108,6 +130,17 @@ pub fn login(
     ])
 
   let url = "http://localhost:8000/auth/login"
+  let handler = rsvp.expect_json(decode_auth_response(), function.identity)
+
+  rsvp.post(url, payload, handler)
+}
+
+pub fn refresh(
+  refresh_token: String,
+) -> effect.Effect(Result(AuthResponse, rsvp.Error)) {
+  let payload = json.object([#("refresh_token", json.string(refresh_token))])
+
+  let url = "http://localhost:8000/auth/refresh"
   let handler = rsvp.expect_json(decode_auth_response(), function.identity)
 
   rsvp.post(url, payload, handler)

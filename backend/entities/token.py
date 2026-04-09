@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 # In production, use environment variable
 SECRET_KEY = os.getenv("SECRET_KEY", "your-super-secret-key")
 ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 15  # Updated from 30 to 15
+ACCESS_TOKEN_EXPIRE_MINUTES = 1  # Updated from 30 to 15
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
@@ -65,7 +65,7 @@ async def validate_refresh_token(token: str, request: Optional[Request] = None) 
             AND rt.expires_at > NOW()
             AND (rt.used_at IS NULL OR rt.used_at = NOW())
         """), {"token_hash": token_hash})
-        row = await conn.fetchfirst(result)
+        row = result.fetchone()
 
         if row:
             # Validate IP address and user agent if request is provided
@@ -98,7 +98,7 @@ async def validate_refresh_token(token: str, request: Optional[Request] = None) 
                         detail="Security breach: User agent mismatch detected"
                     )
 
-            return RefreshToken(**row.dict())
+            return RefreshToken(**row._mapping)
         return None
 
 
@@ -169,8 +169,8 @@ async def get_refresh_token_by_id(token_id: str) -> Optional[RefreshToken]:
             SELECT * FROM refresh_tokens
             WHERE id = :token_id
         """), {"token_id": token_id})
-        row = await conn.fetchfirst(result)
+        row = result.fetchone()
 
         if row:
-            return RefreshToken(**row.dict())
+            return RefreshToken(**row._mapping)
         return None
