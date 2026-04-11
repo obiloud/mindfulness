@@ -1,13 +1,11 @@
 // --- AUTHENTICATION MODULE ---
 
 import api.{type AuthResponse, login, register}
+import gleam/dynamic/decode
+import gleam/json
 import gleam/option.{type Option, None, Some}
 import local_storage
-import lustre/attribute
 import lustre/effect.{type Effect}
-import lustre/element.{type Element}
-import lustre/element/html
-import lustre/event
 import rsvp
 
 // --- TYPES ---
@@ -21,6 +19,7 @@ pub type AuthState {
   AuthState(
     email: String,
     password: String,
+    confirm_password: String,
     auth_screen: Option(AuthScreen),
     validation_error: Option(String),
     access_token: Option(String),
@@ -31,6 +30,7 @@ pub type AuthState {
 pub type AuthMsg {
   EmailChanged(String)
   PasswordChanged(String)
+  ConfirmPasswordChanged(String)
   AttemptLogin
   AttemptRegister
   OnResult(Result(AuthResponse, rsvp.Error))
@@ -50,6 +50,7 @@ pub fn auth_init() -> #(AuthState, Effect(AuthMsg)) {
     AuthState(
       email: "",
       password: "",
+      confirm_password: "",
       auth_screen: Some(LoginScreen),
       validation_error: None,
       access_token: None,
@@ -90,6 +91,11 @@ pub fn update_auth_state(
       #(new_state, effect.none())
     }
 
+    ConfirmPasswordChanged(confirm_password) -> {
+      let new_state = AuthState(..state, confirm_password: confirm_password)
+      #(new_state, effect.none())
+    }
+
     AttemptLogin -> {
       case state.email == "" || state.password == "" {
         True -> {
@@ -117,13 +123,24 @@ pub fn update_auth_state(
             )
           #(new_state, effect.none())
         }
-        False -> {
-          let new_state = AuthState(..state, email: "", password: "")
-          #(
-            new_state,
-            effect.map(register(state.email, state.password), OnResult),
-          )
-        }
+        False ->
+          case state.password != state.confirm_password {
+            True -> {
+              let new_state =
+                AuthState(
+                  ..state,
+                  validation_error: Some("Passwords do not match"),
+                )
+              #(new_state, effect.none())
+            }
+            False -> {
+              let new_state = AuthState(..state, email: "", password: "")
+              #(
+                new_state,
+                effect.map(register(state.email, state.password), OnResult),
+              )
+            }
+          }
       }
     }
 
@@ -149,8 +166,20 @@ pub fn update_auth_state(
       }),
     )
 
+    OnResult(Error(rsvp.HttpError(response))) -> {
+      let detail_decoder = {
+        use detail <- decode.field("detail", decode.string)
+        decode.success(detail)
+      }
+      let result = json.parse(response.body, detail_decoder)
+      #(
+        AuthState(..state, validation_error: option.from_result(result)),
+        effect.none(),
+      )
+    }
+
     OnResult(Error(_)) -> #(
-      AuthState(..state, validation_error: Some("Wrong email or password")),
+      AuthState(..state, validation_error: Some("Something went wrong")),
       effect.none(),
     )
 
@@ -222,197 +251,4 @@ pub fn update_auth_state(
 
     LogoutSuccess -> #(state, effect.none())
   }
-}
-
-// --- AUTHENTICATION VIEW ---
-
-pub fn view_auth_screen(state: AuthState) -> Element(AuthMsg) {
-  html.div(
-    [
-      attribute.class(
-        "min-h-screen bg-bg-main font-body text-text-base transition-colors duration-500 "
-        <> "lg:flex lg:items-center lg:justify-center lg:p-4",
-        // Centering only on large screens
-      ),
-    ],
-    [
-      html.div(
-        [
-          attribute.class(
-            // MOBILE: Full width/height, no corners, no border
-            "flex flex-col w-full h-svh bg-bg-header/90 backdrop-blur-md shadow-2xl "
-            // DESKTOP (lg): Fixed size, rounded corners, border
-            <> "lg:h-[850px] lg:max-w-md lg:rounded-[3rem] lg:border lg:border-deep-moss/10 lg:relative",
-          ),
-        ],
-        [
-          case state.auth_screen {
-            Some(LoginScreen) -> {
-              html.div(
-                [
-                  attribute.class(
-                    "min-h-screen bg-bg-main font-body text-text-base",
-                  ),
-                ],
-                [
-                  html.div(
-                    [
-                      attribute.class(
-                        "max-w-md w-full bg-white dark:bg-gray-800 p-8 shadow-lg",
-                      ),
-                    ],
-                    [
-                      html.h1(
-                        [
-                          attribute.class(
-                            "text-2xl font-bold text-center mb-6 text-deep-moss",
-                          ),
-                        ],
-                        [element.text("Login to PULSE LOTUS")],
-                      ),
-                      html.input([
-                        attribute.type_("email"),
-                        attribute.class(
-                          "w-full px-4 py-2 border border-gray-300",
-                        ),
-                        event.on_input(EmailChanged),
-                        attribute.value(state.email),
-                      ]),
-                      html.input([
-                        attribute.type_("password"),
-                        attribute.class(
-                          "w-full px-4 py-2 border border-gray-300",
-                        ),
-                        event.on_input(PasswordChanged),
-                        attribute.value(state.password),
-                      ]),
-                      case state.validation_error {
-                        Some(validation_error) ->
-                          html.p(
-                            [attribute.class("text-red-500 text-sm mb-4")],
-                            [
-                              element.text(validation_error),
-                            ],
-                          )
-                        None -> html.text("")
-                      },
-                      html.button(
-                        [
-                          event.on_click(AttemptLogin),
-                          attribute.class("px-6 py-2 bg-neo-mint"),
-                        ],
-                        [element.text("Submit")],
-                      ),
-                      html.p([attribute.class("flex gap-2 my-2")], [
-                        html.span(
-                          [
-                            attribute.class(
-                              "text-sm text-gray-600 dark:text-gray-400",
-                            ),
-                          ],
-                          [element.text("Don't have an account?")],
-                        ),
-                        html.button(
-                          [
-                            event.on_click(ToggleAuthScreen(RegisterScreen)),
-                            attribute.class(
-                              "text-neo-mint hover:underline text-sm cursor-pointer",
-                            ),
-                          ],
-                          [element.text("Register")],
-                        ),
-                      ]),
-                    ],
-                  ),
-                ],
-              )
-            }
-
-            Some(RegisterScreen) -> {
-              html.div(
-                [
-                  attribute.class(
-                    "min-h-screen bg-bg-main font-body text-text-base",
-                  ),
-                ],
-                [
-                  html.div(
-                    [
-                      attribute.class(
-                        "max-w-md w-full bg-white dark:bg-gray-800 p-8 shadow-lg",
-                      ),
-                    ],
-                    [
-                      html.h1(
-                        [
-                          attribute.class(
-                            "text-2xl font-bold text-center mb-6 text-deep-moss",
-                          ),
-                        ],
-                        [element.text("Create Account")],
-                      ),
-                      html.input([
-                        attribute.type_("email"),
-                        attribute.class(
-                          "w-full px-4 py-2 border border-gray-300",
-                        ),
-                        event.on_input(EmailChanged),
-                        attribute.value(state.email),
-                      ]),
-                      html.input([
-                        attribute.type_("password"),
-                        attribute.class(
-                          "w-full px-4 py-2 border border-gray-300",
-                        ),
-                        event.on_input(PasswordChanged),
-                        attribute.value(state.password),
-                      ]),
-                      case state.validation_error {
-                        Some(validation_error) ->
-                          html.p(
-                            [attribute.class("text-red-500 text-sm mb-4")],
-                            [
-                              element.text(validation_error),
-                            ],
-                          )
-                        None -> html.text("")
-                      },
-                      html.button(
-                        [
-                          event.on_click(AttemptRegister),
-                          attribute.class("px-6 py-2 bg-neo-mint"),
-                        ],
-                        [element.text("Submit")],
-                      ),
-                      html.p([attribute.class("flex gap-2 my-2")], [
-                        html.span(
-                          [
-                            attribute.class(
-                              "text-sm text-gray-600 dark:text-gray-400",
-                            ),
-                          ],
-                          [element.text("Already have an account?")],
-                        ),
-                        html.button(
-                          [
-                            event.on_click(ToggleAuthScreen(LoginScreen)),
-                            attribute.class(
-                              "text-neo-mint hover:underline text-sm cursor-pointer",
-                            ),
-                          ],
-                          [element.text("Login")],
-                        ),
-                      ]),
-                    ],
-                  ),
-                ],
-              )
-            }
-
-            None -> html.text("")
-          },
-        ],
-      ),
-    ],
-  )
 }
