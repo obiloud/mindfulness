@@ -6,6 +6,7 @@ import gleam/string
 import meditation
 
 import auth.{AuthSuccess, LogoutSuccess, RefreshSuccess}
+import auth_screen.{view_auth_screen}
 import cartesia.{Connected}
 import dom
 import gleam/dynamic/decode
@@ -395,7 +396,7 @@ fn view_message(m: Message) -> Element(Msg) {
 
 fn view(model: Model) -> Element(Msg) {
   case model.auth.auth_screen {
-    Some(_) -> element.map(auth.view_auth_screen(model.auth), AuthMsg)
+    Some(_) -> element.map(view_auth_screen(model.auth), AuthMsg)
     None -> {
       case model.show_meditation, model.answer {
         True, Some(answer) -> {
