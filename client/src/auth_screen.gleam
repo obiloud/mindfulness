@@ -300,7 +300,7 @@ fn login_form(state: AuthState) {
 }
 
 fn password_strength_indicator(password: String) {
-  let strength = calculate_password_strength(password)
+  let strength = echo calculate_password_strength(password)
 
   html.div([attribute.class("")], [
     // Strength bars
@@ -308,6 +308,7 @@ fn password_strength_indicator(password: String) {
       strength_bar(strength >= 1),
       strength_bar(strength >= 2),
       strength_bar(strength >= 3),
+      strength_bar(strength >= 4),
     ]),
 
     // Strength text
