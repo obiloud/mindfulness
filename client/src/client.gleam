@@ -1,9 +1,11 @@
-import api.{type AgentResponse, send_message}
+import api.{
+  type AgentResponse, type ResponseError, RefreshRequired, refresh, send_message,
+}
 
 import gleam/string
 import meditation
 
-import auth.{AuthSuccess}
+import auth.{AuthSuccess, LogoutSuccess, RefreshSuccess}
 import cartesia.{Connected}
 import dom
 import gleam/dynamic/decode
@@ -17,7 +19,6 @@ import lustre/element/html
 import lustre/event
 import mork
 import mork/to_lustre
-import rsvp
 import theme.{type Theme, Dark, Light, System}
 import utils.{delay_effect}
 
@@ -41,6 +42,8 @@ pub type Model {
     transcript: Option(String),
     chapters: Option(List(String)),
     access_token: Option(String),
+    refresh_token: Option(String),
+    queued_request: Option(#(String, Option(String))),
     auth: auth.AuthState,
   )
 }
@@ -51,7 +54,7 @@ pub type Msg {
   UserRequestedAudio
   AudioStarted
   AudioEnded
-  ReceiveChatResponse(Result(AgentResponse, rsvp.Error))
+  ReceiveChatResponse(Result(AgentResponse, ResponseError))
   SendMessage
   SetTheme(Theme)
   HideMeditationScreen
@@ -97,6 +100,8 @@ fn init(_flags) -> #(Model, Effect(Msg)) {
       chapters: None,
       auth: auth,
       access_token: None,
+      refresh_token: None,
+      queued_request: None,
     ),
     effect.map(eff, AuthMsg),
   )
@@ -168,6 +173,21 @@ fn update(model: Model, msg: Msg) -> #(Model, Effect(Msg)) {
       )
     }
 
+    ReceiveChatResponse(Error(RefreshRequired(content, thread_id))) -> #(
+      Model(..model, queued_request: Some(#(content, thread_id))),
+      case model.refresh_token {
+        Some(rt) ->
+          effect.batch([
+            effect.map(refresh(rt), fn(eff) {
+              AuthMsg(auth.RefreshCompleted(eff))
+            }),
+            effect.from(fn(dispatch) { dispatch(AuthMsg(auth.RefreshStarted)) }),
+          ])
+        None ->
+          effect.from(fn(dispatch) { dispatch(AuthMsg(auth.LogoutRequested)) })
+      },
+    )
+
     ReceiveChatResponse(Error(_)) -> #(model, effect.none())
 
     ShowMeditationScreen -> #(
@@ -220,8 +240,59 @@ fn update(model: Model, msg: Msg) -> #(Model, Effect(Msg)) {
       effect.none(),
     )
 
-    AuthMsg(AuthSuccess(token)) -> #(
-      Model(..model, access_token: Some(token)),
+    AuthMsg(AuthSuccess(access_token, refresh_token)) -> #(
+      Model(
+        ..model,
+        access_token: Some(access_token),
+        refresh_token: Some(refresh_token),
+      ),
+      effect.none(),
+    )
+
+    AuthMsg(RefreshSuccess(access_token, refresh_token)) -> #(
+      Model(
+        ..model,
+        access_token: Some(access_token),
+        refresh_token: Some(refresh_token),
+        queued_request: None,
+      ),
+      case model.queued_request {
+        Some(#(content, thread_id)) ->
+          effect.map(
+            send_message(content, thread_id, access_token),
+            ReceiveChatResponse,
+          )
+
+        None -> effect.none()
+      },
+    )
+
+    AuthMsg(LogoutSuccess) -> #(
+      Model(
+        chat_history: [],
+        is_streaming: False,
+        input_text: "",
+        loading: False,
+        thread_id: None,
+        theme: System,
+        show_meditation: False,
+        tts: cartesia.Model(
+          ws: None,
+          is_connected: False,
+          input_text: "",
+          chapters: None,
+          status_message: "Disconnected",
+          pending_chunks: [],
+          current_context_index: 0,
+        ),
+        answer: None,
+        transcript: None,
+        chapters: None,
+        auth: model.auth,
+        access_token: None,
+        refresh_token: None,
+        queued_request: None,
+      ),
       effect.none(),
     )
 

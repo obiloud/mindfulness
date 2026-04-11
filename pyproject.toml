@@ -57,7 +57,7 @@ dependencies = [
     "packaging==26.0",
     "passlib>=1.7.4",
     "propcache==0.4.1",
-    "psycopg==3.3.3",
+    "psycopg[binary]==3.3.3",
     "psycopg-binary==3.3.3",
     "psycopg-pool==3.3.0",
     "pydantic==2.12.5",
@@ -87,4 +87,6 @@ dependencies = [
     "xxhash==3.6.0",
     "yarl==1.23.0",
     "zstandard==0.25.0",
+    "psycopg2-binary>=2.9.11",
+    "asyncpg>=0.31.0",
 ]

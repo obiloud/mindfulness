@@ -1,123 +1,59 @@
 # backend/agent_a_chat/main.py
-import os
-import httpx
-from contextlib import asynccontextmanager
-from fastapi import FastAPI, BackgroundTasks, HTTPException, Request, Depends
-from fastapi.middleware.cors import CORSMiddleware
-from typing import Optional
-from pydantic import BaseModel
+"""
+Main entry point for Agent A Chat API.
+Handles app initialization, lifespan, and health checks.
+"""
 import logging
+from contextlib import asynccontextmanager
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+
+from shared.settings import get_settings
+from agent_a_chat.graph import create_chat_graph
+from shared.model_factory import get_fast_ollama_llm, get_fast_hf_llm
+from agent_a_chat.state import GraphContext
+from agent_a_chat.routes.authentication import router as auth_router
+from agent_a_chat.routes.chat import router as chat_router
+from agent_a_chat.routes.internal import router as internal_router
+from a2a.client import A2AClient, A2ACardResolver
+from a2a.utils.constants import AGENT_CARD_WELL_KNOWN_PATH, EXTENDED_AGENT_CARD_PATH
+from a2a.types import AgentCard
+from httpx import AsyncClient
 from psycopg_pool import AsyncConnectionPool
 from psycopg.rows import dict_row
-from uuid import uuid4
-from passlib.context import CryptContext
-from jose import JWTError, jwt
-from datetime import datetime, timedelta
-from fastapi.security import OAuth2PasswordBearer
-
-# LangGraph & Checkpointing
-from langchain.messages import HumanMessage
 from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
 from langgraph.store.postgres.aio import AsyncPostgresStore, PostgresIndexConfig
 from langgraph.store.postgres.base import ANNIndexConfig
 from fastembed import TextEmbedding
-from .graph import create_chat_graph
-from shared.model_factory import get_fast_ollama_llm, get_fast_hf_llm
+import os
+import logging
 
-# A2A SDK
-from a2a.client import A2AClient, A2ACardResolver
-from a2a.types import (
-    AgentCard,
-    MessageSendParams,
-    SendMessageRequest,
-    MessageSendConfiguration,
-    PushNotificationConfig,
-    Message, Role, Part, TextPart, DataPart
-)
-from a2a.utils.constants import (
-    AGENT_CARD_WELL_KNOWN_PATH,
-    EXTENDED_AGENT_CARD_PATH,
-)
-
-from shared.settings import get_settings
-from agent_a_chat.state import GraphContext, print_state
-import traceback
-
-# === AUTHENTICATION ===
-SECRET_KEY = "your-super-secret-key"  # In production, use environment variable
-ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 30
-
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/login")
-
-# === JWT Helper Functions ===
-
-
-def verify_password(plain_password: str, hashed_password: str) -> bool:
-    return pwd_context.verify(plain_password, hashed_password)
-
-
-def get_password_hash(password: str) -> str:
-    return pwd_context.hash(password)
-
-
-def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
-    to_encode = data.copy()
-    expire = datetime.utcnow() + (expires_delta or timedelta(minutes=15))
-    to_encode.update({"exp": expire})
-    return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
-
-# === User Model (for DB) ===
-
-
-class User(BaseModel):
-    email: str
-    password: str
-
-# === Auth Schemas ===
-
-
-class Token(BaseModel):
-    access_token: str
-    token_type: str = "bearer"
-
-
-class TokenData(BaseModel):
-    user_id: Optional[str] = None
-
-# === Auth Routes ===
-# We'll add these to the app later
-
-
-# === Database Setup ===
 logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
 
-s = get_settings()
+# === Lifespan Context Manager ===
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    async with httpx.AsyncClient(timeout=90.0) as httpx_client:
-
+    """Initialize app state and dependencies."""
+    async with AsyncClient(timeout=90.0) as httpx_client:
         resolver = A2ACardResolver(
             httpx_client=httpx_client,
-            base_url=s.synth_agent_url,
+            base_url=get_settings().synth_agent_url,
         )
 
         final_agent_card_to_use: AgentCard | None = None
 
         try:
+            logger = logging.getLogger(__name__)
             logger.info(
-                f'Attempting to fetch public agent card from: {s.synth_agent_url}{AGENT_CARD_WELL_KNOWN_PATH}'
+                f'Attempting to fetch public agent card from: {get_settings().synth_agent_url}{AGENT_CARD_WELL_KNOWN_PATH}'
             )
             _public_card = await resolver.get_agent_card()
 
             logger.info('Successfully fetched public agent card:')
-            logger.info(
-                _public_card.model_dump_json(indent=2, exclude_none=True)
-            )
+            logger.info(_public_card.model_dump_json(
+                indent=2, exclude_none=True))
             final_agent_card_to_use = _public_card
             logger.info(
                 '\nUsing PUBLIC agent card for client initialization (default).'
@@ -126,7 +62,7 @@ async def lifespan(app: FastAPI):
             if _public_card.supports_authenticated_extended_card:
                 try:
                     logger.info(
-                        f'\nPublic card supports authenticated extended card. Attempting to fetch from: {s.synth_agent_url}{EXTENDED_AGENT_CARD_PATH}'
+                        f'\nPublic card supports authenticated extended card. Attempting to fetch from: {get_settings().synth_agent_url}{EXTENDED_AGENT_CARD_PATH}'
                     )
                     auth_headers_dict = {
                         'Authorization': 'Bearer dummy-token-for-extended-card'
@@ -140,8 +76,7 @@ async def lifespan(app: FastAPI):
                     )
                     logger.info(
                         _extended_card.model_dump_json(
-                            indent=2, exclude_none=True
-                        )
+                            indent=2, exclude_none=True)
                     )
                     final_agent_card_to_use = _extended_card
                     logger.info(
@@ -152,7 +87,7 @@ async def lifespan(app: FastAPI):
                         f'Failed to fetch extended agent card: {e_extended}. Will proceed with public card.',
                         exc_info=True,
                     )
-            elif _public_card:  # supports_authenticated_extended_card is False or None
+            elif _public_card:
                 logger.info(
                     '\nPublic card does not indicate support for an extended card. Using public card.'
                 )
@@ -172,7 +107,7 @@ async def lifespan(app: FastAPI):
 
         # Initialize the connection pool
         async with AsyncConnectionPool(
-            s.postgres_connection_string,
+            get_settings().postgres_connection_string,
             max_size=10,
             kwargs={"autocommit": True, "row_factory": dict_row}
         ) as pool:
@@ -186,15 +121,9 @@ async def lifespan(app: FastAPI):
             )
 
             def bge_embed_wrapper(input_data):
-                # Ensure input is a list (FastEmbed requirement)
                 if isinstance(input_data, str):
                     input_data = [input_data]
-
-                # Generate embeddings (returns a generator of ndarrays)
                 embeddings_generator = embedding_model.embed(input_data)
-
-                # Convert ndarrays to lists (Postgres requirement)
-                # and return the results
                 return [e.tolist() for e in embeddings_generator]
 
             store = AsyncPostgresStore(
@@ -212,9 +141,9 @@ async def lifespan(app: FastAPI):
             await store.setup()
 
             llm = None
-            if s.inference_provider == "ollama":
+            if get_settings().inference_provider == "ollama":
                 llm = get_fast_ollama_llm()
-            elif s.inference_provider == "huggingface":
+            elif get_settings().inference_provider == "huggingface":
                 llm = get_fast_hf_llm()
 
             context = GraphContext(llm=llm)
@@ -227,14 +156,15 @@ async def lifespan(app: FastAPI):
             app.state.context = context
 
             logger.info(
-                "Mindfulness API is ready. Database checkpointer and store initialized.")
+                "Mindfulness API is ready. Database checkpointer and store initialized."
+            )
 
             yield
 
     logger.info("Application shutting down. Database connection pool closed.")
 
 
-# Initialize FastAPI with the lifespan
+# === Initialize FastAPI ===
 app = FastAPI(title="Pulse Lotus - Requester Agent", lifespan=lifespan)
 
 app.add_middleware(
@@ -246,299 +176,14 @@ app.add_middleware(
 )
 
 
-# --- Schemas ---
-class ChatRequest(BaseModel):
-    message: str
-    user_id: Optional[str] = None
-    thread_id: Optional[str] = None
-
-
-class ChatResponse(BaseModel):
-    reply: str
-    thread_id: str
-    user_id: str
-    answer: Optional[str] = None
-    transcript: Optional[str] = None
-    chapters: Optional[list] = None
-
-
-class SynthesisResult(BaseModel):
-    thread_id: str
-    answer: str
-    transcript: str
-    chapters: Optional[list] = None
-    status: str = "completed"
-
-# === Message Saving Helper ===
-
-
-async def save_message(thread_id: str, user_id: str, role: str, content: str):
-    if not app.state or not app.state.db_pool:
-        logger.warning("Database pool not available. Cannot save message.")
-        return
-    async with app.state.db_pool.connection() as conn:
-        async with conn.cursor() as cur:
-            try:
-                await cur.execute(
-                    """
-                    INSERT INTO messages (id, thread_id, user_id, role, content, created_at)
-                    VALUES (%s, %s, %s, %s, %s, NOW())
-                    """,
-                    (str(uuid4()), thread_id, user_id, role, content)
-                )
-                logger.debug(f"Saved message: {role} -> {content[:50]}...")
-            except Exception as e:
-                logger.error(f"Failed to save message: {e}", exc_info=True)
-
-# === Auth Routes ===
-
-
-@app.post("/auth/register")
-async def register(user: User):
-    """
-    Register a new user.
-    """
-    try:
-        # Check if user already exists
-        async with app.state.db_pool.connection() as conn:
-            result = await conn.execute(
-                "SELECT id FROM users WHERE email = %s",
-                (user.email,)
-            )
-            if await result.fetchone():
-                raise HTTPException(
-                    status_code=400, detail="Email already registered")
-
-            # Hash password
-            hashed_password = get_password_hash(user.password)
-
-            # Insert user
-            new_user_id = str(uuid4())
-
-            async with conn.cursor() as cur:
-                await cur.execute(
-                    """
-                    INSERT INTO users (id, email, password_hash)
-                    VALUES (%s, %s, %s)
-                    """,
-                    (new_user_id, user.email, hashed_password)
-                )
-
-            # Create token
-            token = create_access_token(
-                data={"sub": new_user_id}, expires_delta=timedelta(days=1))
-            return {"access_token": token, "token_type": "bearer"}
-    except Exception as e:
-        raise HTTPException(
-            status_code=500, detail=str(e))
-    finally:
-        pass
-
-
-@app.post("/auth/login")
-async def login(user: User):
-    """
-    Login user and return JWT token.
-    """
-    async with app.state.db_pool.connection() as conn:
-        result = await conn.execute(
-            "SELECT id, email, password_hash FROM users WHERE email = %s",
-            (user.email,)
-        )
-        row = await result.fetchone()
-        if not row:
-            raise HTTPException(status_code=400, detail="Invalid credentials")
-
-        # Verify password
-        if not verify_password(user.password, row["password_hash"]):
-            raise HTTPException(status_code=400, detail="Invalid credentials")
-
-        # Create token
-        token = create_access_token(
-            data={"sub": str(row["id"])}, expires_delta=timedelta(days=1))
-        return {"access_token": token, "token_type": "bearer"}
-
-
-@app.get("/users/me")
-async def get_current_user(token: str = Depends(oauth2_scheme)):
-    """
-    Get current authenticated user.
-    """
-    try:
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        user_id: str = payload.get("sub")
-        if user_id is None:
-            raise HTTPException(status_code=401, detail="Invalid token")
-        return {"user_id": user_id}
-    except JWTError:
-        raise HTTPException(status_code=401, detail="Invalid token")
-
-# === Message History Endpoint ===
-
-
-@app.get("/v1/mindfulness/messages/history/{thread_id}")
-async def get_message_history(thread_id: str, user_id: str = None):
-    """
-    Retrieve conversation history for a thread.
-    """
-    async with app.state.db_pool.connection() as conn:
-        result = await conn.execute(
-            """
-            SELECT thread_id, user_id, role, content, created_at
-            FROM messages
-            WHERE thread_id = %s AND user_id = %s
-            ORDER BY created_at ASC
-            """,
-            (thread_id, user_id)
-        )
-        messages = []
-        for row in result.fetchall():
-            messages.append({
-                "thread_id": row["thread_id"],
-                "user_id": row["user_id"],
-                "role": row["role"],
-                "content": row["content"],
-                "created_at": row["created_at"]
-            })
-    return {"thread_id": thread_id, "messages": messages}
-
-# === Routes (unchanged except for user_id handling) ===
-
-
-@app.post("/v1/mindfulness/chat", response_model=ChatResponse)
-async def chat_endpoint(body: ChatRequest, request: Request, bg_tasks: BackgroundTasks, current_user: TokenData = Depends(get_current_user)):
-    """
-    Handles user messages, advances the fast chat graph, and evaluates
-    the patience loop to trigger the heavy-compute synthesis graph.
-    """
-    graph = request.app.state.chat_graph
-    a2a_client = app.state.a2a_client
-
-    thread_id = str(uuid4()) if body.thread_id is None else body.thread_id
-    user_id = current_user.get("user_id")
-
-    context = app.state.context
-
-    # Validate user_id (in real app, verify user exists)
-    if not user_id:
-        raise HTTPException(status_code=400, detail="User ID is required")
-
-    config = {"configurable": {"thread_id": thread_id, "user_id": user_id}}
-
-    try:
-        # Advance the graph state with the new user message
-        state = await graph.ainvoke({"messages": [HumanMessage(content=body.message)]}, config=config, context=context)
-
-        logger.info(f"final_state: {print_state(state)}")
-
-        synth_status = state.get("synth_status")
-
-        if synth_status == "requested":
-            summary = state.get("summary", "")
-            namespace = ("preferences", user_id)
-
-            data = {"thread_id": thread_id, "user_id": user_id}
-
-            items = await app.state.store.asearch(namespace)
-            if items:
-                for item in items:
-                    data[item.key] = item.value
-
-            bg_tasks.add_task(
-                a2a_client.send_message,
-                SendMessageRequest(id=str(uuid4()), params=MessageSendParams(
-                    configuration=MessageSendConfiguration(
-                        push_notification_config=PushNotificationConfig(
-                            url="http://chat-agent:8000/internal/v1/synthesis-callback")
-                    ),
-                    message=Message(
-                        message_id=str(uuid4()),
-                        role=Role('user'),
-                        parts=[
-                            Part(root=TextPart(text=summary)),
-                            Part(root=DataPart(data=data))
-                        ])
-                ))
-            )
-            await graph.aupdate_state(config, {"synth_status": "in_progress"})
-
-        # Extract the AI's latest reply
-        last_message = state["messages"][-1]
-        reply = last_message.content
-        answer = last_message.additional_kwargs.get("answer")
-        transcript = last_message.additional_kwargs.get("transcript")
-        chapters = last_message.additional_kwargs.get("chapters")
-
-        # Save user and AI messages
-        await save_message(thread_id, user_id, "user", body.message)
-        await save_message(thread_id, user_id, "ai", reply)
-
-        return ChatResponse(
-            reply=reply,
-            user_id=user_id,
-            thread_id=thread_id,
-            answer=answer,
-            transcript=transcript,
-            chapters=chapters
-        )
-
-    except Exception as e:
-        traceback.print_exc()
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-# --- Internal Callback Endpoint ---
-@app.post("/internal/v1/synthesis-callback")
-async def handle_synthesis_complete(result: SynthesisResult, request: Request):
-    """
-    Receives the finished transcript and writes it to the BaseStore.
-    This avoids the LangGraph checkpointer lock during active graph runs.
-    """
-    store = request.app.state.store  # Ensure the store is registered in app.state
-
-    thread_id = result.thread_id
-    answer = result.answer
-    transcript = result.transcript
-    chapters = result.chapters
-    status = result.status
-
-    if status != "completed":
-        logger.error(f"Synthesis failed for thread {thread_id}")
-        return {"status": "error"}
-
-    # Define the same namespace used by the hydrate_node
-    namespace = ("a2a", thread_id, "pending_updates")
-    # Unique key for this specific artifact
-    item_key = f"synth_{result.task_id}" if hasattr(
-        result, 'task_id') else "latest_synthesis"
-
-    try:
-        # Instead of updating graph state directly, we store the artifact
-        await store.aput(
-            namespace,
-            item_key,
-            {
-                "answer": answer,
-                "transcript": transcript,
-                "chapters": chapters,
-                "synth_status": "completed",
-                "is_synthesis_ready": True
-            }
-        )
-
-        logger.info(
-            f"Artifact stored in BaseStore for thread {thread_id}. Bypassed checkpointer lock."
-        )
-
-    except Exception as e:
-        logger.error(f"Failed to write to BaseStore: {e}")
-        return {"status": "error", "message": str(e)}
-
-    return {"status": "acknowledged"}
-
-# --- Health Check ---
-
-
+# === Health Check ===
 @app.get("/health")
 async def health_check():
+    """Health check endpoint."""
     return {"status": "healthy", "service": "agent_a_chat"}
+
+
+# === Include Routers ===
+app.include_router(auth_router, prefix="/auth", tags=["Authentication"])
+app.include_router(chat_router, prefix="/v1/mindfulness", tags=["Chat"])
+app.include_router(internal_router, prefix="/internal", tags=["Internal"])

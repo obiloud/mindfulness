@@ -23,6 +23,9 @@ COPY ./backend/agent_b_synth ./agent_b_synth
 
 COPY ./backend/shared ./shared
 
+# (Optional) Include the sqlalchemy entities
+# COPY ./backend/entities ./entities
+
 # Agent B exposes the A2A server port
 EXPOSE 8001
 

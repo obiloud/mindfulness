@@ -10,7 +10,7 @@ from agent_b_synth.graph import build_synth_graph
 
 from shared.settings import get_settings
 from shared.model_factory import get_heavy_hf_llm, get_heavy_ollama_llm
-from shared.datamodels.preferences import VoiceBlueprint, MindfulnessProfile
+from shared.memory.preferences import VoiceBlueprint, MindfulnessProfile
 import logging
 import asyncio
 import httpx

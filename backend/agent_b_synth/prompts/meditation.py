@@ -1,6 +1,6 @@
 from shared.prompts.base import GLOBAL_IDENTITY
 import inspect
-from shared.datamodels.preferences import (
+from shared.memory.preferences import (
     InstructionStyle,
     MindfulnessProfile,
     TechnicalDepth,
